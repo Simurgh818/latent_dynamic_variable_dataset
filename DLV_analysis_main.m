@@ -14,76 +14,97 @@ s_train = double(s_i);
 s_test = double(s_i_test);
 
 % 1. PCA Analysis (train & test)
-[coeff, score, explained, num_sig] = runPCAAnalysis(s_train, s_test,h_f, h_f_test, param);
+[coeff, score, explained, num_sig_components, rec_err_pca] = runPCAAnalysis(s_train, s_test, h_f, h_f_test, param);
 
 % 2. ICA Analysis (train & test)
-[icasig, rec_err_ica] = runICAAnalysis(s_train, s_test, h_f, h_f_test, param, num_sig);
+[icasig, rec_err_ica] = runICAAnalysis(s_train, s_test, h_f, h_f_test, param, num_sig_components);
 
 % 3. UMAP Analysis (train & test clusters)
-runUMAPAnalysis(s_train, s_test, param, h_f, h_f_test);
+runUMAPAnalysis(s_train, s_test, param, h_f, h_f_test, num_sig_components);
 
 end
+%% PCA
+function [coeff, score, explained, num_sig_components, rec_err_pca] = runPCAAnalysis(s_train, s_test, h_f, h_f_test, param)
+% Performs PCA, MP thresholding, projection, and reconstruction error analysis
+% Inputs:
+%   s_train, s_test - Neuron × Time matrices (spike data)
+%   h_f, h_f_test   - Time × LatentField matrices (true latents)
+%   param           - Parameter struct with N_F (number of latent fields)
+% Outputs:
+%   coeff           - PCA components (neurons × PCs)
+%   score           - Projected train data (time × PCs)
+%   explained       - Variance explained by PCs
+%   num_sig_components - # of significant PCs by Marchenko–Pastur
 
-%% PCA Analysis
-function [coeff, score, explained, num_sig_components] = runPCAAnalysis(s_train, s_test,h_f, h_f_test,param)
-% Performs PCA on training, computes MP threshold, and plots for both train & test
-% Outputs: coeff, score (train), explained variance, and # significant PCs
-
-% Center & PCA
+% Run PCA on training data
 [coeff, score, ~, ~, explained] = pca(s_train');
 
-% Eigenvalues for MP threshold
+% Compute eigenvalues and MP threshold
 eig_vals = eig(cov(s_train'));
-[N_train, T_train] = size(s_train);
-Q = T_train / N_train;
+[N, T] = size(s_train);
+Q = T / N;
 sigma2 = mean(eig_vals);
 lambda_max = sigma2 * (1 + sqrt(1/Q))^2;
 num_sig_components = sum(eig_vals > lambda_max);
-fprintf('PCA MP threshold: keep %d components.\n', num_sig_components);
 
-% Plot cumulative variance (train)
-figure; 
-plot(cumsum(explained),'b-','LineWidth',1.5); hold on;
-xline(num_sig_components,'--r','LineWidth',1);
-title('PCA: Cumulative Variance Explained (Train)');
-xlabel('PC index'); ylabel('Cumulative (%)');
-legend('Train','MP Threshold');
+fprintf('PCA MP threshold suggests keeping %d components.\n', num_sig_components);
 
-% Project test data into PC space and plot test variance explained
+% Project test data into PC space
 score_test = (s_test' - mean(s_train',1)) * coeff;
-var_test = var(score_test);
-explained_test = 100 * var_test ./ sum(var_test);
-cum_explained_test = cumsum(explained_test);
-plot(cum_explained_test,'g--','LineWidth',1.5);
-legend('Train','MP Threshold','Test');
 
-% Reconstruction error of latent fields
-rec_err_pca = zeros(num_sig_components, param.N_F, 2); % train/test
+% Compute variance explained on test set
+var_test = var(score_test);
+explained_test = 100 * var_test / sum(var_test);
+cum_explained_test = cumsum(explained_test);
+
+% Plot cumulative variance
+figure;
+plot(cumsum(explained), 'b-', 'LineWidth', 1.5); hold on;
+xline(num_sig_components, '--r', 'LineWidth', 1.2);
+plot(cum_explained_test, 'g--', 'LineWidth', 1.5);
+title('PCA: Cumulative Variance Explained');
+xlabel('PC Index'); ylabel('Cumulative Variance (%)');
+legend('Train', 'MP Threshold', 'Test');
+grid on;
+
+% === Reconstruction Error ===
+reconstruction_error_pca = zeros(num_sig_components, param.N_F);
+reconstruction_error_test_pca = zeros(num_sig_components, param.N_F);
+
 for idx = 1:num_sig_components
     for f = 1:param.N_F
-        % train error: regress h_f onto top idx PCs
-        w = (score(:,1:idx)' * score(:,1:idx)) \ (score(:,1:idx)' * h_f(:,f));
-        rec = score(:,1:idx) * w;
-        rec_err_pca(idx,f,1) = mean((h_f(:,f) - rec).^2);
-        % test error
-        w_test = (score_test(:,1:idx)' * score_test(:,1:idx)) \ (score_test(:,1:idx)' * h_f_test(:,f));
-        rec_test = score_test(:,1:idx) * w_test;
-        rec_err_pca(idx,f,2) = mean((h_f_test(:,f) - rec_test).^2);
+        % Train
+        w_train = lsqlin(score(:,1:idx), h_f(:,f));
+        h_f_recon_train = score(:,1:idx) * w_train;
+        reconstruction_error_pca(idx, f) = mean((h_f(:,f) - h_f_recon_train).^2);
+
+        % Test
+        h_f_recon_test = score_test(:,1:idx) * w_train;
+        reconstruction_error_test_pca(idx, f) = mean((h_f_test(:,f) - h_f_recon_test).^2);
     end
 end
 
-% Plot PCA reconstruction error
-figure;
+% Plot Reconstruction Error
+figure('Position', [100, 100, 600, 300]);
+tiledlayout(1,1);
+nexttile;
 hold on;
 colors = lines(param.N_F);
 for f = 1:param.N_F
-    plot(1:num_sig_components, rec_err_pca(:,f,1), '-', 'Color',colors(f,:), 'DisplayName',['PCA Train Latent ',num2str(f)]);
-    plot(1:num_sig_components, rec_err_pca(:,f,2), '--','Color',colors(f,:), 'DisplayName',['PCA Test  Latent ',num2str(f)]);
+    plot(1:num_sig_components, reconstruction_error_pca(:, f), ...
+        'Color', colors(f,:), 'DisplayName', ['Train PCA - Latent ' num2str(f)]);
+    plot(1:num_sig_components, reconstruction_error_test_pca(:, f), ...
+        'LineStyle', '--', 'Color', colors(f,:), 'DisplayName', ['Test PCA - Latent ' num2str(f)]);
 end
-xlabel('Number of PCs'); ylabel('MSE');
-title('PCA Reconstruction Error'); legend('show'); grid on;
+xlabel('Number of PCs');
+ylabel('Mean squared reconstruction error');
+title('PCA Reconstruction Error for Each Latent Variable');
+legend('show');
+grid on;
+hold off;
 
 end
+
 
 %% ICA Analysis
 function [icasig, rec_err] = runICAAnalysis(s_train, s_test, h_f, h_f_test, param, num_comps)
@@ -131,47 +152,85 @@ title('ICA Reconstruction Error'); legend('show'); grid on;
 end
 
 %% UMAP Analysis
-function runUMAPAnalysis(s_train, s_test, param, h_f, h_f_test)
-% Runs UMAP on training & test data and colors by latent clusters
+function runUMAPAnalysis(s_train, s_test, param, h_f, h_f_test, num_sig_components)
+% Runs UMAP on training & test data and computes reconstruction error
+% Inputs:
+%   s_train, s_test      - Neuron × Time matrices (binary spikes)
+%   h_f, h_f_test        - Time × LatentField matrices (ground truth latents)
+%   num_sig_components   - Number of components to use in UMAP embedding
 
-% Pre-reduce dimension for speed
-s_pca_train = pca(zscore(s_train'));
-s_emb_train = s_pca_train(:,1:50);
+% Convert to double and transpose to Time × Neurons
+s_i_double       = double(s_train)';
+s_i_test_double  = double(s_test')';
 
-s_pca_test = pca(zscore(s_test'));
-s_emb_test = s_pca_test(:,1:50);
+% Define UMAP hyperparameters
+n_neighbors = 50;
+min_dist = 0.75;
+n_components = num_sig_components;
 
-% Number of clusters = number of latent fields
-num_clusters = param.N_F;
+% Run UMAP on training data
+[umap_s_i, umap_params] = run_umap(s_i_double, ...
+    'n_neighbors', n_neighbors, ...
+    'min_dist', min_dist, ...
+    'n_components', n_components, ...
+    'verbose', 'none', ...
+    'gui', false);
 
-% Cluster indices for train and test
-cluster_idx_train = kmeans(h_f, num_clusters);
-cluster_idx_test  = kmeans(h_f_test,  num_clusters);
+% Run UMAP on test data
+[umap_s_i_test, umap_params_test] = run_umap(s_i_test_double, ...
+    'n_neighbors', n_neighbors, ...
+    'min_dist', min_dist, ...
+    'n_components', n_components, ...
+    'verbose', 'none', ...
+    'gui', false);
 
-% Define hyperparam grid
-nN = [5 30 75]; dD = [0.5 0.75];
-figure;
-tiledlayout(numel(nN), numel(dD),'TileSpacing','compact');
-plot_idx = 1;
-for nn = nN
-    for md = dD
-        % Embed training data
-        [emb_train, ~] = run_umap(s_emb_train, ...
-            'n_neighbors', nn, 'min_dist', md, ...
-            'n_components', 2, 'verbose','none','gui',false);
-        nexttile(plot_idx);
-        gscatter(emb_train(:,1), emb_train(:,2), cluster_idx_train);
-        title(sprintf('Train: nn=%d, md=%.2f', nn, md)); axis off;
-        plot_idx = plot_idx + 1;
+% Visualize training UMAP colored by latent structure
+cluster_idx = kmeans(h_f, param.N_F);
+figure('Position', [100, 100, 600, 600]);
+gscatter(umap_s_i(:,1), umap_s_i(:,2), cluster_idx);
+xlabel('UMAP Dimension 1');
+ylabel('UMAP Dimension 2');
+title({['UMAP Colored by Latent Variable h\_f'], ...
+       ['n=' num2str(n_neighbors)], ['minDist=' num2str(min_dist)]});
+colormap turbo;
+colorbar;
+grid on;
+
+% === Reconstruction Error ===
+reconstruction_error_umap = zeros(n_components, param.N_F);
+reconstruction_error_test_umap = zeros(n_components, param.N_F);
+
+for idx = 1:n_components
+    for f = 1:param.N_F
+        % Train reconstruction
+        x_umap = lsqlin(umap_s_i(:, 1:idx), h_f(:,f));
+        h_f_reconstructed_umap = umap_s_i(:, 1:idx) * x_umap;
+        reconstruction_error_umap(idx,f) = mean((h_f(:,f) - h_f_reconstructed_umap).^2);
+
+        % Test reconstruction using same weights
+        h_f_test_reconstructed_umap = umap_s_i_test(:, 1:idx) * x_umap;
+        reconstruction_error_test_umap(idx,f) = mean((h_f_test(:,f) - h_f_test_reconstructed_umap).^2);
     end
 end
 
-% Also show test embedding for last hyperparams
-[emb_test, ~] = run_umap(s_emb_test, ...
-    'n_neighbors', nN(end), 'min_dist', dD(end), ...
-    'n_components', 2, 'verbose','none','gui',false);
-figure;
-gscatter(emb_test(:,1), emb_test(:,2), cluster_idx_test);
-title(sprintf('Test: nn=%d, md=%.2f', nN(end), dD(end)));
-axis off;
+% === Plot Reconstruction Error ===
+figure('Position',[100,100, 600, 300])
+tiledlayout(1,1);
+nexttile;
+hold on;
+colors = lines(param.N_F);
+for f = 1:param.N_F
+    plot(1:n_components, reconstruction_error_umap(:, f), ...
+        'Color', colors(f,:), 'DisplayName', ['Train UMAP - Latent ' num2str(f)]);
+    plot(1:n_components, reconstruction_error_test_umap(:, f), ...
+        'LineStyle', '--', 'Color', colors(f,:), 'DisplayName', ['Test UMAP - Latent ' num2str(f)]);
+end
+xlim([1 n_components]);
+xlabel('Number of UMAP components');
+ylabel('Mean squared reconstruction error');
+title('UMAP Reconstruction Error for Each Latent Variable');
+legend('show');
+grid on;
+hold off;
+
 end
