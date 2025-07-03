@@ -23,54 +23,6 @@ s_test = double(s_i_test);
 runUMAPAnalysis(s_train, s_test, param, h_f, h_f_test, num_sig_components);
 
 end
-%% PCA
-
-
-
-%% ICA Analysis
-function [icasig, rec_err] = runICAAnalysis(s_train, s_test, h_f, h_f_test, param, num_comps)
-% Runs EEGLAB ICA on training, then computes reconstruction error on train & test
-
-% Prepare EEG structure for train
-EEG = eeg_emptyset();
-EEG.data = s_train;
-EEG.nbchan = size(s_train,1); EEG.pnts = size(s_train,2);
-EEG.trials = 1; EEG.srate = 100; EEG.xmin = 0;
-EEG = eeg_checkset(EEG);
-
-% Run ICA with PCA whitening to num_comps
-EEG = pop_runica(EEG, 'extended',1, 'pca', num_comps, 'interrupt','off');
-icasig = double(EEG.icaact)';  % time × ICs
-
-icasig_test = EEG.icawinv' * s_test;
-icasig_test = real(icasig_test)';  % time × ICs
-
-% Reconstruction error per latent on train & test
-rec_err = zeros(num_comps, param.N_F, 2); % 3rd dim: 1=train,2=test
-for idx = 1:num_comps
-    for f = 1:param.N_F
-        % fit on train
-       % Reconstruct latent field f from first 'idx' ICs using least-squares
-        x_train = lsqlin(icasig(:,1:idx), h_f(:,f));
-        h_f_reconstructed_ica = icasig(:,1:idx) * x_train;
-        rec_err(idx,f,1) = mean((h_f(:,f) - h_f_reconstructed_ica).^2);
-        % test
-        h_f_test_reconstructed = icasig_test(:,1:idx) * x_train;
-        rec_err(idx,f,2) = mean((h_f_test(:,f) - h_f_test_reconstructed).^2);
-    end
-end
-
-% Plot
-figure;
-hold on;
-colors = lines(param.N_F);
-for f = 1:param.N_F
-    plot(1:num_comps, rec_err(:,f,1), '-', 'Color',colors(f,:), 'DisplayName',['Train Latent ',num2str(f)]);
-    plot(1:num_comps, rec_err(:,f,2), '--','Color',colors(f,:), 'DisplayName',['Test  Latent ',num2str(f)]);
-end
-xlabel('Number of ICs'); ylabel('MSE');
-title('ICA Reconstruction Error'); legend('show'); grid on;
-end
 
 %% UMAP Analysis
 function runUMAPAnalysis(s_train, s_test, param, h_f, h_f_test, num_sig_components)

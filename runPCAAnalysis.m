@@ -36,12 +36,35 @@ cum_explained_test = cumsum(explained_test);
 figure;
 plot(cumsum(explained), 'b-', 'LineWidth', 1.5); hold on;
 xline(num_sig_components, '--r', ['Significant MP PCs ' num2str(num_sig_components)],'LineWidth', 1.2);
-plot(cum_explained_test, 'g--', 'LineWidth', 1.5);
+plot(cum_explained_test, 'g-', 'LineWidth', 1.5);
 title('PCA: Cumulative Variance Explained');
 xlabel('PC Index'); ylabel('Cumulative Variance (%)');
 ylim([0 100]);
 legend('Train', 'MP Threshold', 'Test');
 grid on;
+
+% Correlation between latent fields and PCA activations
+figure;
+cc_mat = corrcoef([h_f(1:size(score,1),:) score(:, 1:num_sig_components)]);
+cc_mat_sub = cc_mat(1:4, 5:end);
+hold on;
+imagesc(cc_mat_sub, [-1 1]); colorbar;
+yticks(1:4);
+xlim([0 num_sig_components+1]);
+title('Correlation between true h_f and recovered PCs');
+xlabel('Principal Components');
+ylabel('True Latent Variables');
+% Add numerical annotations
+for i = 1:size(cc_mat_sub,1)
+    for j = 1:size(cc_mat_sub,2)
+        text(j, i, sprintf('%.2f', cc_mat_sub(i,j)), ...
+            'HorizontalAlignment', 'center', ...
+            'Color', 'w', 'FontSize',8, ...
+            'FontWeight', 'bold');
+    end
+end
+hold off;
+
 
 % === Reconstruction Error ===
 reconstruction_error_pca = zeros(num_sig_components, param.N_F);

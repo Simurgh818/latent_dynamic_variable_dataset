@@ -184,3 +184,5 @@ DLV_dimensionality_reduction_methods.asv
 DLV_dimensionality_reduction_methos.mlx
 DLV_analysis_main.asv
 spike_to_eeg.asv
+runPCAAnalysis.asv
+runICAAnalysis.asv
