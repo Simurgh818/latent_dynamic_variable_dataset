@@ -12,7 +12,7 @@ EEG = eeg_checkset(EEG);
 EEG = pop_runica(EEG, 'extended',1, 'pca', num_comps, 'interrupt','off');
 icasig = double(EEG.icaact)';  % time × ICs
 
-icasig_test = EEG.icawinv' * s_test;
+icasig_test = EEG.icaweights * EEG.icasphere * s_test;
 icasig_test = real(icasig_test)';  % time × ICs
 
 % Reconstruction error per latent on train & test
