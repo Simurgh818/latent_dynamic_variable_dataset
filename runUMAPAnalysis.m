@@ -1,5 +1,5 @@
 function [umap_s_i, umap_s_i_test, reconstruction_error_umap, reconstruction_error_test_umap] = ...
-    runUMAPAnalysis(s_train, s_test, param, h_f_train, h_f_test, num_sig_components)
+    runUMAPAnalysis(n_neighbors, min_dist, s_train, s_test, param, h_f_train, h_f_test, num_sig_components)
 % runUMAPAnalysis applies UMAP to spike data and computes reconstruction error
 % Inputs:
 %   s_train         : Neurons × Time training spike data
@@ -16,8 +16,6 @@ function [umap_s_i, umap_s_i_test, reconstruction_error_umap, reconstruction_err
 %   reconstruction_error_test_umap : [n_comp × N_F] MSE (test)
 
 %% 1. Set Parameters
-n_neighbors = 10;
-min_dist    = 0.1;
 n_components = num_sig_components;
 
 %% 2. Format Data

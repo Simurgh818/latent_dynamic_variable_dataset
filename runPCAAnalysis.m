@@ -1,5 +1,5 @@
-function [coeff, score, explained, num_sig_components, reconstruction_error_pca, reconstruction_error_test_pca] = ...
-    runPCAAnalysis(s_train, s_test, h_f, h_f_test, param)
+function [coeff, score, explained, reconstruction_error_pca, reconstruction_error_test_pca] = ...
+    runPCAAnalysis(s_train, s_test, h_f, h_f_test, param, num_sig_components)
 % Performs PCA, MP thresholding, projection, and reconstruction error analysis
 % Inputs:
 %   s_train, s_test - Neuron × Time matrices (spike data)
@@ -13,16 +13,6 @@ function [coeff, score, explained, num_sig_components, reconstruction_error_pca,
 
 % Run PCA on training data
 [coeff, score, ~, ~, explained] = pca(s_train');
-
-% Compute eigenvalues and MP threshold
-eig_vals = eig(cov(s_train'));
-[N, T] = size(s_train);
-Q = T / N;
-sigma2 = mean(eig_vals);
-lambda_max = sigma2 * (1 + sqrt(1/Q))^2;
-num_sig_components = sum(eig_vals > lambda_max);
-
-fprintf('PCA MP threshold suggests keeping %d components.\n', num_sig_components);
 
 % Project test data into PC space
 score_test = (s_test' - mean(s_train',1)) * coeff;

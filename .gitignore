@@ -186,3 +186,4 @@ DLV_analysis_main.asv
 spike_to_eeg.asv
 runPCAAnalysis.asv
 runICAAnalysis.asv
+runUMAPAnalysis.asv

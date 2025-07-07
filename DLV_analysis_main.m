@@ -1,4 +1,4 @@
-function DLV_analysis_main(s_i, param)
+function DLV_analysis_main(param)
 % Modular functions for PCA, ICA, and UMAP analyses of DLV model data
 % Main wrapper to run PCA, ICA, and UMAP analyses
 % Inputs:
@@ -6,104 +6,41 @@ function DLV_analysis_main(s_i, param)
 %   param : struct with fields (N_neur, N_F, ... )
 
 [s_i, param, h_f] = sampleMorrellModel(param);
-% Convert to double
-s_train = double(s_i);
 
-% Generate test dataset with same parameters
+% testing Spike to EEG function:
+target_bin_size = 0.05; % 50 ms
+tau = 25; % Post-synaptic kernel, Alpha kernel's number of bins to the peak of the kernel
+smooth_sigma = 5; % Std. Dev. of the Gaussian kernel in bins
+group_size = 8; % grouping of neurons per channel
+
+[s_eeg_like, h_f_processed] = spike_to_eeg(s_i, h_f, param, target_bin_size, tau, group_size, smooth_sigma);
+% Marchenko–Pastur threshold
+eig_vals = eig(cov(s_eeg_like'));
+[N, T] = size(s_eeg_like);
+Q = T / N;
+sigma2 = mean(eig_vals);           % crude estimate of noise variance
+lambda_max = sigma2 * (1 + sqrt(1/Q))^2;
+
+% Find number of components above the MP threshold
+num_sig_components = sum(eig_vals > lambda_max);
+fprintf('Marchenko–Pastur suggests keeping %d PCs\n', num_sig_components);
+
 [s_i_test, param_test, h_f_test] = sampleMorrellModel(param);
-s_test = double(s_i_test);
+[s_eeg_like_test, h_f_processed_test] = spike_to_eeg(s_i_test,h_f_test, param, target_bin_size,tau, group_size, smooth_sigma);
+
 
 % 1. PCA Analysis (train & test)
-[coeff, score, explained, num_sig_components, rec_err_pca] = runPCAAnalysis(s_train, s_test, h_f, h_f_test, param);
+[coeff, score, explained, rec_err_pca] = runPCAAnalysis(s_eeg_like, s_eeg_like_test, h_f_processed, h_f_processed_test, param, num_sig_components);
 
 % 2. ICA Analysis (train & test)
-[icasig, rec_err_ica] = runICAAnalysis(s_train, s_test, h_f, h_f_test, param, num_sig_components);
+[icasig, rec_err] = runICAAnalysis(s_eeg_like, s_eeg_like_test, h_f_processed, h_f_processed_test, param, num_sig_components);
+
+n_neighbors = 10;
+min_dist    = 0.10;
 
 % 3. UMAP Analysis (train & test clusters)
-runUMAPAnalysis(s_train, s_test, param, h_f, h_f_test, num_sig_components);
+[umap_s_i, umap_s_i_test, reconstruction_error_umap, reconstruction_error_test_umap] = ...
+    runUMAPAnalysis(n_neighbors, min_dist, s_eeg_like, s_eeg_like_test, param, h_f_processed, h_f_processed_test, num_sig_components);
 
-end
-
-%% UMAP Analysis
-function runUMAPAnalysis(s_train, s_test, param, h_f, h_f_test, num_sig_components)
-% Runs UMAP on training & test data and computes reconstruction error
-% Inputs:
-%   s_train, s_test      - Neuron × Time matrices (binary spikes)
-%   h_f, h_f_test        - Time × LatentField matrices (ground truth latents)
-%   num_sig_components   - Number of components to use in UMAP embedding
-
-% Convert to double and transpose to Time × Neurons
-s_i_double       = double(s_train)';
-s_i_test_double  = double(s_test')';
-
-% Define UMAP hyperparameters
-n_neighbors = 50;
-min_dist = 0.75;
-n_components = num_sig_components;
-
-% Run UMAP on training data
-[umap_s_i, umap_params] = run_umap(s_i_double, ...
-    'n_neighbors', n_neighbors, ...
-    'min_dist', min_dist, ...
-    'n_components', n_components, ...
-    'verbose', 'none', ...
-    'gui', false);
-
-% Run UMAP on test data
-[umap_s_i_test, umap_params_test] = run_umap(s_i_test_double, ...
-    'n_neighbors', n_neighbors, ...
-    'min_dist', min_dist, ...
-    'n_components', n_components, ...
-    'verbose', 'none', ...
-    'gui', false);
-
-% Visualize training UMAP colored by latent structure
-cluster_idx = kmeans(h_f, param.N_F);
-figure('Position', [100, 100, 600, 600]);
-gscatter(umap_s_i(:,1), umap_s_i(:,2), cluster_idx);
-xlabel('UMAP Dimension 1');
-ylabel('UMAP Dimension 2');
-title({['UMAP Colored by Latent Variable h\_f'], ...
-       ['n=' num2str(n_neighbors)], ['minDist=' num2str(min_dist)]});
-colormap turbo;
-colorbar;
-grid on;
-
-% === Reconstruction Error ===
-reconstruction_error_umap = zeros(n_components, param.N_F);
-reconstruction_error_test_umap = zeros(n_components, param.N_F);
-
-for idx = 1:n_components
-    for f = 1:param.N_F
-        % Train reconstruction
-        x_umap = lsqlin(umap_s_i(:, 1:idx), h_f(:,f));
-        h_f_reconstructed_umap = umap_s_i(:, 1:idx) * x_umap;
-        reconstruction_error_umap(idx,f) = mean((h_f(:,f) - h_f_reconstructed_umap).^2);
-
-        % Test reconstruction using same weights
-        h_f_test_reconstructed_umap = umap_s_i_test(:, 1:idx) * x_umap;
-        reconstruction_error_test_umap(idx,f) = mean((h_f_test(:,f) - h_f_test_reconstructed_umap).^2);
-    end
-end
-
-% === Plot Reconstruction Error ===
-figure('Position',[100,100, 600, 300])
-tiledlayout(1,1);
-nexttile;
-hold on;
-colors = lines(param.N_F);
-for f = 1:param.N_F
-    plot(1:n_components, reconstruction_error_umap(:, f), ...
-        'Color', colors(f,:), 'DisplayName', ['Train UMAP - Latent ' num2str(f)]);
-    plot(1:n_components, reconstruction_error_test_umap(:, f), ...
-        'LineStyle', '--', 'Color', colors(f,:), 'DisplayName', ['Test UMAP - Latent ' num2str(f)]);
-end
-xlim([1 n_components]);
-xlabel('Number of UMAP components');
-ylabel('Mean squared reconstruction error');
-title('UMAP Reconstruction Error for Each Latent Variable');
-legend('show');
-grid on;
-hold off;
 
 end
