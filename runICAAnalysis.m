@@ -17,6 +17,8 @@ icasig_test = real(icasig_test)';  % time × ICs
 
 % Reconstruction error per latent on train & test
 rec_err = zeros(num_comps, param.N_F, 2); % 3rd dim: 1=train,2=test
+recon_corr_ica = zeros(num_comps, param.N_F);
+
 for idx = 1:num_comps
     for f = 1:param.N_F
         % fit on train
@@ -24,6 +26,8 @@ for idx = 1:num_comps
         x_train = lsqlin(icasig(:,1:idx), h_f(:,f));
         h_f_reconstructed_ica = icasig(:,1:idx) * x_train;
         rec_err(idx,f,1) = mean((h_f(:,f) - h_f_reconstructed_ica).^2);
+        recon_corr_ica(idx,f)= corr(h_f(:, f), h_f_reconstructed_ica);
+
         % test
         h_f_test_reconstructed = icasig_test(:,1:idx) * x_train;
         rec_err(idx,f,2) = mean((h_f_test(:,f) - h_f_test_reconstructed).^2);
@@ -53,6 +57,28 @@ for i = 1:size(R_sub,1)
     end
 end
 hold off;
+
+% === Reconstruction Correlation Heatmap ===
+figure; %('Position',[100,100,600,400])
+imagesc(1:num_comps, 1:param.N_F, recon_corr_ica');  % transpose so rows=latent, cols=k
+xticks(1:num_comps);
+xlim([0 num_comps+1]);
+yticks(1:param.N_F);
+colormap(jet);
+clim([-1 1]);
+colorbar;
+xlabel('Number of ICs');
+ylabel('True Latent Variable f');
+title('Correlation between true and reconstructed h_f');
+
+% Overlay numeric values
+for f = 1:param.N_F
+    for k = 1:num_comps
+        text(k, f, sprintf('%.2f', recon_corr_ica(k,f)), ...
+            'HorizontalAlignment','center', ...
+            'Color','w','FontSize',8,'FontWeight','bold');
+    end
+end
 
 figure;
 hold on;

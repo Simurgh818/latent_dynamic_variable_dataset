@@ -38,8 +38,8 @@ figure;
 cc_mat = corrcoef([h_f(1:size(score,1),:) score(:, 1:num_sig_components)]);
 cc_mat_sub = cc_mat(1:4, 5:end);
 hold on;
-imagesc(cc_mat_sub, [-1 1]); colorbar;
-yticks(1:4);
+imagesc(1:num_sig_components, 1:param.N_F,cc_mat_sub, [-1 1]); colorbar;
+yticks(1:param.N_F);
 xlim([0 num_sig_components+1]);
 title('Correlation between true h_f and recovered PCs');
 xlabel('Principal Components');
@@ -59,6 +59,7 @@ hold off;
 % === Reconstruction Error ===
 reconstruction_error_pca = zeros(num_sig_components, param.N_F);
 reconstruction_error_test_pca = zeros(num_sig_components, param.N_F);
+recon_corr_pca = zeros(num_sig_components, param.N_F);
 
 for idx = 1:num_sig_components
     for f = 1:param.N_F
@@ -66,10 +67,33 @@ for idx = 1:num_sig_components
         w_train = lsqlin(score(:,1:idx), h_f(:,f));
         h_f_recon_train = score(:,1:idx) * w_train;
         reconstruction_error_pca(idx, f) = mean((h_f(:,f) - h_f_recon_train).^2);
+        recon_corr_pca(idx,f) = corr(h_f(:,f), h_f_recon_train);
 
         % Test
         h_f_recon_test = score_test(:,1:idx) * w_train;
         reconstruction_error_test_pca(idx, f) = mean((h_f_test(:,f) - h_f_recon_test).^2);
+    end
+end
+
+% === Reconstruction Correlation Heatmap ===
+figure; %('Position',[100,100,600,400])
+imagesc(1:num_sig_components, 1:param.N_F, recon_corr_pca');  % transpose so rows=latent, cols=k
+xticks(1:num_sig_components);
+xlim([0 num_sig_components+1]);
+yticks(1:param.N_F);
+colormap(jet);
+clim([-1 1]);
+colorbar;
+xlabel('Number of PCs');
+ylabel('True Latent Variable f');
+title('Correlation between true and reconstructed h_f');
+
+% Overlay numeric values
+for f = 1:param.N_F
+    for k = 1:num_sig_components
+        text(k, f, sprintf('%.2f', recon_corr_pca(k,f)), ...
+            'HorizontalAlignment','center', ...
+            'Color','w','FontSize',8,'FontWeight','bold');
     end
 end
 
