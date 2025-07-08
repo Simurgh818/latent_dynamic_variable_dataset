@@ -58,8 +58,8 @@ figure;
 hold on;
 colors = lines(param.N_F);
 for f = 1:param.N_F
-    plot(1:num_comps, rec_err(:,f,1), '-', 'Color',colors(f,:), 'DisplayName',['Train Latent ',num2str(f)]);
-    plot(1:num_comps, rec_err(:,f,2), '--','Color',colors(f,:), 'DisplayName',['Test  Latent ',num2str(f)]);
+    plot(1:num_comps, rec_err(:,f,1), '-', 'Marker', 'o','Color',colors(f,:), 'DisplayName',['Train Latent ',num2str(f)]);
+    plot(1:num_comps, rec_err(:,f,2), '--','Marker', 'o','Color',colors(f,:), 'DisplayName',['Test  Latent ',num2str(f)]);
 end
 xlabel('Number of ICs'); ylabel('MSE');
 title('ICA Reconstruction Error'); legend('show'); grid on;

@@ -65,8 +65,8 @@ tiledlayout(1,1);
 nexttile; hold on;
 colors = lines(param.N_F);
 for f = 1:param.N_F
-    plot(1:num_dims, rec_err_tsne(:,f),   '-',  'Color',colors(f,:), 'DisplayName',['Train Latent ' num2str(f)]);
-    plot(1:num_dims, rec_err_test_tsne(:,f),'--', 'Color',colors(f,:), 'DisplayName',['Test  Latent ' num2str(f)]);
+    plot(1:num_dims, rec_err_tsne(:,f),   '-', 'Marker', 'o','Color',colors(f,:), 'DisplayName',['Train Latent ' num2str(f)]);
+    plot(1:num_dims, rec_err_test_tsne(:,f),'--', 'Marker', 'o','Color',colors(f,:), 'DisplayName',['Test  Latent ' num2str(f)]);
 end
 xlabel('Number of t-SNE dimensions');
 ylabel('Mean squared reconstruction error');

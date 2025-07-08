@@ -74,10 +74,10 @@ nexttile;
 hold on;
 colors = lines(param.N_F);
 for f = 1:param.N_F
-    plot(1:n_components, reconstruction_error_umap(:, f), ...
-        '-', 'Color', colors(f,:), 'DisplayName', ['Train - Latent ' num2str(f)]);
-    plot(1:n_components, reconstruction_error_test_umap(:, f), ...
-        '--', 'Color', colors(f,:), 'DisplayName', ['Test  - Latent ' num2str(f)]);
+    plot(1:n_components, reconstruction_error_umap(:, f),'-', 'Marker', 'o',...
+        'Color', colors(f,:), 'DisplayName', ['Train - Latent ' num2str(f)]);
+    plot(1:n_components, reconstruction_error_test_umap(:, f),'--', 'Marker', 'o',...
+        'Color', colors(f,:), 'DisplayName', ['Test  - Latent ' num2str(f)]);
 end
 xlabel('Number of UMAP components');
 ylabel('Mean squared reconstruction error');
