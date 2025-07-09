@@ -34,11 +34,12 @@ alpha_kernel = alpha_kernel / sum(alpha_kernel);  % normalize
 
 num_channels = floor(N / group_size);
 s_convolved = zeros(num_channels, T_new + length(alpha_kernel) - 1);
-
+% s_convolved = zeros(num_channels, T_new - 1);
 for ch = 1:num_channels
     idx_start = (ch - 1)*group_size + 1;
     idx_end   = ch * group_size;
     signal = zeros(1, T_new + length(alpha_kernel) - 1);
+    % signal = zeros(1, T_new );
     for i = idx_start:idx_end
         conv_spk = conv(s_binned(i, :), alpha_kernel, 'full');
         signal = signal + conv_spk;
@@ -72,14 +73,15 @@ if nargin == 7 && ~isempty(h_f)
         h_f_binned(t, :) = mean(h_f(idx_start:idx_end, :), 1);
     end
 
-    % Convolve each latent field with alpha kernel
-    h_f_processed = zeros(T_hf_new + length(alpha_kernel) - 1, N_F);
-    for f = 1:N_F
-        h_f_processed(:, f) = conv(h_f_binned(:, f), alpha_kernel, 'full');
-    end
+    % % Convolve each latent field with alpha kernel
+    % h_f_processed = zeros(T_hf_new + length(alpha_kernel) - 1, N_F);
+    % for f = 1:N_F
+    %     h_f_processed(:, f) = conv(h_f_binned(:, f), alpha_kernel, 'full');
+    % end
+    h_f_processed = h_f_binned; 
 
     % Optionally: match length of s_eeg_like
-    h_f_processed = h_f_processed(1:size(s_eeg_like, 2), :);  % Truncate to match
+    s_eeg_like = s_eeg_like(:, 1:size(h_f_processed, 1));  % Truncate to match
 else
     h_f_processed = [];
 end
