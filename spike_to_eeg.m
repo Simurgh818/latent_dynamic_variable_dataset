@@ -33,15 +33,15 @@ alpha_kernel = (t_kernel / tau) .* exp(1 - t_kernel / tau);
 alpha_kernel = alpha_kernel / sum(alpha_kernel);  % normalize
 
 num_channels = floor(N / group_size);
-s_convolved = zeros(num_channels, T_new + length(alpha_kernel) - 1);
+s_convolved = zeros(num_channels, T_new );
 % s_convolved = zeros(num_channels, T_new - 1);
 for ch = 1:num_channels
     idx_start = (ch - 1)*group_size + 1;
     idx_end   = ch * group_size;
-    signal = zeros(1, T_new + length(alpha_kernel) - 1);
+    signal = zeros(1, T_new );
     % signal = zeros(1, T_new );
     for i = idx_start:idx_end
-        conv_spk = conv(s_binned(i, :), alpha_kernel, 'full');
+        conv_spk = conv(s_binned(i, :), alpha_kernel, 'same');
         signal = signal + conv_spk;
     end
     s_convolved(ch, :) = signal;
@@ -64,21 +64,26 @@ s_eeg_like = zscore(s_smoothed, 0, 2);
 % --- 5. (Optional) Process h_f ---
 if nargin == 7 && ~isempty(h_f)
     [T_hf, N_F] = size(h_f);
+    % T_hf_new = floor(T_hf / bin_ratio);
+    % h_f_binned = zeros(T_hf_new, N_F);
+    % 
+    % for t = 1:T_hf_new
+    %     idx_start = round((t-1)*bin_ratio + 1);
+    %     idx_end   = round(t*bin_ratio);
+    %     h_f_binned(t, :) = mean(h_f(idx_start:idx_end, :), 1);
+    % end
+    T_hf = size(h_f, 1);
     T_hf_new = floor(T_hf / bin_ratio);
-    h_f_binned = zeros(T_hf_new, N_F);
+    idx = round(linspace(1, T_hf, T_hf_new));
+    h_f_processed = h_f(idx, :);
 
-    for t = 1:T_hf_new
-        idx_start = round((t-1)*bin_ratio + 1);
-        idx_end   = round(t*bin_ratio);
-        h_f_binned(t, :) = mean(h_f(idx_start:idx_end, :), 1);
-    end
 
     % % Convolve each latent field with alpha kernel
     % h_f_processed = zeros(T_hf_new + length(alpha_kernel) - 1, N_F);
     % for f = 1:N_F
     %     h_f_processed(:, f) = conv(h_f_binned(:, f), alpha_kernel, 'full');
     % end
-    h_f_processed = h_f_binned; 
+    % h_f_processed = h_f_binned; 
 
     % Optionally: match length of s_eeg_like
     s_eeg_like = s_eeg_like(:, 1:size(h_f_processed, 1));  % Truncate to match
