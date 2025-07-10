@@ -1,5 +1,5 @@
 function [Y_train, Y_test, rec_err_tsne, rec_err_test_tsne] = ...
-    runTSNEAnalysis(s_train, s_test, param, h_f_train, h_f_test, num_dims, num_sig_components)
+    runTSNEAnalysis(s_train, s_test, param, h_f_train, h_f_test, num_dims, num_sig_components, perplexity)
 % runTSNEAnalysis Applies t-SNE to EEG-like data and computes reconstruction error
 % 
 % Inputs:
@@ -22,7 +22,7 @@ X_train = double(s_train)';  % Time × Neurons
 X_test  = double(s_test)';   % Time × Neurons
 
 %% 2. Run t-SNE embeddings
-perplexity = 18;
+% perplexity = 18;
 Y_train = tsne(X_train, ...
     'Perplexity',         perplexity, ...
     'NumDimensions',      num_dims, ...
