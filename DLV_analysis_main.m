@@ -42,5 +42,7 @@ min_dist    = 0.10;
 [umap_s_i, umap_s_i_test, reconstruction_error_umap, reconstruction_error_test_umap] = ...
     runUMAPAnalysis(n_neighbors, min_dist, s_eeg_like, s_eeg_like_test, param, h_f_processed, h_f_processed_test, num_sig_components);
 
+[Y_train, Y_test, rec_err_tsne, rec_err_test_tsne] = ...
+    runTSNEAnalysis(s_train, s_test, param, h_f_train, h_f_test, num_dims, num_sig_components);
 
 end
