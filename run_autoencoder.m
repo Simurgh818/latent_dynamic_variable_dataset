@@ -22,12 +22,28 @@ function run_autoencoder(s_eeg_like, s_eeg_like_test, numLatents, T_new, ...
     [net, ~] = train(net, X_train, X_train);
 
     % Compute encoder outputs
-    W_enc = net.IW{1,1};
-    b_enc = net.b{1};
-    Z_train_c = logsig(W_enc * X_train + b_enc)';
-    Z_test_c  = logsig(W_enc * X_test  + b_enc)';
+    % W_enc = net.IW{1,1};
+    % b_enc = net.b{1};
+    % Z_train_c = logsig(W_enc * X_train + b_enc)';
+    % Z_test_c  = logsig(W_enc * X_test  + b_enc)';
 
-    % Plot encoded features
+    % Train set:
+    % a1_train = logsig(net.IW{1,1} * X_train + net.b{1});               % 8 neurons
+    % Z_train_c = logsig(net.LW{2,1} * a1_train + net.b{2})';            % 4 neurons → [T x 4]
+    % 
+    % % Test set:
+    % a1_test = logsig(net.IW{1,1} * X_test + net.b{1});
+    % Z_test_c = logsig(net.LW{2,1} * a1_test + net.b{2})';              % [Ttest x 4]
+    
+    a1_train = logsig(net.IW{1,1} * X_train + net.b{1});         % Layer 1
+    a2_train = logsig(net.LW{2,1} * a1_train + net.b{2});        % Layer 2
+    Z_train_c = logsig(net.LW{3,2} * a2_train + net.b{3})';      % Layer 3 (T x 4)
+    
+    % === Test set ===
+    a1_test = logsig(net.IW{1,1} * X_test + net.b{1});
+    a2_test = logsig(net.LW{2,1} * a1_test + net.b{2});
+    Z_test_c = logsig(net.LW{3,2} * a2_test + net.b{3})';        % (Ttest x 4)
+        % Plot encoded features
     cols = [1.0, 0.8431, 0.0; 1.0, 0.0, 0.0; 0.0, 0.0, 1.0; 0.5, 0.0, 0.5];
 
     figure('Name', sprintf('AE Latents - LR=%.1e', lr), 'Position', [100, 100, 1200, 800]);
