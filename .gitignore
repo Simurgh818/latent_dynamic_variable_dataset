@@ -190,3 +190,4 @@ runUMAPAnalysis.asv
 limits_of_latent_reconstruction_methods.asv
 limits_of_latent_reconstruction_methods-SimurghsSurface.mlx
 make_trial_matrices.asv
+run_autoencoder.asv
