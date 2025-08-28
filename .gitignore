@@ -191,3 +191,4 @@ limits_of_latent_reconstruction_methods.asv
 limits_of_latent_reconstruction_methods-SimurghsSurface.mlx
 make_trial_matrices.asv
 run_autoencoder.asv
+pca_real_eeg_recon_in_freq.asv
