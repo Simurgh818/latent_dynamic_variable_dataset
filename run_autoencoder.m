@@ -1,4 +1,4 @@
-function run_autoencoder(s_eeg_like, s_eeg_like_test, numLatents, T_new, ...
+function run_autoencoder(s_eeg_like, s_eeg_like_test, numLatents, ...
     h_f_processed, h_f_processed_test, hiddenSize, epochs, lr)
     % Input data assumed in workspace: s_eeg_like, s_eeg_like_test, h_f_processed, h_f_processed_test, param, T_new
 
@@ -9,7 +9,10 @@ function run_autoencoder(s_eeg_like, s_eeg_like_test, numLatents, T_new, ...
     X_test  = s_eeg_like_test;
 
     % Define network
-    net = feedforwardnet(hiddenSize, 'trainscg');
+    net = feedforwardnet(hiddenSize, 'trainrp');
+    net.performFcn = 'mse';
+    net.performParam.regularization = 0;
+
     net.layers{1}.transferFcn = 'logsig';
     net.layers{2}.transferFcn = 'purelin';
     net.trainParam.epochs = epochs;
@@ -45,21 +48,22 @@ function run_autoencoder(s_eeg_like, s_eeg_like_test, numLatents, T_new, ...
     Z_test_c = logsig(net.LW{3,2} * a2_test + net.b{3})';        % (Ttest x 4)
         % Plot encoded features
     cols = [1.0, 0.8431, 0.0; 1.0, 0.0, 0.0; 0.0, 0.0, 1.0; 0.5, 0.0, 0.5];
-
+    T_new = size(Z_train_c,1);
+    
     figure('Name', sprintf('AE Latents - LR=%.1e', lr), 'Position', [100, 100, 1200, 800]);
     tiledlayout(4, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
 
     for f = 1:numLatents
         nexttile;
-        plot(1:T_new, h_f_processed(:,f), '-',  'Color', cols(f,:), 'LineWidth', 1.5); hold on;
+        plot(1:T_new, h_f_processed(1:T_new,f), '-',  'Color', cols(f,:), 'LineWidth', 1.5); hold on;
         plot(1:T_new, Z_train_c(:,f),      '--', 'Color', 'k', 'LineWidth', 1.5);
-        ylabel(sprintf('Latent %d', f)); xlabel('Time bin'); xlim([1 2150]);
+        ylabel(sprintf('Latent %d', f)); xlabel('Time bin'); xlim([1 T_new+1]);
         legend({'Train', 'AE'}); grid on; hold off;
 
         nexttile;
-        plot(1:T_new, h_f_processed_test(:,f), '-',  'Color', cols(f,:), 'LineWidth', 1.5); hold on;
-        plot(1:T_new, Z_test_c(:,f),      '--', 'Color', 'k', 'LineWidth', 1.5);
-        ylabel(sprintf('Latent %d', f)); xlabel('Time bin'); xlim([1 2150]);
+        plot(1:T_new, h_f_processed_test(1:T_new,f), '-',  'Color', cols(f,:), 'LineWidth', 1.5); hold on;
+        plot(1:T_new, Z_test_c(1:T_new,f),      '--', 'Color', 'k', 'LineWidth', 1.5);
+        ylabel(sprintf('Latent %d', f)); xlabel('Time bin'); xlim([1 T_new+1]);
         legend({'Test', 'AE'}); grid on; hold off;
     end
     title('True Latents (solid) vs. AE Codes (dashed)');
@@ -70,9 +74,9 @@ function run_autoencoder(s_eeg_like, s_eeg_like_test, numLatents, T_new, ...
     reconErrTest = zeros(numLatents,1);
 
     for f = 1:numLatents
-        w = lsqlin(Z_train_c, h_f_processed(:,f));
+        w = lsqlin(Z_train_c, h_f_processed(1:T_new,f));
         w_test = lsqlin(Z_test_c, h_f_processed_test(:,f));
-        reconErr(f) = mean((h_f_processed(:,f) - Z_train_c*w).^2);
+        reconErr(f) = mean((h_f_processed(1:T_new,f) - Z_train_c*w).^2);
         reconErrTest(f) = mean((h_f_processed_test(:,f) - Z_test_c*w_test).^2);
     end
 
