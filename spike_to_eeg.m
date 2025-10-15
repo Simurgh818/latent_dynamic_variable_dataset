@@ -32,19 +32,33 @@ if ~isfield(param, 'inhib_frac')
 end
 nInhib = round(param.inhib_frac * N);
 inhib_idx = randperm(N, nInhib);
-s_i_pt(inhib_idx, :) = -s_i_pt(inhib_idx, :);  % inhibitory neurons as negative
+s_i_pt_inhib = s_i_pt;
+s_i_pt_inhib(inhib_idx, :) = -s_i_pt(inhib_idx, :);  % inhibitory neurons as negative
 
 % ------------------------
 % 3. Biphasic Alpha Kernel (with hyperpolarization)
 % ------------------------
-t_kernel = 0:round(6 * tau);
-alpha_kernel = (t_kernel / tau) .* exp(-t_kernel / tau);
-alpha_kernel = alpha_kernel / sum(alpha_kernel);
+% Alpha kernel: rise-then-decay shape
+tau_pos = 0.01;       % alpha time constant for positive lobe (seconds), e.g. 10 ms
+tau_neg = 0.03;       % time constant for negative lobe (if using biphasic phys model)
+tmax_factor = 8;      % how many taus to include (8 is safe)
+dt_kernel = param.dt; % kernel sampling step (use same as sim or coarser)
 
-% Add small negative tail to mimic hyperpolarization
-neg_tail_shift = round(0.1 * length(alpha_kernel));  % small delay for negative lobe
-biphasic_kernel = alpha_kernel - 0.3 * circshift(alpha_kernel, neg_tail_shift);
-biphasic_kernel = biphasic_kernel - mean(biphasic_kernel);  % center around zero
+% --- Build common time vector (seconds) ---
+tmax = tmax_factor * max(tau_pos, tau_neg);
+t = 0:dt_kernel:tmax;  % same t for all kernels
+
+% --- Alpha kernel (canonical) ---
+alpha_k = (t ./ tau_pos) .* exp(-t ./ tau_pos);
+alpha_k = alpha_k / sum(alpha_k);   % normalize by area (or use max)
+
+% --- Biphasic kernel (two-EXP difference approach, phys-like) ---
+% positive lobe (fast) and negative lobe (slower, scaled)
+biphasic_k = (t ./ tau_pos).*exp(-t./tau_pos) - 0.4*(t ./ tau_neg).*exp(-t./tau_neg);
+% center/sink to zero mean if you want
+biphasic_k = biphasic_k - mean(biphasic_k);
+% normalize by peak absolute value (optional, to compare shapes)
+biphasic_k = biphasic_k / max(abs(biphasic_k));
 
 % ------------------------
 % 4. Group Neurons + Convolution
@@ -56,7 +70,7 @@ for ch = 1:num_channels
     idx = (ch - 1)*group_size + (1:group_size);
     conv_sum = zeros(1, T_new);
     for i = idx
-        conv_sum = conv_sum + conv(s_i_pt(i, :), biphasic_kernel, 'same');
+        conv_sum = conv_sum + conv(s_i_pt_inhib(i, :), biphasic_k, 'same');
     end
     s_convolved(ch, :) = conv_sum;
 end
