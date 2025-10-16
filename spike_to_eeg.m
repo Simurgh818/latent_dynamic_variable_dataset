@@ -1,4 +1,4 @@
-function [s_eeg_like, h_f_processed] = spike_to_eeg(s_i, h_f, param, tau, group_size)
+function [s_eeg_like, h_f_processed] = spike_to_eeg(s_i, h_f, param, group_size)
 % Converts spike matrix into EEG-like signal using alpha kernel convolution
 %
 % Inputs:
@@ -41,7 +41,7 @@ s_i_pt_inhib(inhib_idx, :) = -s_i_pt(inhib_idx, :);  % inhibitory neurons as neg
 % Alpha kernel: rise-then-decay shape
 tau_pos = 0.01;       % alpha time constant for positive lobe (seconds), e.g. 10 ms
 tau_neg = 0.03;       % time constant for negative lobe (if using biphasic phys model)
-tmax_factor = 8;      % how many taus to include (8 is safe)
+tmax_factor = 6;      % how many taus to include (8 is safe)
 dt_kernel = param.dt; % kernel sampling step (use same as sim or coarser)
 
 % --- Build common time vector (seconds) ---
