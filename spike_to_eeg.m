@@ -81,10 +81,23 @@ end
 s_eeg_like = zscore(s_convolved, 0, 2);
 
 % ------------------------
+% 5b. Convolve True Latent Variable with Biphasic Alpha Kernel
+% ------------------------
+% Convolve each latent factor with the same biphasic kernel
+h_f_conv = zeros(size(h_f_pt));
+
+for f = 1:size(h_f_pt, 2)
+    h_f_conv(:, f) = conv(h_f_pt(:, f), biphasic_k, 'same');
+end
+
+% Optionally normalize or z-score for comparability
+h_f_conv = zscore(h_f_conv, 0, 1);
+
+% ------------------------
 % 6. Align Latent Variables
 % ------------------------
-h_f_processed = h_f_pt;
-
+h_f_processed = h_f_conv;
+% h_f_processed = h_f_pt;
 % Truncate if lengths mismatch
 if size(s_eeg_like, 2) ~= size(h_f_processed, 1)
     warning('Truncating EEG signal to match latent variable length.');
