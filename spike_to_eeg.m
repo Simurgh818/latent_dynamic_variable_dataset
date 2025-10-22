@@ -70,7 +70,7 @@ for ch = 1:num_channels
     idx = (ch - 1)*group_size + (1:group_size);
     conv_sum = zeros(1, T_new);
     for i = idx
-        conv_sum = conv_sum + conv(s_i_pt_inhib(i, :), biphasic_k, 'same');
+        conv_sum = conv_sum + conv(s_i_pt_inhib(i, :), alpha_k, 'same');
     end
     s_convolved(ch, :) = conv_sum;
 end
@@ -87,7 +87,7 @@ s_eeg_like = zscore(s_convolved, 0, 2);
 h_f_conv = zeros(size(h_f_pt));
 
 for f = 1:size(h_f_pt, 2)
-    h_f_conv(:, f) = conv(h_f_pt(:, f), biphasic_k, 'same');
+    h_f_conv(:, f) = conv(h_f_pt(:, f), alpha_k, 'same');
 end
 
 % Optionally normalize or z-score for comparability
