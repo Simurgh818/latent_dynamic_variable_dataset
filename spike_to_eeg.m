@@ -1,4 +1,4 @@
-function [s_eeg_like, h_f_processed] = spike_to_eeg(s_i, h_f, param, group_size)
+function [s_eeg_like, h_f_processed] = spike_to_eeg(s_i, h_f, param, group_size, smooth_sigma)
 % Converts spike matrix into EEG-like signal using alpha kernel convolution
 %
 % Inputs:
@@ -76,9 +76,22 @@ for ch = 1:num_channels
 end
 
 % ------------------------
+% 4.5 Gaussian Smoothing
+% ------------------------
+kernel_size = round(6 * smooth_sigma);
+x = -kernel_size:kernel_size;
+gauss_kernel = exp(-x.^2 / (2 * smooth_sigma^2));
+gauss_kernel = gauss_kernel / sum(gauss_kernel);
+
+s_smoothed = zeros(size(s_convolved));
+for i = 1:num_channels
+    s_smoothed(i, :) = conv(s_convolved(i, :), gauss_kernel, 'same');
+end
+
+% ------------------------
 % 5. Z-score Normalization
 % ------------------------
-s_eeg_like = zscore(s_convolved, 0, 2);
+s_eeg_like = zscore(s_smoothed, 0, 2);
 
 % ------------------------
 % 5b. Convolve True Latent Variable with Biphasic Alpha Kernel
