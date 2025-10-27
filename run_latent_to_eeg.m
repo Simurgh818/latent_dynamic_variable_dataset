@@ -1,4 +1,4 @@
-function eeg_out = run_latent_to_eeg(Z, Fs, nChannels)
+function [eeg_out, h_f_processed] = run_latent_to_eeg(Z, Fs, nChannels)
 % run_latent_to_eeg  Map latent variables (3 x T) -> EEG-like signals (nChannels x T)
 % - Simple frozen MLP with explicit weight matrices
 % - Convolution with biphasic alpha-like kernel as output activation
@@ -40,7 +40,8 @@ function eeg_out = run_latent_to_eeg(Z, Fs, nChannels)
 
     % Ymixed = Ylin; % nChannels x T
     % Output activation: convolve with biphasic alpha-like kernel
-    kernel = biphasic_alpha_kernel(Fs, 0.35); % 0.35 s kernel
+    % kernel = biphasic_alpha_kernel(Fs, 0.35); % 0.35 s kernel
+    kernel = alpha_kernel(Fs, 0.35); % 0.35 s kernel
     eeg_conv = zeros(size(Ymixed));
     for ch = 1:size(Ymixed,1)
         eeg_conv(ch,:) = conv(Ymixed(ch,:), kernel, 'same');
@@ -49,6 +50,17 @@ function eeg_out = run_latent_to_eeg(Z, Fs, nChannels)
     % mild pointwise nonlinearity and add small sensor noise
     eeg_nl = tanh(1.1 * eeg_conv);
     eeg_out = eeg_nl + 5e-3 * randn(size(eeg_nl));
+    
+    h_f_conv = zeros(size(Z));
+
+    for f = 1:size(Z, 1)
+        h_f_conv(f,:) = conv(Z(f,:), kernel, 'same');
+    end
+    
+    % Optionally normalize or z-score for comparability
+    h_f_conv = zscore(h_f_conv, 0, 2);
+    h_f_processed = h_f_conv;
+
 end
 
 
@@ -76,4 +88,12 @@ function K = biphasic_alpha_kernel(Fs, dur)
     Kraw = amp1*g1 - amp2*g2;
     K = Kraw - mean(Kraw);
     K = K / max(abs(K) + eps);
+end
+
+function K = alpha_kernel(Fs, dur)
+    % --- Alpha kernel (canonical) ---
+    t = (0:1/Fs:dur)';
+    tau = 0.06; 
+    K = (t ./ tau) .* exp(-t ./ tau);
+    K = K / sum(K);   % normalize by area (or use max)
 end

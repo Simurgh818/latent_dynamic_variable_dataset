@@ -39,7 +39,7 @@ s_i_pt_inhib(inhib_idx, :) = -s_i_pt(inhib_idx, :);  % inhibitory neurons as neg
 % 3. Biphasic Alpha Kernel (with hyperpolarization)
 % ------------------------
 % Alpha kernel: rise-then-decay shape
-tau_pos = 0.01;       % alpha time constant for positive lobe (seconds), e.g. 10 ms
+tau_pos = 0.002;       % alpha time constant for positive lobe (seconds), e.g. 10 ms
 tau_neg = 0.03;       % time constant for negative lobe (if using biphasic phys model)
 tmax_factor = 6;      % how many taus to include (8 is safe)
 dt_kernel = param.dt; % kernel sampling step (use same as sim or coarser)
