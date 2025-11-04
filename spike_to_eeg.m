@@ -16,13 +16,13 @@ function [s_eeg_like, h_f_processed] = spike_to_eeg(s_i, h_f, param, group_size,
 % 1. Preprocess Inputs
 % ------------------------
 s_i_double = double(s_i);
+% 
+% % Skip the first half-second transient
+% half_a_sec = round(0.5 / param.dt);
+% s_i_pt = s_i_double(:, half_a_sec:end);
+% h_f_pt = h_f(half_a_sec:end, :);
 
-% Skip the first half-second transient
-half_a_sec = round(0.5 / param.dt);
-s_i_pt = s_i_double(:, half_a_sec:end);
-h_f_pt = h_f(half_a_sec:end, :);
-
-[N, T_new] = size(s_i_pt);
+[N, T_new] = size(s_i);
 
 % ------------------------
 % 2. Add inhibitory neurons
@@ -32,8 +32,8 @@ if ~isfield(param, 'inhib_frac')
 end
 nInhib = round(param.inhib_frac * N);
 inhib_idx = randperm(N, nInhib);
-s_i_pt_inhib = s_i_pt;
-s_i_pt_inhib(inhib_idx, :) = -s_i_pt(inhib_idx, :);  % inhibitory neurons as negative
+s_i_inhib = s_i_double;
+s_i_inhib(inhib_idx, :) = -s_i_double(inhib_idx, :);  % inhibitory neurons as negative
 
 % ------------------------
 % 3. Biphasic Alpha Kernel (with hyperpolarization)
@@ -70,7 +70,7 @@ for ch = 1:num_channels
     idx = (ch - 1)*group_size + (1:group_size);
     conv_sum = zeros(1, T_new);
     for i = idx
-        conv_sum = conv_sum + conv(s_i_pt_inhib(i, :), alpha_k, 'same');
+        conv_sum = conv_sum + conv(s_i_inhib(i, :), alpha_k, 'same');
     end
     s_convolved(ch, :) = conv_sum;
 end
@@ -97,10 +97,10 @@ s_eeg_like = zscore(s_smoothed, 0, 2);
 % 5b. Convolve True Latent Variable with Biphasic Alpha Kernel
 % ------------------------
 % Convolve each latent factor with the same biphasic kernel
-h_f_conv = zeros(size(h_f_pt));
+h_f_conv = zeros(size(h_f));
 
-for f = 1:size(h_f_pt, 2)
-    h_f_conv(:, f) = conv(h_f_pt(:, f), alpha_k, 'same');
+for f = 1:size(h_f, 2)
+    h_f_conv(:, f) = conv(h_f(:, f), alpha_k, 'same');
 end
 
 % Optionally normalize or z-score for comparability
