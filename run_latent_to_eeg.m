@@ -7,9 +7,9 @@ function [eeg_out, h_f_processed] = run_latent_to_eeg(Z, Fs, nChannels)
     rng(42); % reproducible frozen weights
 
     [nLatent, T] = size(Z);
-    if nLatent ~= 3
-        error('Z must be 3 x T (3 latents).');
-    end
+    % if nLatent ~= 3
+    %     error('Z must be 3 x T (3 latents).');
+    % end
 
     %% MLP architecture
     hidden_sizes = [128, 64, 64]; % you can change to 2-3 hidden layers
