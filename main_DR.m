@@ -111,20 +111,23 @@ end
 for m = 1:numel(methods)
     method = methods{m};
     fprintf("Running %s...\n", method);
+    R2_k = zeros(max_components,1);
+    MSE_k = zeros(max_components,1);
 
     for k = component_range
+        
         switch method
             
-            case 'PCA'
-                %% 1. Setup and Directories
-                method_name = 'PCA';
-                method_dir = fullfile(results_dir, method_name);
+            % case 'PCA'
+            %     %% 1. Setup and Directories
+            %     method_name = 'PCA';
+            %     method_dir = fullfile(results_dir, method_name);
 
                 % Example function signature:
                 % [R2_k, MSE_k] = runPCAAnalysis(X_train, X_test, H_train, H_test, k);
-                [R2_k, MSE_k,outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
-                    H_train, H_test, param, k, fs_new, method_dir);
-
+                % [R2_k(k), MSE_k(k),outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
+                %     H_train, H_test, param, k, fs_new, method_dir);
+             
             % case 'ICA'
             %     % [R2_k, MSE_k] = runICAAnalysis(X_train, X_test, H_train, H_test, k);
             %     [R2_k, MSE_k] = runICAAnalysis(X_train, X_test, H_train, H_test, k);
@@ -133,9 +136,10 @@ for m = 1:numel(methods)
             %     % [R2_k, MSE_k] = runUMAPAnalysis(X_train, X_test, H_train, H_test, k);
             %     [R2_k, MSE_k] = runUMAPAnalysis(X_train, X_test, H_train, H_test, k);
             % 
-            % case 'AE'
-            %     % [R2_k, MSE_k] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, k);
-            %     [R2_k, MSE_k] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, k);
+            case 'AE'
+                % [R2_k, MSE_k] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, k);
+                [R2_k(k), MSE_k(k), outAE] = runAutoencoderAnalysis(eeg_train, eeg_test,...
+                    H_train, H_test, k, param, fs_new, results_dir);
 
         end
 
@@ -147,7 +151,7 @@ end
 %% ----------------------------------------------------------
 % 4. Plot R^2 and MSE vs # components
 % ----------------------------------------------------------
-figure;
+fig1 = figure;
 tiledlayout(2,1);
 
 % R2
@@ -174,8 +178,8 @@ title('MSE vs Dimensionality');
 legend(methods);
 grid on;
 
-summary_trace_name = fullfile(results_dir, ['Main_Summary_Trace_' method_name file_suffix '.png']);
-summary_metrics_name = fullfile(results_dir, ['Main_Summary_Metrics_' method_name file_suffix '.png']);
+summary_trace_name = fullfile(results_dir, 'Main_Summary_Trace.png');
+% summary_metrics_name = fullfile(results_dir, 'Main_Summary_Metrics.png');
 
 saveas(fig1, summary_trace_name);
 saveas(fig3, summary_metrics_name);
