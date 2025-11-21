@@ -1,4 +1,4 @@
-function [R2_test, MSE_test, outPCA] = runPCAAnalysis(eeg_train, eeg_test, h_train, h_test, param, num_sig_components, fs_new, results_dir)
+function [R2_test, MSE_test, outPCA] = runPCAAnalysis(eeg_train, eeg_test, h_train, h_test, param, num_sig_components, fs_new, method_dir)
 % runPCAAnalysis Performs PCA, reconstruction, and extensive performance analysis
 %
 % Inputs:
@@ -14,10 +14,14 @@ function [R2_test, MSE_test, outPCA] = runPCAAnalysis(eeg_train, eeg_test, h_tra
 %   outPCA              : Structure with detailed results
 
 %% 1. Setup and Directory
-if ~exist(results_dir, 'dir')
-    mkdir(results_dir);
+if ~exist(method_dir, 'dir')
+    mkdir(method_dir);
 end
-h_f_colors = lines(param.N_F); % Generate colors for plots
+
+% Define suffix for this specific run (e.g., "_k10")
+file_suffix = sprintf('_k%d', num_sig_components);
+
+h_f_colors = lines(param.N_F); 
 
 %% 2. Run PCA
 [coeff, score, ~, ~, explained] = pca(eeg_train');
@@ -28,16 +32,14 @@ score_test = (eeg_test' - mean(eeg_train', 1)) * coeff;
 % Compute variance explained on test set
 var_test = var(score_test);
 explained_test = 100 * var_test / sum(var_test);
-cum_explained_test = cumsum(explained_test);
 
-%% 3. Compute R^2 and MSE for Increasing Components (1 to num_sig_components)
+%% 3. Compute R^2 and MSE for Increasing Components
 max_comp_check = num_sig_components; 
 reconstruction_error_pca = zeros(max_comp_check, param.N_F, 2); % dim 3: 1=R2, 2=MSE (Train)
 reconstruction_error_test_pca = zeros(max_comp_check, param.N_F, 2); % dim 3: 1=R2, 2=MSE (Test)
 
-% Pre-allocate output vectors for the function return
 MSE_test = zeros(max_comp_check, 1); 
-R2_test_global = zeros(max_comp_check, 1); % Overall R2
+R2_test_global = zeros(max_comp_check, 1); 
 
 for k = 1:max_comp_check
     % Train regression weights
@@ -49,12 +51,9 @@ for k = 1:max_comp_check
     
     % Per-feature metrics (Train)
     for f = 1:param.N_F
-        % R2
         res_var = sum((h_train(:,f) - h_recon_train(:,f)).^2);
         tot_var = sum((h_train(:,f) - mean(h_train(:,f))).^2);
         reconstruction_error_pca(k, f, 1) = 1 - (res_var / tot_var);
-        
-        % MSE
         reconstruction_error_pca(k, f, 2) = mean((h_train(:,f) - h_recon_train(:,f)).^2);
     end
 
@@ -66,17 +65,16 @@ for k = 1:max_comp_check
         reconstruction_error_test_pca(k, f, 2) = mean((h_test(:,f) - h_recon_test(:,f)).^2);
     end
     
-    % Global Test Metrics (for output)
+    % Global Test Metrics
     MSE_test(k) = mean((h_test(:) - h_recon_test(:)).^2);
     R2_test_global(k) = 1 - sum((h_test(:) - h_recon_test(:)).^2) / sum((h_test(:) - mean(h_test(:))).^2);
 end
 
-% Final output variable for R2
 R2_test = R2_test_global; 
 
-%% 4. Detailed Reconstruction (Using specifically 'num_sig_components')
+%% 4. Detailed Reconstruction (Using 'num_sig_components')
 W_final = score(:, 1:num_sig_components) \ h_train;
-h_recon_final = score(:, 1:num_sig_components) * W_final; % Training reconstruction
+h_recon_final = score(:, 1:num_sig_components) * W_final; 
 
 % --- Zero-Lag Correlation ---
 maxLag = 200;
@@ -89,7 +87,7 @@ end
 
 %% 5. Frequency Analysis (FFT Calculation)
 N = size(h_train, 1);
-trial_dur = 1; % seconds per trial
+trial_dur = 1; 
 L = round(trial_dur * fs_new);
 nTrials = floor(N/L);
 f_freq = (0:L-1)*(fs_new/L);
@@ -119,7 +117,7 @@ Ht_avg = mean(Ht, 3);
 Hr_avg = mean(Hr, 3);
 R2_avg = mean(R2_trials, 3);
 
-% Band Averaging
+% Band Definitions
 bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 13], 'beta', [13 30], 'gamma', [30 50]);
 band_names = fieldnames(bands);
 nBands = numel(band_names);
@@ -138,10 +136,9 @@ end
 %% PLOTTING SECTION
 %% ============================================================
 
-%% Plot 1: Latent Variables Z(t) vs Reconstruction
-figure('Position',[50 50 1200 150*size(h_train,2)]);
+fig1 = figure('Position',[50 50 1200 150*size(h_train,2)]);
 tiledlayout(size(h_train,2), 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle('Latent variables Z(t) and PCA $\hat{z}(t)$ reconstruction.', 'Interpreter', 'latex');
+sgtitle(['PCA (k=' num2str(num_sig_components) '): Latent variables Z(t) vs \hat{z}(t)']);
 
 for f = 1:size(h_train,2)
     nexttile; hold on;
@@ -149,32 +146,19 @@ for f = 1:size(h_train,2)
     plot(h_train(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :), 'DisplayName', [sprintf('Z_{%d}', param.f_peak(f)) ' (true)']);
     plot(h_recon_final(:, f), 'LineStyle', '--','LineWidth',1,'Color', 'k', 'DisplayName', [sprintf('Z_{%d}', param.f_peak(f)) ' (recon)']);
     ylabel('amplitude');
-    xlim([0 fs_new*2]); % First 2 seconds
+    xlim([0 fs_new*2]); 
     legend('Show','Location','eastoutside');
     
     rho = zeroLagCorr_pca(f);
-    text(0.02 * fs_new, 0.7 * max(h_train(:,f)), ...
-        sprintf('\\rho(0)=%.2f', rho), ...
-        'FontSize', 12, 'FontWeight', 'bold', ...
-        'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
-        'Margin', 3, 'EdgeColor','k');
+    text(0.02 * fs_new, 0.7 * max(h_train(:,f)), sprintf('\\rho(0)=%.2f', rho), ...
+        'FontSize', 12, 'FontWeight', 'bold', 'BackgroundColor', 'w', 'EdgeColor','k');
     hold off;
 end
-
-% Scale Bars
-hold on;
-x0 = 0; y0 = min(ylim)+0.2;
-line([x0 x0+(fs_new)], [y0 y0], 'Color', 'k', 'LineWidth', 2, 'HandleVisibility', 'off');
-text(x0+fs_new, y0-0.1, '1 sec', 'VerticalAlignment','top');
-line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2, 'HandleVisibility', 'off');
-text(x0-5, y0+4, '2 a.u.', 'VerticalAlignment','bottom','HorizontalAlignment','right','Rotation',90);
-hold off;
-set(findall(gcf,'-property','FontSize'),'FontSize',16);
-saveas(gcf, fullfile(results_dir, 'PCA_Trace_Reconstruction.png'));
+saveas(fig1, fullfile(method_dir, ['PCA_Trace_Reconstruction' file_suffix '.png']));
 
 
-%% Plot 2: PC Traces & Variance/Error
-figure('Position',[50 50 1000 (num_sig_components*250)/2]);
+%% Plot 2: PC Traces
+fig2 = figure('Position',[50 50 1000 (num_sig_components*250)/2]);
 tiledlayout(num_sig_components, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
 pc_colors = lines(num_sig_components);
 sgtitle('PC Traces');
@@ -185,15 +169,15 @@ for pc=1:num_sig_components
     xlim([0 1000]);
     legend('show');
 end
-saveas(gcf, fullfile(results_dir, 'PCA_PC_Traces.png'));
+saveas(fig2, fullfile(method_dir, ['PCA_PC_Traces' file_suffix '.png']));
 
 
-%% Plot 3: Variance and R2/MSE Curves
-figure('Position',[50 50 800 600]);
+%% Plot 3: Metrics (Main Performance)
+fig3 = figure('Position',[50 50 800 600]);
 tiledlayout(2, 1, 'Padding', 'compact');
 nexttile;
 plot(cumsum(explained), 'o-');
-xline(num_sig_components, '--r', sprintf('nSigPCs=%d', num_sig_components));
+xline(num_sig_components, '--r');
 xlabel('Number of PCs'); ylabel('Cumulative Variance (%)');
 title('PCA Explained Variance');
 
@@ -205,43 +189,39 @@ for f = 1:size(h_train,2)
 end
 xticks(1:num_sig_components);
 xlabel('PC Index'); ylabel('Metric Value');
-title('PCA R² (Solid) and MSE (Dashed) Values');
+title('PCA R² (Solid) and MSE (Dashed)');
 grid('on'); hold off;
 legend('show', 'Location','southeastoutside');
-set(findall(gcf,'-property','FontSize'),'FontSize',14);
-saveas(gcf, fullfile(results_dir, 'PCA_Metrics_vs_Components.png'));
+saveas(fig3, fullfile(method_dir, ['PCA_Metrics_vs_Components' file_suffix '.png']));
 
 
-%% Plot 4: Frequency Analysis
-figure('Position',[50 50 1000 600]);
+%% Plot 4: Frequency Analysis (FFT)
+fig4 = figure('Position',[50 50 1000 600]);
 tiledlayout(2, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle('PCA Frequency Analysis: Fourier Transform');
+sgtitle('PCA Frequency Analysis');
 
-nexttile; % Original FFT
+nexttile; 
 for fidx=1:size(h_train,2)
     idx = 1:L/2+1;
-    loglog(f_plot(idx), abs(Ht_avg(idx,fidx)),'Color',h_f_colors(fidx,:),'DisplayName',['Welch(Z_{' num2str(param.f_peak(fidx)) '} (f))']);
+    loglog(f_plot(idx), abs(Ht_avg(idx,fidx)),'Color',h_f_colors(fidx,:));
     hold on;
 end
-xlabel('Frequency (Hz)'); ylabel('|Z(f)|'); title('FFT Amplitude of Original Z(f)');
-xlim([1, 50]); xticks([1, 4, 8, 10, 13, 20, 30, 50]);
-legend('show','Location','southeastoutside'); grid on; hold off;
+xlabel('Frequency (Hz)'); ylabel('|Z(f)|'); title('FFT Amplitude Original');
+grid on; hold off;
 
-nexttile; % Reconstructed FFT
+nexttile; 
 for fidx=1:size(h_train,2)
     idx = 1:L/2+1;
-    loglog(f_plot(idx), abs(Hr_avg(idx,fidx)), 'Color',h_f_colors(fidx,:),'DisplayName',['Welch($\hat{Z}_{' num2str(param.f_peak(fidx)) '}$ (f))']);
+    loglog(f_plot(idx), abs(Hr_avg(idx,fidx)), 'Color',h_f_colors(fidx,:));
     hold on;
 end
-xlabel('Frequency (Hz)'); ylabel('|Ẑ(f)|'); title('FFT Amplitude of Reconstructed $\hat{Z}$ (f)', 'Interpreter', 'latex');
-xlim([1, 50]); xticks([1, 4, 8, 10, 13, 20, 30, 50]);
-legend('show', 'Interpreter', 'latex','Location','southeastoutside'); grid on; hold off;
-set(findall(gcf,'-property','FontSize'),'FontSize',16);
-saveas(gcf, fullfile(results_dir, 'PCA_Frequency_Analysis.png'));
+xlabel('Frequency (Hz)'); ylabel('|Ẑ(f)|'); title('FFT Amplitude Reconstructed');
+grid on; hold off;
+saveas(fig4, fullfile(method_dir, ['PCA_Frequency_Analysis' file_suffix '.png']));
 
 
 %% Plot 5: Band Power Bar Chart
-% Calculate Band Power
+% (Simplified calculation for bar chart)
 band_power_true = zeros(nBands, size(h_train,2));
 band_power_recon = zeros(nBands, size(h_train,2));
 band_power_true_std = zeros(nBands, size(h_train,2));
@@ -261,44 +241,163 @@ for b = 1:nBands
     end
 end
 
-figure('Position',[100 100 1200 250*floor(param.N_F/2)]);
+fig5 = figure('Position',[100 100 1200 250*floor(param.N_F/2)]);
 tiledlayout(floor(param.N_F/2), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle('Band Power Comparison: True vs Reconstructed (Mean ± SD)');
+sgtitle('Band Power Comparison');
 for fidx = 1:size(h_train,2)
     nexttile;
     bar_data = [band_power_true(:,fidx), band_power_recon(:,fidx)];
     bar_std = [band_power_true_std(:,fidx), band_power_recon_std(:,fidx)];
     bh = bar(bar_data); hold on;
-    
-    % Error bars
     ngroups = size(bar_data,1); nbars = size(bar_data,2);
     groupwidth = min(0.8, nbars/(nbars + 1.5));
     for i = 1:nbars
         x = (1:ngroups) - groupwidth/2 + (2*i-1) * groupwidth / (2*nbars);
-        errorbar(x, bar_data(:,i), bar_std(:,i), 'k', 'linestyle', 'none', 'LineWidth', 1);
+        errorbar(x, bar_data(:,i), bar_std(:,i), 'k', 'linestyle', 'none');
     end
     bh(1).FaceColor = [0.3 0.6 0.9]; bh(2).FaceColor = [0.9 0.4 0.4];
-    ylabel('Power (a.u.)');
     set(gca, 'XTickLabel', band_names, 'XTickLabelRotation', 45);
     title(['Z_{' num2str(param.f_peak(fidx)) '}']);
     grid on;
 end
 legend({'True','Reconstructed'}, 'Location','northoutside','Orientation','horizontal');
-set(findall(gcf,'-property','FontSize'),'FontSize',16);
-saveas(gcf, fullfile(results_dir, 'PCA_Band_Power.png'));
+saveas(fig5, fullfile(method_dir, ['PCA_Band_Power' file_suffix '.png']));
 
 
 %% Plot 6: Band R2 Bar Chart
-figure('Position',[50 50 1000 300]);
+fig6 = figure('Position',[50 50 1000 300]);
 bar(band_avg_R2');
 set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%d}', param.f_peak(i)), 1:size(h_train,2), 'UniformOutput', false));
 ylim([-1 1]);
 legend(band_names, 'Location', 'southeastoutside');
-ylabel('Mean R^2 in Band'); xlabel('Latent Variable');
-title('PCA Band-wise Average R^2(f) per Latent Variable');
+title('PCA Band-wise Average R^2');
 grid on;
-set(findall(gcf,'-property','FontSize'),'FontSize',16);
-saveas(gcf, fullfile(results_dir, 'PCA_Bandwise_R2.png'));
+saveas(fig6, fullfile(method_dir, ['PCA_Bandwise_R2' file_suffix '.png']));
+
+
+%% Plot 7: Scatter plot: True vs Reconstructed Band Amplitudes (Mean)
+% Compute mean FFT amplitude in each band for true vs reconstructed latents
+Ht_amp = abs(Ht_avg(1:nHz, :));  
+Hr_amp = abs(Hr_avg(1:nHz, :)); 
+
+Ht_amp = Ht_amp ./ max(Ht_amp(:));
+Hr_amp = Hr_amp ./ max(Hr_amp(:));
+
+mean_band_amp_true  = zeros(nBands, size(h_train,2));
+mean_band_amp_recon = zeros(nBands, size(h_train,2));
+stdDev_band_amp_true  = zeros(nBands, size(h_train,2));
+stdDev_band_amp_recon = zeros(nBands, size(h_train,2));
+
+for b = 1:nBands
+    band = band_names{b};
+    f_range = bands.(band);
+    idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
+
+    mean_band_amp_true(b,:)  = mean(Ht_amp(idx_band,:), 1, 'omitnan');
+    mean_band_amp_recon(b,:) = mean(Hr_amp(idx_band,:), 1, 'omitnan');
+    
+    stdDev_band_amp_true(b,:)  = std(Ht_amp(idx_band,:), 0, 1, 'omitnan');
+    stdDev_band_amp_recon(b,:) = std(Hr_amp(idx_band,:), 0, 1, 'omitnan');
+end
+
+true_vals  = mean_band_amp_true(:);
+recon_vals = mean_band_amp_recon(:);
+band_labels = repelem(band_names, size(h_train,2));
+
+fig7 = figure('Position',[50 50 1600 300]);
+tiledlayout(1, param.N_F, 'TileSpacing', 'compact', 'Padding', 'compact');
+sgtitle('True vs Reconstructed Band Mean FFT Amplitudes (per latent)');
+
+colors = lines(nBands);
+markers = {'o','s','d','h','^','hexagram','<','>'};
+hold on;
+
+for b = 1:nBands    
+    nexttile;   
+    idx_b = strcmp(band_labels, band_names{b});
+    x = true_vals(idx_b);
+    y = recon_vals(idx_b);
+    
+    for m = 1:length(markers)
+        if m > size(x,1), break; end 
+        hold on;
+        scatter(x(m), y(m), 70, 'filled', 'MarkerFaceColor', colors(b,:),'Marker', markers{m},...
+            'DisplayName', [sprintf('Z_{%d}', param.f_peak(m))]);
+        
+        errorbar(x(m), y(m), stdDev_band_amp_true(b, m), stdDev_band_amp_recon(b, m), ...
+                 'LineStyle', 'none', 'Color', colors(b,:), 'CapSize', 5,'HandleVisibility', 'off');
+    end
+
+    xfit = linspace(min(x), max(x), 100);
+    plot(xfit, xfit, 'Color', colors(b,:), 'LineWidth', 2, 'DisplayName', "y=x");
+
+    R_fit = corrcoef(x, y);
+    R2_fit = R_fit(1,2)^2;
+    text(mean(x), mean(y), sprintf('R^2=%.2f', R2_fit), 'Color', colors(b,:), 'FontSize', 12)
+    if b==1
+        xlabel('Mean True Amp.')
+        ylabel('Mean Recon. Amp.')
+    end
+    title([band_names{b} ' band'])
+    grid on;
+end
+nLatents = length(markers);
+proxy_handles = gobjects(nLatents + 1,1); 
+for m = 1:nLatents
+    proxy_handles(m) = scatter(nan, nan, 70, 'Marker', markers{m}, ...
+                               'MarkerEdgeColor', 'k', ...
+                               'MarkerFaceColor', 'k');
+end
+proxy_handles(end) = plot(nan, nan, 'k', 'LineWidth', 2);
+legend_labels = [arrayfun(@(m) sprintf('Z_{%d}', param.f_peak(m)), 1:length(markers), 'UniformOutput', false), {'y = x'}];
+legend(proxy_handles, legend_labels, 'Location','eastoutside','TextColor','k','IconColumnWidth',7, 'NumColumns',2);
+hold off;
+set(findall(gcf,'-property','FontSize'),'FontSize',14)
+saveas(fig7, fullfile(method_dir, ['PCA_Scatter_Band_Amp_Mean' file_suffix '.png']));
+
+
+%% Plot 8: Scatter plot: True vs Reconstructed Band Amplitudes (per trial)
+Ht_amp_trials = abs(Ht(1:nHz, :, :)); 
+Hr_amp_trials = abs(Hr(1:nHz, :, :));
+Ht_amp_trials = Ht_amp_trials ./ max(Ht_amp_trials(:));
+Hr_amp_trials = Hr_amp_trials ./ max(Hr_amp_trials(:));
+
+true_vals_band  = cell(nBands, 1);
+recon_vals_band = cell(nBands, 1);
+
+for b = 1:nBands
+    band = band_names{b};
+    f_range = bands.(band);
+    idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
+    temp_true  = squeeze(mean(Ht_amp_trials(idx_band, :, :), 1, 'omitnan'));
+    temp_recon = squeeze(mean(Hr_amp_trials(idx_band, :, :), 1, 'omitnan'));
+    true_vals_band{b}  = temp_true(:);
+    recon_vals_band{b} = temp_recon(:);
+end
+
+fig8 = figure('Position',[50 50 1200 300]);
+tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
+sgtitle('True vs PCA Reconstructed FFT Band Amplitudes (All Trials × Latents)');
+colors = lines(nBands);
+
+for b = 1:nBands
+    nexttile; hold on;
+    x = true_vals_band{b};
+    y = recon_vals_band{b};
+    scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceColor', colors(b,:), 'MarkerFaceAlpha', 0.3); 
+    xfit = linspace(min(x), max(x), 100);
+    plot(xfit, xfit, 'k--', 'LineWidth', 1.5);
+    R_fit = corrcoef(x, y);
+    if numel(R_fit) > 1
+        R2_fit = R_fit(1,2)^2;
+        text(mean(x), mean(y), sprintf('R^2=%.2f', R2_fit), 'Color', 'k', 'FontSize', 12);
+    end
+    title([band_names{b} ' band'])
+    if b==1, xlabel('True Band Amplitude'); ylabel('Reconstructed Band Amplitude'); end
+    grid on; hold off;
+end
+set(findall(gcf,'-property','FontSize'),'FontSize',14)
+saveas(fig8, fullfile(method_dir, ['PCA_Scatter_Band_Amp_Trials' file_suffix '.png']));
 
 
 %% 6. Final Output Structure
@@ -307,11 +406,10 @@ outPCA.coeff = coeff;
 outPCA.score = score;
 outPCA.explained = explained;
 outPCA.score_test = score_test;
-outPCA.reconCorr = recon_corr; % from best component model
 outPCA.zeroLagCorr = zeroLagCorr_pca;
 outPCA.errorTrainCurve = reconstruction_error_pca;
 outPCA.errorTestCurve = reconstruction_error_test_pca;
 outPCA.h_recon_train = h_recon_final;
-outPCA.results_dir = results_dir;
-
+outPCA.method_dir = method_dir;
+close all;
 end

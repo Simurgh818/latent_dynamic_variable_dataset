@@ -13,22 +13,6 @@ h_f   = simEEG.train_true_hF';
 param.f_peak    = [1,2,3,4,5,6,7,8];
 fs_orig          = 1/simEEG.dt;
 param.N_F       = size(simEEG.train_true_hF,1);
-
-% Output path
-baseFolder = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
-    'OneDrive - Georgia Institute of Technology' filesep ...
-    'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Dimensionality Reduction Review Paper'];
-
-eegFilename = 'simEEG_set1';         % given EEG filename
-subfolderName = ['results_' eegFilename];  % e.g., "results_simEEG_set1"
-
-% Build full results directory path
-results_dir = fullfile(baseFolder, subfolderName);
-% Optionally sanitize filename (remove or replace illegal characters)
-% illegal = '[<>:"/\\|?*]';
-% results_dir = regexprep(results_dir, illegal, '_');
-
 if ~exist(results_dir, 'dir')
     
     mkdir(results_dir);
@@ -116,14 +100,10 @@ for m = 1:numel(methods)
         switch method
             
             case 'PCA'
-                %% 1. Setup and Directories
-                method_name = 'PCA';
-                method_dir = fullfile(results_dir, method_name);
-
                 % Example function signature:
                 % [R2_k, MSE_k] = runPCAAnalysis(X_train, X_test, H_train, H_test, k);
-                [R2_k, MSE_k,outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
-                    H_train, H_test, param, k, fs_new, method_dir);
+                [R2_test, MSE_test,outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
+                    H_train, H_test, k, results_dir);
 
             % case 'ICA'
             %     % [R2_k, MSE_k] = runICAAnalysis(X_train, X_test, H_train, H_test, k);
@@ -139,8 +119,8 @@ for m = 1:numel(methods)
 
         end
 
-        results.(method).R2(k)  = R2_k(k);
-        results.(method).MSE(k) = MSE_k(k);
+        results.(method).R2(k)  = R2_k;
+        results.(method).MSE(k) = MSE_k;
     end
 end
 
@@ -174,8 +154,3 @@ title('MSE vs Dimensionality');
 legend(methods);
 grid on;
 
-summary_trace_name = fullfile(results_dir, ['Main_Summary_Trace_' method_name file_suffix '.png']);
-summary_metrics_name = fullfile(results_dir, ['Main_Summary_Metrics_' method_name file_suffix '.png']);
-
-saveas(fig1, summary_trace_name);
-saveas(fig3, summary_metrics_name);
