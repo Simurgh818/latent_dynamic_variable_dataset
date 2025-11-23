@@ -118,16 +118,14 @@ for m = 1:numel(methods)
         
         switch method
             
-            % case 'PCA'
-            %     %% 1. Setup and Directories
-            %     method_name = 'PCA';
-            %     method_dir = fullfile(results_dir, method_name);
-
-                % Example function signature:
-                % [R2_k, MSE_k] = runPCAAnalysis(X_train, X_test, H_train, H_test, k);
-                % [R2_k(k), MSE_k(k),outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
+            case 'PCA'
+                %% 1. Setup and Directories
+                method_name = 'PCA';
+                method_dir = fullfile(results_dir, method_name);
+                % [R2_test, MSE_test,outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
                 %     H_train, H_test, param, k, fs_new, method_dir);
-             
+                % R2_k(k) = R2_test(k);
+                % MSE_k(k) = MSE_test(k);
             % case 'ICA'
             %     % [R2_k, MSE_k] = runICAAnalysis(X_train, X_test, H_train, H_test, k);
             %     [R2_k, MSE_k] = runICAAnalysis(X_train, X_test, H_train, H_test, k);
@@ -182,4 +180,4 @@ summary_trace_name = fullfile(results_dir, 'Main_Summary_Trace.png');
 % summary_metrics_name = fullfile(results_dir, 'Main_Summary_Metrics.png');
 
 saveas(fig1, summary_trace_name);
-saveas(fig3, summary_metrics_name);
+% saveas(fig3, summary_metrics_name);
