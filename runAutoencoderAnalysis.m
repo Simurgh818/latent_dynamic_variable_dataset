@@ -34,8 +34,8 @@ batch_size = 80;
     'encoderLayerSizes', [64,32], ...
     'bottleneckSize', bottleNeck, ...
     'decoderLayerSizes', [32,64], ...
-    'encoderActivations', {'leakyrelu','leakyrelu'}, ...
-    'decoderActivations', {'leakyrelu','leakyrelu'}, ...
+    'encoderActivations', {'tanh','tanh'}, ...
+    'decoderActivations', {'tanh','tanh'}, ...
     'outputActivation', "none", ...
     'epochs', 5, ...
     'batchSize', batch_size, ...
@@ -201,7 +201,7 @@ end
 %% Plot 4: FFT Analysis
 fig4 = figure('Position',[50 50 1000 600]);
 tiledlayout(2, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle('Autoencoder Frequency Analysis');
+sgtitle(['Autoencoder Frequency Analysis, k= ' bottleNeck]);
 
 nexttile
 for fidx=1:param.N_F
@@ -245,7 +245,7 @@ end
 
 fig5 = figure('Position',[100 100 1000 250*floor(param.N_F/2)]);
 tiledlayout(floor(param.N_F/2), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle('Band Power Comparison (Mean ± SD)');
+sgtitle(['Band Power Comparison (Mean ± SD) for k = ' bottleNeck]);
 
 for fidx = 1:param.N_F
     nexttile;
@@ -274,7 +274,7 @@ bar(band_avg_R2_ae');
 set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%d}',param.f_peak(i)), 1:param.N_F, 'UniformOutput', false));
 ylim([-1 1]);
 legend(band_names, 'Location', 'southeastoutside');
-ylabel('Mean R^2'); xlabel('Latent Variable'); title('Autoencoder Band-wise R^2');
+ylabel('Mean R^2'); xlabel('Latent Variable'); title(['Autoencoder Band-wise R^2 for k= ' bottleNeck]);
 grid on;
 saveas(fig6, fullfile(method_dir, ['AE_Bandwise_R2' file_suffix '.png']));
 
@@ -305,7 +305,7 @@ band_labels = repelem(band_names, param.N_F);
 
 fig7 = figure('Position',[50 50 1200 300]);
 tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle('AE: True vs Reconstructed Band Mean FFT Amplitudes');
+sgtitle(['AE: True vs Reconstructed Band Mean FFT Amplitudes for k= ' bottleNeck]);
 colors = lines(nBands);
 markers = {'o','s','d','h','^','hexagram','<','>'};
 
@@ -345,7 +345,7 @@ end
 
 fig8 = figure('Position',[50 50 1200 300]);
 tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle('AE: True vs Reconstructed Per-Trial Band Amplitudes');
+sgtitle(['AE: True vs Reconstructed Per-Trial Band Amplitudes for k= ' bottleNeck]);
 
 for b = 1:nBands
     nexttile; hold on;
