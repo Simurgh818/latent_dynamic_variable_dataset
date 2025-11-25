@@ -4,7 +4,10 @@ clear; clc;
 %% ----------------------------------------------------------
 % 1. Load & Prepare Data
 % ----------------------------------------------------------
-simEEG = load("simEEG_set1.mat");
+eegFilename = 'simEEG_set2';
+fullName = strcat(eegFilename, '.mat');
+simEEG   = load(fullName);
+
 
 s_eeg_like      = simEEG.train_sim_eeg_vals;
 s_eeg_like_test = simEEG.test_sim_eeg_vals;
@@ -20,7 +23,7 @@ baseFolder = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
     'Dimensionality Reduction Review Paper'];
 
-eegFilename = 'simEEG_set1';         % given EEG filename
+% eegFilename = 'simEEG_set1';         % given EEG filename
 subfolderName = ['results_' eegFilename];  % e.g., "results_simEEG_set1"
 
 % Build full results directory path
@@ -122,10 +125,10 @@ for m = 1:numel(methods)
                 %% 1. Setup and Directories
                 method_name = 'PCA';
                 method_dir = fullfile(results_dir, method_name);
-                % [R2_test, MSE_test,outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
-                %     H_train, H_test, param, k, fs_new, method_dir);
-                % R2_k(k) = R2_test(k);
-                % MSE_k(k) = MSE_test(k);
+                [R2_test, MSE_test,outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
+                    H_train, H_test, param, k, fs_new, method_dir);
+                R2_k(k) = R2_test(k);
+                MSE_k(k) = MSE_test(k);
             % case 'ICA'
             %     % [R2_k, MSE_k] = runICAAnalysis(X_train, X_test, H_train, H_test, k);
             %     [R2_k, MSE_k] = runICAAnalysis(X_train, X_test, H_train, H_test, k);
