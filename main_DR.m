@@ -4,7 +4,7 @@ clear; clc;
 %% ----------------------------------------------------------
 % 1. Load & Prepare Data
 % ----------------------------------------------------------
-eegFilename = 'simEEG_set2';
+eegFilename = 'simEEG_set1';
 fullName = strcat(eegFilename, '.mat');
 simEEG   = load(fullName);
 
