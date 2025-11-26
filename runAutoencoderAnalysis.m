@@ -1,5 +1,5 @@
 function [R2_test, MSE_test, outAE] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, bottleNeck, param, fs_new, results_dir)
-% runAutoencoderAnalysis Trains AE + Mapping Network and generates diagnostic plots
+% runAutoencoderAnalysis Trains AE + Linear Mapping and generates diagnostic plots
 %
 % Inputs:
 %   X_train, X_test     : Neural data (Neurons x Time or Time x Neurons depending on your AE setup)
@@ -19,17 +19,12 @@ method_dir = fullfile(results_dir, method_name);
 if ~exist(method_dir, 'dir')
     mkdir(method_dir);
 end
-
-% Define suffix for this specific run
 file_suffix = sprintf('_k%d', bottleNeck);
 h_f_colors = lines(param.N_F); 
 
 %% 2. Train Autoencoder (Unsupervised)
-batch_size = 80; 
+batch_size = 80;
 
-% Note: Ensure X_train is oriented correctly for your trainEEGAutoencoder function.
-% Usually Deep Learning toolbox expects (Features x Samples). 
-% If X_train is (Time x Features), transpose it inside the call if needed.
 [net, ~] = trainEEGAutoencoder(X_train, X_test,  ...
     'encoderLayerSizes', [64,32], ...
     'bottleneckSize', bottleNeck, ...
@@ -41,63 +36,64 @@ batch_size = 80;
     'batchSize', batch_size, ...
     'learnRate', 1e-3);
 
-% Extract Latents (Z)
-% Transpose inputs if activations expects (Features x Samples)
-Z_train_c = activations(net, X_train.', 'bottleneck', 'OutputAs','rows');
-Z_test_c  = activations(net, X_test.',  'bottleneck', 'OutputAs','rows');
+% Extract Latents
+Z_train_c = double(activations(net, X_train.', 'bottleneck', 'OutputAs','rows'));
+Z_test_c  = double(activations(net, X_test.',  'bottleneck', 'OutputAs','rows'));
+H_train   = double(H_train);
+H_test    = double(H_test);
 
-% Ensure sizes match (truncate if necessary due to batching dropping last samples)
+% Ensure matching lengths
 minLen = min(size(Z_train_c,1), size(H_train,1));
 Z_train_c = Z_train_c(1:minLen,:);
-H_train = H_train(1:minLen,:);
-
+H_train   = H_train(1:minLen,:);
 minLenTest = min(size(Z_test_c,1), size(H_test,1));
-Z_test_c = Z_test_c(1:minLenTest,:);
-H_test = H_test(1:minLenTest,:);
+Z_test_c  = Z_test_c(1:minLenTest,:);
+H_test    = H_test(1:minLenTest,:);
 
-%% 3. Train Mapping Network (Supervised: Z_ae -> H_true)
-hiddenSizes = [20 10]; 
-hz_net = fitnet(hiddenSizes, 'trainlm'); 
-hz_net.trainParam.showWindow = false; % Suppress GUI
-hz_net.trainParam.epochs = 10;
-hz_net.divideParam.trainRatio = 0.8;
-hz_net.divideParam.valRatio   = 0.2;
-hz_net.divideParam.testRatio  = 0.0;
+%% 3. Linear Mapping via lsqlin
+H_recon_train = zeros(size(H_train));
+H_recon_test  = zeros(size(H_test));
+recon_R2_train = zeros(1,param.N_F);
+recon_R2_test  = zeros(1,param.N_F);
 
-% Train (Neural Net toolbox expects inputs as Features x Samples)
-[hz_net, ~] = train(hz_net, Z_train_c.', H_train.');
-
-% Predict
-pred_H_train = hz_net(Z_train_c.').';
-pred_H_test  = hz_net(Z_test_c.').';
-
-%% 4. Calculate Global Metrics
-% R2 on Test Set
-res_sum_sq = sum((H_test(:) - pred_H_test(:)).^2);
-tot_sum_sq = sum((H_test(:) - mean(H_test(:))).^2);
-R2_test = 1 - (res_sum_sq / tot_sum_sq);
-
-% MSE on Test Set
-MSE_test = mean((H_test(:) - pred_H_test(:)).^2);
-
-% Component-wise correlations (Train)
-corr_vals = zeros(1, size(H_train,2));
-for i = 1:size(H_train,2)
-    corr_vals(i) = corr(H_train(:,i), pred_H_train(:,i));
+for f = 1:param.N_F
+    % Linear mapping from bottleneck -> latent variable
+    w = lsqlin(Z_train_c, H_train(:,f));
+    
+    % Reconstruct
+    H_recon_train(:,f) = Z_train_c * w;
+    H_recon_test(:,f)  = Z_test_c * w;
+    
+    % % Optional: normalize
+    % H_recon_train(:,f) = H_recon_train(:,f) ./ std(H_recon_train(:,f),0,1);
+    % H_recon_test(:,f)  = H_recon_test(:,f) ./ std(H_recon_test(:,f),0,1);
+    
+    % Component-wise R^2
+    recon_R2_train(f) = 1 - sum((H_train(:,f) - H_recon_train(:,f)).^2) / sum((H_train(:,f) - mean(H_train(:,f))).^2);
+    recon_R2_test(f)  = 1 - sum((H_test(:,f) - H_recon_test(:,f)).^2) / sum((H_test(:,f) - mean(H_test(:,f))).^2);
 end
 
-%% ============================================================
-%% PLOTTING SECTION
-%% ============================================================
+%% 4. Global Metrics
+R2_test  = 1 - sum((H_test(:) - H_recon_test(:)).^2) / sum((H_test(:) - mean(H_test(:))).^2);
+MSE_test = mean((H_test(:) - H_recon_test(:)).^2);
+% 
+% for f = 1:param.N_F
+%     disp(corr(H_test(:,f), H_recon_test(:,f)));
+% end
 
-%% Plot 1: Mapping Correlation Bar Chart
-fig1 = figure('Position',[50 50 400 250]);
-bar(corr_vals);
-xlabel('Latent dim (h_f)');
-ylabel('Corr(predicted, true)');
-title(['Mapping accuracy AE (k=' num2str(bottleNeck) ')']);
-grid on;
-saveas(fig1, fullfile(method_dir, ['AE_Mapping_Corr' file_suffix '.png']));
+
+% ============================================================
+% PLOTTING SECTION
+% ============================================================
+
+% %% Plot 1: Mapping Correlation Bar Chart
+% fig1 = figure('Position',[50 50 400 250]);
+% bar(corr_vals);
+% xlabel('Latent dim (h_f)');
+% ylabel('Corr(predicted, true)');
+% title(['Mapping accuracy AE (k=' num2str(bottleNeck) ')']);
+% grid on;
+% saveas(fig1, fullfile(method_dir, ['AE_Mapping_Corr' file_suffix '.png']));
 
 % %% Plot 2: Trace Overlays (Simple)
 % fig2 = figure('Position',[50 50 1000 700]);
@@ -127,7 +123,7 @@ for f = 1:param.N_F
     nexttile; hold on;
     set(gca, 'XColor', 'none', 'YColor', 'none'); box on
     plot(H_train(1:vis_len_train, f), '-',  'Color', h_f_colors(f,:), 'LineWidth', 1.5,'DisplayName', 'True'); 
-    plot(pred_H_train(1:vis_len_train, f), '--', 'Color', 'k', 'LineWidth', 1.5,'DisplayName', 'Recon');
+    plot(H_recon_train(1:vis_len_train, f), '--', 'Color', 'k', 'LineWidth', 1.5,'DisplayName', 'Recon');
     xlim([0 fs_new*2]);
     if f==1, title('Training Set'); end
     if f==param.N_F, legend('location', 'southeastoutside'); end
@@ -143,7 +139,7 @@ for f = 1:param.N_F
     nexttile; hold on;
     set(gca, 'XColor', 'none', 'YColor', 'none'); box on
     plot(H_test(1:vis_len_test, f), '-',  'Color', h_f_colors(f,:), 'LineWidth', 1.5, 'DisplayName','True');  
-    plot(pred_H_test(1:vis_len_test, f), '--', 'Color', 'k', 'LineWidth', 1.5, 'DisplayName', 'Recon');
+    plot(H_recon_test(1:vis_len_test, f), '--', 'Color', 'k', 'LineWidth', 1.5, 'DisplayName', 'Recon');
     xlim([0 fs_new*2]);
     if f==1, title('Test Set'); end
 end
@@ -151,7 +147,7 @@ saveas(fig3, fullfile(method_dir, ['AE_Split_Reconstruction' file_suffix '.png']
 
 
 %% 5. Frequency Analysis (FFT)
-N = size(pred_H_train, 1);
+N = size(H_recon_test, 1);
 trial_dur = 1;              
 L         = round(trial_dur * fs_new);   
 nTrials   = floor(N/L);
@@ -166,8 +162,8 @@ Hr_ae = zeros(L, param.N_F, nTrials);
 
 for tr = 1:nTrials
     idx = (tr-1)*L + (1:L);      
-    Z_true_sub  = H_train(idx,:);      
-    Z_recon_sub = pred_H_train(idx,:);
+    Z_true_sub  = H_test(idx,:);      
+    Z_recon_sub = H_recon_test(idx,:);
     
     Ht_ae(:,:,tr) = fft(Z_true_sub);   
     Hr_ae(:,:,tr) = fft(Z_recon_sub);
@@ -201,7 +197,7 @@ end
 %% Plot 4: FFT Analysis
 fig4 = figure('Position',[50 50 1000 600]);
 tiledlayout(2, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['Autoencoder Frequency Analysis, k= ' bottleNeck]);
+sgtitle(['Autoencoder Frequency Analysis, k= ' num2str(bottleNeck)]);
 
 nexttile
 for fidx=1:param.N_F
@@ -245,7 +241,7 @@ end
 
 fig5 = figure('Position',[100 100 1000 250*floor(param.N_F/2)]);
 tiledlayout(floor(param.N_F/2), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['Band Power Comparison (Mean ± SD) for k = ' bottleNeck]);
+sgtitle(['Band Power Comparison (Mean ± SD) for k = ' num2str(bottleNeck)]);
 
 for fidx = 1:param.N_F
     nexttile;
@@ -274,7 +270,7 @@ bar(band_avg_R2_ae');
 set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%d}',param.f_peak(i)), 1:param.N_F, 'UniformOutput', false));
 ylim([-1 1]);
 legend(band_names, 'Location', 'southeastoutside');
-ylabel('Mean R^2'); xlabel('Latent Variable'); title(['Autoencoder Band-wise R^2 for k= ' bottleNeck]);
+ylabel('Mean R^2'); xlabel('Latent Variable'); title(['Autoencoder Band-wise R^2 for k= ' num2str(bottleNeck)]);
 grid on;
 saveas(fig6, fullfile(method_dir, ['AE_Bandwise_R2' file_suffix '.png']));
 
@@ -305,7 +301,7 @@ band_labels = repelem(band_names, param.N_F);
 
 fig7 = figure('Position',[50 50 1200 300]);
 tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['AE: True vs Reconstructed Band Mean FFT Amplitudes for k= ' bottleNeck]);
+sgtitle(['AE: True vs Reconstructed Band Mean FFT Amplitudes for k= ' num2str(bottleNeck)]);
 colors = lines(nBands);
 markers = {'o','s','d','h','^','hexagram','<','>'};
 
@@ -345,7 +341,7 @@ end
 
 fig8 = figure('Position',[50 50 1200 300]);
 tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['AE: True vs Reconstructed Per-Trial Band Amplitudes for k= ' bottleNeck]);
+sgtitle(['AE: True vs Reconstructed Per-Trial Band Amplitudes for k= ' num2str(bottleNeck)]);
 
 for b = 1:nBands
     nexttile; hold on;
@@ -362,12 +358,12 @@ saveas(fig8, fullfile(method_dir, ['AE_Scatter_Trials' file_suffix '.png']));
 %% 6. Outputs and Summary Saves
 outAE = struct();
 outAE.net = net;
-outAE.mapping_net = hz_net;
-outAE.pred_H_train = pred_H_train;
-outAE.pred_H_test = pred_H_test;
-outAE.R2_test = R2_test;
-outAE.MSE_test = MSE_test;
-outAE.results_dir = method_dir;
+outAE.H_recon_train     = H_recon_train;
+outAE.H_recon_test      = H_recon_test;
+outAE.R2_test          = R2_test;
+outAE.MSE_test         = MSE_test;
+outAE.component_R2     = recon_R2_test;
+outAE.results_dir      = method_dir;
 
 close All;
 

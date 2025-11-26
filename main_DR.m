@@ -4,7 +4,7 @@ clear; clc;
 %% ----------------------------------------------------------
 % 1. Load & Prepare Data
 % ----------------------------------------------------------
-eegFilename = 'simEEG_set1';
+eegFilename = 'simEEG_set3';
 fullName = strcat(eegFilename, '.mat');
 simEEG   = load(fullName);
 
@@ -111,13 +111,18 @@ end
 %% ----------------------------------------------------------
 % 3. Loop through dimensionality reduction methods
 % ----------------------------------------------------------
+% Start parallel pool (default: use all available cores)
+if isempty(gcp('nocreate'))
+    parpool;  
+end
+
 for m = 1:numel(methods)
     method = methods{m};
     fprintf("Running %s...\n", method);
     R2_k = zeros(max_components,1);
     MSE_k = zeros(max_components,1);
 
-    for k = component_range
+    parfor k = component_range
         
         switch method
             
@@ -127,8 +132,8 @@ for m = 1:numel(methods)
                 method_dir = fullfile(results_dir, method_name);
                 [R2_test, MSE_test,outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
                     H_train, H_test, param, k, fs_new, method_dir);
-                R2_k(k) = R2_test(k);
-                MSE_k(k) = MSE_test(k);
+                R2_k_local(k) = R2_test(k);
+                MSE_k_local(k) = MSE_test(k);
             % case 'ICA'
             %     % [R2_k, MSE_k] = runICAAnalysis(X_train, X_test, H_train, H_test, k);
             %     [R2_k, MSE_k] = runICAAnalysis(X_train, X_test, H_train, H_test, k);
@@ -139,14 +144,15 @@ for m = 1:numel(methods)
             % 
             case 'AE'
                 % [R2_k, MSE_k] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, k);
-                [R2_k(k), MSE_k(k), outAE] = runAutoencoderAnalysis(eeg_train, eeg_test,...
+                [R2_k_local(k), MSE_k_local(k), outAE] = runAutoencoderAnalysis(eeg_train, eeg_test,...
                     H_train, H_test, k, param, fs_new, results_dir);
 
         end
 
-        results.(method).R2(k)  = R2_k(k);
-        results.(method).MSE(k) = MSE_k(k);
     end
+    results.(method).R2 = R2_k_local; 
+    results.(method).MSE = MSE_k_local;
+
 end
 
 %% ----------------------------------------------------------
@@ -162,6 +168,7 @@ for m = 1:numel(methods)
     plot(component_range, results.(methods{m}).R2, 'LineWidth', 2);
 end
 xlabel('Number of Components');
+ylim([0 1]);
 ylabel('R^2');
 title('R^2 vs Dimensionality');
 legend(methods);
@@ -174,6 +181,7 @@ for m = 1:numel(methods)
     plot(component_range, results.(methods{m}).MSE, 'LineWidth', 2);
 end
 xlabel('Number of Components');
+ylim([0 1]);
 ylabel('MSE');
 title('MSE vs Dimensionality');
 legend(methods);
