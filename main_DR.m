@@ -4,16 +4,15 @@ clear; clc;
 %% ----------------------------------------------------------
 % 1. Load & Prepare Data
 % ----------------------------------------------------------
-eegFilename = 'simEEG_set3';
+eegFilename = 'simEEG_set2';
 fullName = strcat(eegFilename, '.mat');
 simEEG   = load(fullName);
-
 
 s_eeg_like      = simEEG.train_sim_eeg_vals;
 s_eeg_like_test = simEEG.test_sim_eeg_vals;
 h_f   = simEEG.train_true_hF';
 
-param.f_peak    = [1,2,3,4,5,6,7,8];
+param.f_peak    = [2 2.4 8 20 21 32 40 40];
 fs_orig          = 1/simEEG.dt;
 param.N_F       = size(simEEG.train_true_hF,1);
 
@@ -119,8 +118,8 @@ end
 for m = 1:numel(methods)
     method = methods{m};
     fprintf("Running %s...\n", method);
-    R2_k = zeros(max_components,1);
-    MSE_k = zeros(max_components,1);
+    R2_k_local = zeros(max_components,1);
+    MSE_k_local = zeros(max_components,1);
 
     parfor k = component_range
         
@@ -152,7 +151,8 @@ for m = 1:numel(methods)
     end
     results.(method).R2 = R2_k_local; 
     results.(method).MSE = MSE_k_local;
-
+    R2_k_local = zeros(max_components,1);
+    MSE_k_local = zeros(max_components,1);
 end
 
 %% ----------------------------------------------------------
