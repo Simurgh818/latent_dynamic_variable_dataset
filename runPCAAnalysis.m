@@ -132,9 +132,9 @@ for b = 1:nBands
 end
 
 
-%% ============================================================
-%% PLOTTING SECTION
-%% ============================================================
+% ============================================================
+% PLOTTING SECTION
+% ============================================================
 
 fig1 = figure('Position',[50 50 1200 150*size(h_train,2)]);
 tiledlayout(size(h_train,2), 1, 'TileSpacing', 'compact', 'Padding', 'compact');
@@ -161,7 +161,7 @@ saveas(fig1, fullfile(method_dir, ['PCA_Trace_Reconstruction' file_suffix '.png'
 fig2 = figure('Position',[50 50 1000 (num_sig_components*250)/2]);
 tiledlayout(num_sig_components, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
 pc_colors = lines(num_sig_components);
-sgtitle('PC Traces');
+sgtitle(['PC Traces (k=' num2str(num_sig_components) ')']);
 for pc=1:num_sig_components
     nexttile;
     plot(score(:,pc), 'LineStyle', '-', 'Color', pc_colors(pc,:),'DisplayName', ['PC(t) ' num2str(pc)]);
@@ -179,7 +179,7 @@ nexttile;
 plot(cumsum(explained), 'o-');
 xline(num_sig_components, '--r');
 xlabel('Number of PCs'); ylabel('Cumulative Variance (%)');
-title('PCA Explained Variance');
+title(['PCA Explained Variance (k=' num2str(num_sig_components) ')']);
 
 nexttile;
 hold on;
@@ -198,7 +198,7 @@ saveas(fig3, fullfile(method_dir, ['PCA_Metrics_vs_Components' file_suffix '.png
 %% Plot 4: Frequency Analysis (FFT)
 fig4 = figure('Position',[50 50 1000 600]);
 tiledlayout(2, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle('PCA Frequency Analysis');
+sgtitle(['PCA Frequency Analysis (k=' num2str(num_sig_components) ')']);
 
 nexttile; 
 for fidx=1:size(h_train,2)
@@ -243,7 +243,7 @@ end
 
 fig5 = figure('Position',[100 100 1200 250*floor(param.N_F/2)]);
 tiledlayout(floor(param.N_F/2), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle('Band Power Comparison');
+sgtitle(['Band Power Comparison (k=' num2str(num_sig_components) ')']);
 for fidx = 1:size(h_train,2)
     nexttile;
     bar_data = [band_power_true(:,fidx), band_power_recon(:,fidx)];
@@ -270,7 +270,7 @@ bar(band_avg_R2');
 set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%d}', param.f_peak(i)), 1:size(h_train,2), 'UniformOutput', false));
 ylim([-1 1]);
 legend(band_names, 'Location', 'southeastoutside');
-title('PCA Band-wise Average R^2');
+title(['PCA Band-wise Average R^2 (k=' num2str(num_sig_components) ')']);
 grid on;
 saveas(fig6, fullfile(method_dir, ['PCA_Bandwise_R2' file_suffix '.png']));
 
@@ -306,7 +306,7 @@ band_labels = repelem(band_names, size(h_train,2));
 
 fig7 = figure('Position',[50 50 1600 300]);
 tiledlayout(1, param.N_F, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle('True vs Reconstructed Band Mean FFT Amplitudes (per latent)');
+sgtitle(['True vs Reconstructed Band Mean FFT Amplitudes (per latent) (k=' num2str(num_sig_components) ')']);
 
 colors = lines(nBands);
 markers = {'o','s','d','h','^','hexagram','<','>'};
@@ -377,7 +377,7 @@ end
 
 fig8 = figure('Position',[50 50 1200 300]);
 tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle('True vs PCA Reconstructed FFT Band Amplitudes (All Trials × Latents)');
+sgtitle(['True vs PCA Reconstructed FFT Band Amplitudes (All Trials × Latents) (k=' num2str(num_sig_components) ')']);
 colors = lines(nBands);
 
 for b = 1:nBands
