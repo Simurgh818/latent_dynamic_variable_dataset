@@ -242,8 +242,8 @@ true_vals_ica  = mean_band_amp_ica_true(:);
 recon_vals_ica = mean_band_amp_ica_recon(:);
 band_labels = repelem(band_names, param.N_F);
 
-fig3 = figure('Position',[50 50 1600 300]);
-tiledlayout(1, param.N_F, 'TileSpacing', 'compact', 'Padding', 'compact');
+fig3 = figure('Position',[50 50 1400 300]);
+tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
 sgtitle('ICA True vs Reconstructed Band Mean FFT Amplitudes');
 
 colors = lines(nBands);
@@ -349,7 +349,5 @@ outICA.h_rec_test   = h_rec_test;
 outICA.MSE_train    = mean((h_test - h_rec_test).^2, 'all');
 outICA.method_dir  = method_dir;
 
-% Save Summary Plots to Main Directory
-saveas(fig1, fullfile(method_dir, ['Main_Summary_Trace_ICA' file_suffix '.png']));
 close all;
 end

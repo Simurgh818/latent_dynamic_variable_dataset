@@ -4,7 +4,7 @@ clear; clc;
 %% ----------------------------------------------------------
 % 1. Load & Prepare Data
 % ----------------------------------------------------------
-eegFilename = 'simEEG_set4';
+eegFilename = 'simEEG_set2';
 fullName = strcat(eegFilename, '.mat');
 simEEG   = load(fullName);
 
@@ -125,30 +125,30 @@ for m = 1:numel(methods)
         
         switch method
             
-            case 'PCA'
-                %% 1. Setup and Directories
-                method_name = 'PCA';
-                method_dir = fullfile(results_dir, method_name);
-                [R2_test, MSE_test,outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
-                    H_train, H_test, param, k, fs_new, method_dir);
-                R2_k_local(k) = R2_test(k);
-                MSE_k_local(k) = MSE_test(k);
-
-            case 'AE'
-                % [R2_k, MSE_k] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, k);
-                [R2_k_local(k), MSE_k_local(k), outAE] = runAutoencoderAnalysis(eeg_train, eeg_test,...
-                    H_train, H_test, k, param, fs_new, results_dir);
-            case 'ICA'
-                % 1. Setup and Directories
-                method_name = 'ICA';
-                method_dir = fullfile(results_dir, method_name);
-                [R2_k_local(k), MSE_k_local(k)] = runICAAnalysis(eeg_train, eeg_test, H_train, H_test, k, param, method_dir);
+            % case 'PCA'
+            %     %% 1. Setup and Directories
+            %     method_name = 'PCA';
+            %     method_dir = fullfile(results_dir, method_name);
+            %     [R2_test, MSE_test,outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
+            %         H_train, H_test, param, k, fs_new, method_dir);
+            %     R2_k_local(k) = R2_test(k);
+            %     MSE_k_local(k) = MSE_test(k);
+            % 
+            % case 'AE'
+            %     % [R2_k, MSE_k] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, k);
+            %     [R2_k_local(k), MSE_k_local(k), outAE] = runAutoencoderAnalysis(eeg_train, eeg_test,...
+            %         H_train, H_test, k, param, fs_new, results_dir);
+            % case 'ICA'
+            %     % 1. Setup and Directories
+            %     method_name = 'ICA';
+            %     method_dir = fullfile(results_dir, method_name);
+            %     [R2_k_local(k), MSE_k_local(k)] = runICAAnalysis(eeg_train, eeg_test, H_train, H_test, k, param, method_dir);
          
 
-            % case 'UMAP'
-            %     % [R2_k, MSE_k] = runUMAPAnalysis(X_train, X_test, H_train, H_test, k);
-            %     [R2_k, MSE_k] = runUMAPAnalysis(X_train, X_test, H_train, H_test, k);
-            % 
+            case 'UMAP'
+                % [R2_k, MSE_k] = runUMAPAnalysis(X_train, X_test, H_train, H_test, k);
+                [R2_k, MSE_k] = runUMAPAnalysis(X_train, X_test, H_train, H_test, k);
+
 
 
         end
@@ -191,7 +191,7 @@ ylabel('MSE');
 title('MSE vs Dimensionality');
 legend(methods);
 grid on;
-
+set(findall(gcf,'-property','FontSize'),'FontSize',16)
 summary_trace_name = fullfile(results_dir, 'Main_Summary_Trace.png');
 % summary_metrics_name = fullfile(results_dir, 'Main_Summary_Metrics.png');
 
