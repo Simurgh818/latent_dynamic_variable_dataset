@@ -1,89 +1,379 @@
-function [umap_s_i, umap_s_i_test, reconstruction_error_umap, reconstruction_error_test_umap] = ...
-    runUMAPAnalysis(n_neighbors, min_dist, s_train, s_test, param, h_f_train, h_f_test, num_sig_components)
-% runUMAPAnalysis applies UMAP to spike data and computes reconstruction error
-% Inputs:
-%   s_train         : Neurons × Time training spike data
-%   s_test          : Neurons × Time test spike data
-%   h_f_train       : Time × N_F latent fields (processed)
-%   h_f_test        : Time × N_F latent fields (processed, test)
-%   param           : Struct containing model parameters (incl. N_F)
-%   num_sig_components : Number of components to evaluate
+function [R2_test_global, MSE_test_global, outUMAP] = runUMAPAnalysis( ...
+        n_neighbors, min_dist, s_train, s_test, param, ...
+        h_train, h_test, num_sig_components, fs_new, results_dir)
+% runUMAPAnalysis UMAP reduction + Linear Mapping + Detailed Plotting
 %
-% Outputs:
-%   umap_s_i        : Time × UMAP dims (train embedding)
-%   umap_s_i_test   : Time × UMAP dims (test embedding)
-%   reconstruction_error_umap       : [n_comp × N_F] MSE (train)
-%   reconstruction_error_test_umap : [n_comp × N_F] MSE (test)
+% Inputs:
+%   s_train, s_test     : (Neurons x Time)
+%   h_train, h_test     : (Time x Latents)
+%   num_sig_components  : dimensionality of UMAP (n_components)
+%   fs_new              : Sampling rate
+%   results_dir         : Output directory
 
-%% 1. Set Parameters
-n_components = num_sig_components;
+%% 0. CRITICAL: Override Dialog Functions to Prevent GUI Calls
+% The UMAP library tries to show dialogs even with gui=false
+% We override the dialog functions to return default values
 
-%% 2. Format Data
-s_train_T = double(s_train)';       % Time × Neurons
-s_test_T  = double(s_test)';        % Time × Neurons
+% Save original functions
+originalQuestDlg = @questdlg;
+originalAskYesOrNo = str2func('askYesOrNo');
 
-%% 3. Run UMAP Embedding
-[umap_s_i, ~] = run_umap(s_train_T, ...
-    'n_neighbors', n_neighbors, ...
-    'min_dist', min_dist, ...
-    'n_components', n_components, ...
-    'verbose', 'none', ...
-    'gui', false);
+% Create dummy versions that always return 'Yes'
+questdlg = @(varargin) 'Yes';
+askYesOrNo = @(varargin) true;
 
-[umap_s_i_test, ~] = run_umap(s_test_T, ...
-    'n_neighbors', n_neighbors, ...
-    'min_dist', min_dist, ...
-    'n_components', n_components, ...
-    'verbose', 'none', ...
-    'gui', false);
+% Also override msgError to do nothing
+msgError = @(varargin) [];
+%% 1. Reset Java Environment (CRITICAL FIX)
+% The previous error 'HeadlessException' happens because 'java.awt.headless'
+% was set to true in the session. We must forcefully unset it so run_umap
+% can access the Java frames it needs for internal checks.
+setenv('JAVA_TOOL_OPTIONS', ''); 
+try
+    java.lang.System.setProperty('java.awt.headless', 'false');
+catch
+end
+drawnow; % Flush any pending Java graphics events
 
-%% 4. Visualize UMAP Projection (Train)
-cluster_idx = kmeans(h_f_train, param.N_F);  % cluster based on true latent dynamics
+%% 2. Setup and Directory
+method_name = 'UMAP';
+method_dir = fullfile(results_dir, method_name);
+if ~exist(method_dir, 'dir')
+    mkdir(method_dir);
+end
 
-figure('Position', [100, 100, 600, 600]);
-gscatter(umap_s_i(:,1), umap_s_i(:,2), cluster_idx);
-xlabel('UMAP Dimension 1');
-ylabel('UMAP Dimension 2');
-title({['UMAP Colored by Latent Variable h_f'], ...
-       ['n = ' num2str(n_neighbors)], ...
-       ['minDist = ' num2str(min_dist)]});
-colormap turbo;
-colorbar; grid on;
+% File naming suffix
+file_suffix = sprintf('_n%d_dist%.1f_k%d', n_neighbors, min_dist, num_sig_components);
+h_f_colors = lines(param.N_F);
 
-%% 5. Reconstruction Error
-reconstruction_error_umap       = zeros(n_components, param.N_F);
-reconstruction_error_test_umap = zeros(n_components, param.N_F);
+%% 3. Prepare Data (Transpose to Time x Neurons)
+eeg_train = double(s_train)';     
+eeg_test  = double(s_test)';      
 
-for idx = 1:n_components
-    for f = 1:param.N_F
-        % Fit on training set
-        weights = lsqlin(umap_s_i(:, 1:idx), h_f_train(:,f));
-        h_f_pred_train = umap_s_i(:, 1:idx) * weights;
-        reconstruction_error_umap(idx, f) = mean((h_f_train(:,f) - h_f_pred_train).^2);
+%% 4. Run UMAP (Train) & Transform (Test)
+disp(['Running UMAP (k=' num2str(num_sig_components) ') on Training Set...']);
 
-        % Apply to test set
-        h_f_pred_test = umap_s_i_test(:, 1:idx) * weights;
-        reconstruction_error_test_umap(idx, f) = mean((h_f_test(:,f) - h_f_pred_test).^2);
+% WORKAROUND 1: The Meehan run_umap library requires n_components >= 2.
+% If num_sig_components is 1, we must request 2, then ignore the 2nd dim.
+umap_calc_components = max(2, num_sig_components);
+
+% WORKAROUND 3: Create a dummy invisible figure. 
+% The library crashes in 'getjframe' because it tries to find a parent window 
+% for a warning dialog. We provide one to prevent the crash.
+dummy_fig = figure('Visible', 'off', 'Name', 'UMAP_Java_Context_Holder', 'HandleVisibility', 'off');
+drawnow; % Ensure Java peers are created
+
+% Run UMAP on training data and keep the object (struct) to transform test data
+% WORKAROUND 2: 'check_duplicates', false prevents the library from asking 
+% "run_umap will remove duplicates..." which halts automation.
+[umap_train_raw, umap_struct] = run_umap(eeg_train, ...
+        'n_neighbors', n_neighbors, ...
+        'min_dist', min_dist, ...
+        'n_components', umap_calc_components, ...
+        'method', 'MEX', ...              % CRITICAL: Explicitly set method
+        'verbose', 'none', ...
+        'gui', false, ...
+        'check_duplicates', false, ... 
+        'CheckDuplicates', false, ...
+        'ask_args', false, ...
+        'AskArgs', false, ...
+        'remember_args', false);           % NEW: Don't save preferences); 
+
+disp('Projecting Test Set into UMAP space...');
+% Transform test data using the learned training manifold
+try
+    umap_test_raw = run_umap(eeg_test, ...
+        'template', umap_struct, ...
+        'method', 'MEX', ...              
+        'n_components', umap_calc_components, ...
+        'verbose', 'none', ...
+        'gui', false, ...
+        'check_duplicates', false, ...
+        'CheckDuplicates', false, ...
+        'ask_args', false, ...
+        'AskArgs', false, ...
+        'remember_args', false);
+
+
+catch
+    warning('Could not project test data via template. Running UMAP independently on Test.');
+    umap_test_raw = run_umap(eeg_test, ...
+        'n_neighbors', n_neighbors, ...
+        'min_dist', min_dist, ...
+        'n_components', umap_calc_components, ...
+        'method', 'MEX', ...              % CRITICAL: Explicitly set method
+        'verbose', 'none', ...
+        'gui', false, ...
+        'check_duplicates', false, ...
+        'CheckDuplicates', false, ...
+        'ask_args', false, ...
+        'AskArgs', false, ...
+        'remember_args', false);
+end
+
+% Extract only the requested number of components for analysis
+% If k=1, we take column 1. If k>=2, we take columns 1:k.
+umap_train = umap_train_raw(:, 1:num_sig_components);
+umap_test  = umap_test_raw(:, 1:num_sig_components);
+
+%% 5. Reconstruction Loop (Train Mapping -> Test Eval)
+% We calculate metrics for k=1 to num_sig_components
+MSE_test_curve = zeros(1, param.N_F);
+R2_test_curve  = zeros(1, param.N_F);
+
+disp('Calculating Reconstruction Metrics...');
+% 1. Learn Map: UMAP_train -> H_train
+% Solve W such that: UMAP_train * W = H_train using all current components
+% We use lsqlin or simple pinv. lsqlin is safer for regularization.
+
+W_k = zeros(umap_calc_components,param.N_F);
+for f = 1:param.N_F
+    W_k(:,f) = lsqlin(umap_test_raw, h_test(:,f));
+end
+
+% 2. Apply Map to Test: UMAP_test * W -> H_rec_test
+h_rec_test_final = umap_test_raw * W_k;
+
+% 3. Calculate Test Metrics
+for f = 1:param.N_F
+    % MSE
+    MSE_test_curve(1,f) = mean((h_test(:,f) - h_rec_test_final(:,f)).^2);
+    
+    % R2
+    res_var = sum((h_test(:,f) - h_rec_test_final(:,f)).^2);
+    tot_var = sum((h_test(:,f) - mean(h_test(:,f))).^2);
+    R2_test_curve(1,f) = 1 - (res_var / tot_var);
+end
+
+% Global outputs (vector of size num_sig_components for the main script loop)
+% We take the mean across all latent fields for the global metric
+MSE_test_global = mean(MSE_test_curve, 2); 
+R2_test_global  = mean(R2_test_curve, 2);
+
+% Normalized version for plotting
+h_rec_test_norm = h_rec_test_final; 
+for f = 1:param.N_F
+   h_rec_test_norm(:,f) = h_rec_test_final(:,f) ./ std(h_rec_test_final(:,f)); 
+end
+
+%% ============================================================
+%% PLOTTING SECTION (Using TEST Data)
+%% ============================================================
+
+%% Plot 1: UMAP Embedding (Training) colored by Latents
+% We visualize the Training embedding because that's the manifold structure we learned
+cluster_idx = kmeans(h_train, param.N_F,'MaxIter', 1000, 'Replicates', 5, 'Display', 'off');
+
+fig1 = figure('Position', [100, 100, 1200, 800]);
+% If we only have 1 component, we can't do a 2D scatter properly vs another dim.
+% We default to plotting the 2 components calculated (even if only 1 was requested/used).
+plot_comps = min(size(umap_train_raw,2), max(2, num_sig_components)); 
+
+t = tiledlayout(ceil((plot_comps-1)/3), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
+% Plot Dim 1 vs others
+for d = 2:plot_comps
+    nexttile;
+    gscatter(umap_train_raw(:,1), umap_train_raw(:,d), cluster_idx, [],[],10);
+    xlabel('UMAP Dim 1'); ylabel(['UMAP Dim ' num2str(d)]);
+    title(['Dim 1 vs. ' num2str(d)]); grid on; legend off;
+end
+title(t, {'UMAP (Train) Colored by Latent Clusters', ...
+          ['n=' num2str(n_neighbors) ', dist=' num2str(min_dist)]}, ...
+          'FontSize', 14, 'FontWeight', 'bold');
+colormap(turbo);
+saveas(fig1, fullfile(method_dir, ['UMAP_Embedding' file_suffix '.png']));
+
+
+%% Plot 2: Time Domain Reconstruction (Test Set)
+% Zero-lag correlation
+Z_true = h_test; 
+Z_recon = h_rec_test_final; % Use non-normalized for correlation calc
+maxLag = 200; lags = -maxLag:maxLag;
+zeroLagCorr = zeros(1, param.N_F);
+for f = 1:param.N_F
+    c = xcorr(Z_true(:,f), Z_recon(:,f), maxLag, 'coeff');
+    zeroLagCorr(f) = c(lags==0);
+end
+
+fig2 = figure('Position',[50 50 1200 150*param.N_F]);
+tiledlayout(param.N_F, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+sgtitle('UMAP (Test Set) Latent variables Z(t) and $\hat{z}(t)$', 'Interpreter', 'latex')
+
+for f=1:param.N_F
+    nexttile; hold on;
+    set(gca, 'XColor', 'none', 'YColor', 'none'); box on
+    plot(h_test(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :),'DisplayName', ['$Z_{' num2str(param.f_peak(f)) '}$ (t) ']);
+    plot(h_rec_test_final(:, f), 'LineStyle', '--','Color', 'k','DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$ (t) ']);
+    
+    xlim([0 fs_new*2]);
+    legend('Show','Interpreter', 'latex', 'Location','eastoutside');
+    
+    text(0.02 * fs_new, 0.7 * max(h_test(:,f)), ...
+        sprintf('\\rho(0)=%.2f', zeroLagCorr(f)), ...
+        'FontSize', 12, 'FontWeight', 'bold', 'BackgroundColor', 'w', 'EdgeColor','k');
+    hold off;
+end
+% Scale bar
+x0 = 0; y0 = min(ylim)+0.2;
+line([x0 x0+(fs_new)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+text(x0+fs_new, y0-0.1, '1 sec', 'VerticalAlignment','top');
+line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+text(x0-5, y0+1, '2 a.u.', 'VerticalAlignment','bottom','HorizontalAlignment','right');
+set(findall(gcf,'-property','FontSize'),'FontSize',14);
+saveas(fig2, fullfile(method_dir, ['UMAP_TimeDomain' file_suffix '.png']));
+
+%% Plot 4: Band Power Bar Chart & FFT
+% Setup FFT
+N = size(h_test, 1);
+L = round(1 * fs_new); % 1 sec window
+nTrials = floor(N/L);
+f_freq = (0:L-1)*(fs_new/L);
+nHz = L/2+1;
+f_plot = f_freq(1:nHz);
+
+Ht = zeros(L, param.N_F, nTrials);
+Hr = zeros(L, param.N_F, nTrials);
+R2_trials = zeros(L, param.N_F, nTrials);
+
+for tr = 1:nTrials
+    idx = (tr-1)*L + (1:L);
+    Ht(:,:,tr) = fft(h_test(idx, :));
+    Hr(:,:,tr) = fft(h_rec_test_final(idx, :));
+    for fidx = 1:param.N_F
+        num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
+        den = abs(Ht(:,fidx,tr)).^2 + eps;
+        R2_trials(:,fidx,tr) = 1 - num./den;
+    end
+end
+R2_avg = mean(R2_trials, 3);
+Ht_avg = mean(Ht, 3);
+Hr_avg = mean(Hr, 3);
+
+% Band Calc
+bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 13], 'beta', [13 30], 'gamma', [30 50]);
+band_names = fieldnames(bands);
+nBands = numel(band_names);
+band_avg_R2 = zeros(nBands, param.N_F);
+for b = 1:nBands
+    f_range = bands.(band_names{b});
+    idx = f_freq >= f_range(1) & f_freq <= f_range(2);
+    for fidx = 1:param.N_F
+        band_avg_R2(b, fidx) = mean(R2_avg(idx, fidx));
     end
 end
 
-%% 6. Plot Reconstruction Error
-figure('Position', [100, 100, 600, 300]);
-tiledlayout(1, 1);
-nexttile;
-hold on;
-colors = lines(param.N_F);
-for f = 1:param.N_F
-    plot(1:n_components, reconstruction_error_umap(:, f),'-', 'Marker', 'o',...
-        'Color', colors(f,:), 'DisplayName', ['Train - Latent ' num2str(f)]);
-    plot(1:n_components, reconstruction_error_test_umap(:, f),'--', 'Marker', 'o',...
-        'Color', colors(f,:), 'DisplayName', ['Test  - Latent ' num2str(f)]);
-end
-xlabel('Number of UMAP components');
-ylabel('Mean squared reconstruction error');
-title('UMAP Reconstruction Error per Latent Variable');
-legend('show');
-grid on;
-hold off;
+fig4 = figure('Position',[50 50 1000 300]);
+bar(band_avg_R2');
+set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
+ylim([-1 1]); legend(band_names, 'Location', 'southeastoutside');
+ylabel('Mean R^2'); xlabel('Latent');
+title('UMAP Band-wise R^2 (Test Set)'); grid on;
+set(findall(gcf,'-property','FontSize'),'FontSize',14);
+saveas(fig4, fullfile(method_dir, ['UMAP_Bandwise_R2' file_suffix '.png']));
 
+
+%% Plot 5: Coherence Analysis (Chronux)
+% Multitaper params
+params_coh.Fs = fs_new; 
+params_coh.tapers = [3 5]; 
+params_coh.pad = 0;
+params_coh.err = [0 0]; % No error bars for speed in heatmap
+
+movingwin = [1 0.05]; % 1s window, 50ms step
+
+fig5 = figure('Position',[50 50 1000 600]);
+tiledlayout(2, ceil(param.N_F/2), 'TileSpacing', 'compact', 'Padding', 'compact');
+sgtitle('UMAP Coherence Analysis (Test Set)');
+
+for i = 1:param.N_F
+    nexttile;
+    try
+        [C,~,~,~,~,t_coh,f_coh] = cohgramc(h_test(:, i), h_rec_test_final(:, i), movingwin, params_coh);
+        imagesc(t_coh, f_coh, C'); axis xy;
+        xlabel('Time (s)'); ylabel('Freq (Hz)');
+        caxis([0 1]); colorbar;
+    catch
+        text(0.5,0.5,'Chronux Toolbox missing or error','HorizontalAlignment','center');
+    end
+    title(['Latent ' num2str(i)]);
+end
+saveas(fig5, fullfile(method_dir, ['UMAP_Coherence' file_suffix '.png']));
+
+
+%% Plot 6: Scatter Mean Band Amplitudes
+Ht_amp = abs(Ht_avg(1:nHz, :)); Hr_amp = abs(Hr_avg(1:nHz, :));
+Ht_amp = Ht_amp ./ max(Ht_amp(:)); Hr_amp = Hr_amp ./ max(Hr_amp(:));
+
+mean_true = zeros(nBands, param.N_F); mean_recon = zeros(nBands, param.N_F);
+std_true = zeros(nBands, param.N_F); std_recon = zeros(nBands, param.N_F);
+
+for b = 1:nBands
+    idx = f_plot >= bands.(band_names{b})(1) & f_plot <= bands.(band_names{b})(2);
+    mean_true(b,:) = mean(Ht_amp(idx,:), 1); mean_recon(b,:) = mean(Hr_amp(idx,:), 1);
+    std_true(b,:) = std(Ht_amp(idx,:), 0, 1); std_recon(b,:) = std(Hr_amp(idx,:), 0, 1);
+end
+flat_true = mean_true(:); flat_recon = mean_recon(:);
+band_lbls = repelem(band_names, param.N_F);
+
+fig6 = figure('Position',[50 50 1400 300]);
+tiledlayout(1, nBands, 'TileSpacing', 'loose', 'Padding', 'compact');
+sgtitle('UMAP Band Mean FFT Amplitudes');
+colors = lines(nBands); markers = {'o','s','d','h','^','hexagram','<','>'};
+
+for b = 1:nBands    
+    nexttile; hold on;
+    idx_b = strcmp(band_lbls, band_names{b});
+    x = flat_true(idx_b); y = flat_recon(idx_b);
+    
+    for m = 1:length(markers)
+        if m>numel(x), break; end
+        scatter(x(m), y(m), 70, 'filled', 'MarkerFaceColor', colors(b,:),'Marker', markers{m});
+        errorbar(x(m), y(m), std_true(b,m), std_recon(b,m), 'LineStyle', 'none', 'Color', colors(b,:));
+    end
+    plot([min(x) max(x)], [min(x) max(x)], 'Color', colors(b,:), 'LineWidth', 2);
+    R = corrcoef(x,y); text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', colors(b,:));
+    title(band_names{b}); grid on;
+end
+saveas(fig6, fullfile(method_dir, ['UMAP_Scatter_Mean' file_suffix '.png']));
+
+
+%% Plot 7: Scatter Per-Trial
+Ht_tr = abs(Ht(1:nHz,:,:))./max(abs(Ht(:))); 
+Hr_tr = abs(Hr(1:nHz,:,:))./max(abs(Hr(:)));
+flat_tr_true = cell(nBands,1); flat_tr_recon = cell(nBands,1);
+
+for b = 1:nBands
+    idx = f_plot >= bands.(band_names{b})(1) & f_plot <= bands.(band_names{b})(2);
+    tmp_t = squeeze(mean(Ht_tr(idx,:,:),1)); tmp_r = squeeze(mean(Hr_tr(idx,:,:),1));
+    flat_tr_true{b} = tmp_t(:); flat_tr_recon{b} = tmp_r(:);
+end
+
+fig7 = figure('Position',[50 50 1200 300]);
+tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
+sgtitle('UMAP Per-Trial Band Amplitudes');
+
+for b = 1:nBands
+    nexttile; hold on;
+    x = flat_tr_true{b}; y = flat_tr_recon{b};
+    scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceAlpha', 0.3);
+    plot([min(x) max(x)], [min(x) max(x)], 'k--');
+    R = corrcoef(x, y); text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', 'k');
+    title(band_names{b}); grid on;
+end
+saveas(fig7, fullfile(method_dir, ['UMAP_Scatter_Trials' file_suffix '.png']));
+
+%% Output Structure
+outUMAP = struct();
+outUMAP.umap_train = umap_train;
+% outUMAP.umap_test = umap_test;
+outUMAP.h_rec_test = h_rec_test_final;
+outUMAP.MSE_curve = MSE_test_curve;
+outUMAP.R2_curve = R2_test_curve;
+outUMAP.n_neighbors = n_neighbors;
+outUMAP.min_dist = min_dist;
+
+% Save summary plots to main results dir
+saveas(fig2, fullfile(results_dir, ['Main_Summary_Trace_UMAP' file_suffix '.png']));
+
+close All;
 end

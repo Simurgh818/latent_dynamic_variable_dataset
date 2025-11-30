@@ -4,7 +4,7 @@ clear; clc;
 %% ----------------------------------------------------------
 % 1. Load & Prepare Data
 % ----------------------------------------------------------
-eegFilename = 'simEEG_set2';
+eegFilename = 'simEEG_set4';
 fullName = strcat(eegFilename, '.mat');
 simEEG   = load(fullName);
 
@@ -110,10 +110,25 @@ end
 %% ----------------------------------------------------------
 % 3. Loop through dimensionality reduction methods
 % ----------------------------------------------------------
+% java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment;
+% warning('off','MATLAB:HandleGraphics:ObsoletedProperty:JavaFrame');
+% 
+% % Force headless Java mode (best chance in MATLAB)
+% setenv('JAVA_TOOL_OPTIONS','-Djava.awt.headless=true');
+% 
+% % Also try MATLAB's internal headless toggle
+% try
+%     system_dependent('setheadless', true);
+% catch
+%     % Some versions don't support this; ignore gracefully
+% end
+
+
+
 % Start parallel pool (default: use all available cores)
-if isempty(gcp('nocreate'))
-    parpool;  
-end
+% if isempty(gcp('nocreate'))
+%     parpool;  
+% end
 
 for m = 1:numel(methods)
     method = methods{m};
@@ -121,34 +136,36 @@ for m = 1:numel(methods)
     R2_k_local = zeros(max_components,1);
     MSE_k_local = zeros(max_components,1);
 
-    parfor k = component_range % par
+    for k = component_range % par
         
         switch method
             
-            % case 'PCA'
-            %     %% 1. Setup and Directories
-            %     method_name = 'PCA';
-            %     method_dir = fullfile(results_dir, method_name);
-            %     [R2_test, MSE_test,outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
-            %         H_train, H_test, param, k, fs_new, method_dir);
-            %     R2_k_local(k) = R2_test(k);
-            %     MSE_k_local(k) = MSE_test(k);
-            % 
-            % case 'AE'
-            %     % [R2_k, MSE_k] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, k);
-            %     [R2_k_local(k), MSE_k_local(k), outAE] = runAutoencoderAnalysis(eeg_train, eeg_test,...
-            %         H_train, H_test, k, param, fs_new, results_dir);
-            % case 'ICA'
-            %     % 1. Setup and Directories
-            %     method_name = 'ICA';
-            %     method_dir = fullfile(results_dir, method_name);
-            %     [R2_k_local(k), MSE_k_local(k)] = runICAAnalysis(eeg_train, eeg_test, H_train, H_test, k, param, method_dir);
-         
+            case 'PCA'
+                %% 1. Setup and Directories
+                method_name = 'PCA';
+                method_dir = fullfile(results_dir, method_name);
+                [R2_test, MSE_test,outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
+                    H_train, H_test, param, k, fs_new, method_dir);
+                R2_k_local(k) = R2_test(k);
+                MSE_k_local(k) = MSE_test(k);
+
+            case 'AE'
+                % [R2_k, MSE_k] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, k);
+                [R2_k_local(k), MSE_k_local(k), outAE] = runAutoencoderAnalysis(eeg_train, eeg_test,...
+                    H_train, H_test, k, param, fs_new, results_dir);
+            case 'ICA'
+                % 1. Setup and Directories
+                method_name = 'ICA';
+                method_dir = fullfile(results_dir, method_name);
+                [R2_k_local(k), MSE_k_local(k)] = runICAAnalysis(eeg_train, eeg_test, H_train, H_test, k, param, method_dir);
 
             case 'UMAP'
                 % [R2_k, MSE_k] = runUMAPAnalysis(X_train, X_test, H_train, H_test, k);
-                [R2_k, MSE_k] = runUMAPAnalysis(X_train, X_test, H_train, H_test, k);
-
+                n_neighbors = 199;
+                min_dist    = 0.3;
+                [R2_k_local(k), MSE_k_local(k), outUMAP] = runUMAPAnalysis( ...
+                    n_neighbors, min_dist, eeg_train, eeg_test, param, ...
+                    H_train, H_test, k, param.fs, results_dir);
 
 
         end
