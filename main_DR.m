@@ -193,7 +193,7 @@ xlabel('Number of Components');
 ylim([0 1]);
 ylabel('R^2');
 title('R^2 vs Dimensionality');
-legend(methods);
+legend(methods, 'Location','eastoutside');
 grid on;
 
 % MSE
@@ -206,7 +206,7 @@ xlabel('Number of Components');
 ylim([0 1]);
 ylabel('MSE');
 title('MSE vs Dimensionality');
-legend(methods);
+legend(methods, 'Location','eastoutside');
 grid on;
 set(findall(gcf,'-property','FontSize'),'FontSize',16)
 summary_trace_name = fullfile(results_dir, 'Main_Summary_Trace.png');
