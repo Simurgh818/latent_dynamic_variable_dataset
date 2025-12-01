@@ -267,7 +267,7 @@ bar(band_avg_R2');
 set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
 ylim([-1 1]); legend(band_names, 'Location', 'southeastoutside');
 ylabel('Mean R^2'); xlabel('Latent');
-title(['UMAP Band-wise R^2 (Test Set , k=' num2str(num_comps) ')']); grid on;
+title(['UMAP Band-wise R^2 (Test Set , k=' num2str(num_sig_components) ')']); grid on;
 set(findall(gcf,'-property','FontSize'),'FontSize',14);
 saveas(fig4, fullfile(method_dir, ['UMAP_Bandwise_R2' file_suffix '.png']));
 

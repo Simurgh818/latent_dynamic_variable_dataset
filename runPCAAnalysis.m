@@ -138,13 +138,13 @@ end
 
 fig1 = figure('Position',[50 50 1200 150*size(h_train,2)]);
 tiledlayout(size(h_train,2), 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['PCA (k=' num2str(num_sig_components) '): Latent variables Z(t) vs z_hat(t)']);
+sgtitle(['PCA (k=' num2str(num_sig_components) '): Latent variables Z(t) vs $\hat{z}$(t)'], 'Interpreter','latex');
 
 for f = 1:size(h_train,2)
     nexttile; hold on;
     set(gca, 'XColor', 'none', 'YColor', 'none'); box on;
-    plot(h_train(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :), 'DisplayName', [sprintf('Z_{%d}', param.f_peak(f)) ' (true)']);
-    plot(h_recon_final(:, f), 'LineStyle', '--','LineWidth',1,'Color', 'k', 'DisplayName', [sprintf('Z_{%d}', param.f_peak(f)) ' (recon)']);
+    plot(h_train(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :), 'DisplayName', [sprintf('Z_{%s}', num2str(param.f_peak(f))) ' (true)']);
+    plot(h_recon_final(:, f), 'LineStyle', '--','LineWidth',1,'Color', 'k', 'DisplayName', [sprintf('Z_{%s}', num2str(param.f_peak(f))) ' (recon)']);
     ylabel('amplitude');
     xlim([0 fs_new*2]); 
     legend('Show','Location','eastoutside');
@@ -241,8 +241,8 @@ for b = 1:nBands
     end
 end
 
-fig5 = figure('Position',[100 100 1200 250*floor(param.N_F/2)]);
-tiledlayout(floor(param.N_F/2), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
+fig5 = figure('Position',[100 100 1200 250*ceil(param.N_F/3)]);
+tiledlayout(ceil(param.N_F/3), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
 sgtitle(['Band Power Comparison (k=' num2str(num_sig_components) ')']);
 for fidx = 1:size(h_train,2)
     nexttile;
@@ -349,7 +349,7 @@ for m = 1:nLatents
                                'MarkerFaceColor', 'k');
 end
 proxy_handles(end) = plot(nan, nan, 'k', 'LineWidth', 2);
-legend_labels = [arrayfun(@(m) sprintf('Z_{%d}', param.f_peak(m)), 1:length(markers), 'UniformOutput', false), {'y = x'}];
+legend_labels = [arrayfun(@(m) sprintf('Z_{%s}', num2str(param.f_peak(m))), 1:length(markers), 'UniformOutput', false), {'y = x'}];
 legend(proxy_handles, legend_labels, 'Location','eastoutside','TextColor','k','IconColumnWidth',7, 'NumColumns',2);
 hold off;
 set(findall(gcf,'-property','FontSize'),'FontSize',14)

@@ -80,8 +80,8 @@ h_f_colors = lines(num_f);
 %%% -------------------- Plot reconstructed latent signals --------------------
 fig1 = figure('Position',[50 50 1200 150*num_f]);
 tiledlayout(num_f, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['Latent variables Z(t) and dPCA z_hat(t) reconstruction. (k=' ...
-    num2str(num_sig_components) ')'])
+sgtitle(['Latent variables Z(t) and dPCA $\hat{z}$(t) reconstruction. (k=' ...
+    num2str(num_sig_components) ')'], 'Interpreter','latex')
 
 for f=1:num_f
     nexttile;

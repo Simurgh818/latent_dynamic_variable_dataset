@@ -239,8 +239,8 @@ for b = 1:nBands
     end
 end
 
-fig5 = figure('Position',[100 100 1000 250*floor(param.N_F/2)]);
-tiledlayout(floor(param.N_F/2), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
+fig5 = figure('Position',[100 100 1000 250*ceil(param.N_F/3)]);
+tiledlayout(ceil(param.N_F/3), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
 sgtitle(['Band Power Comparison (Mean ± SD) for k = ' num2str(bottleNeck)]);
 
 for fidx = 1:param.N_F
