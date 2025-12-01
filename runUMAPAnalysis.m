@@ -157,10 +157,10 @@ for f = 1:param.N_F
 end
 
 %% ============================================================
-%% PLOTTING SECTION (Using TEST Data)
-%% ============================================================
+% PLOTTING SECTION (Using TEST Data)
+% ============================================================
 
-%% Plot 1: UMAP Embedding (Training) colored by Latents
+% Plot 1: UMAP Embedding (Training) colored by Latents
 % We visualize the Training embedding because that's the manifold structure we learned
 cluster_idx = kmeans(h_train, param.N_F,'MaxIter', 1000, 'Replicates', 5, 'Display', 'off');
 
@@ -178,7 +178,7 @@ for d = 2:plot_comps
     title(['Dim 1 vs. ' num2str(d)]); grid on; legend off;
 end
 title(t, {'UMAP (Train) Colored by Latent Clusters', ...
-          ['n=' num2str(n_neighbors) ', dist=' num2str(min_dist)]}, ...
+          ['n=' num2str(n_neighbors) ', dist=' num2str(min_dist) ', (k=' num2str(num_sig_components) ')']}, ...
           'FontSize', 14, 'FontWeight', 'bold');
 colormap(turbo);
 saveas(fig1, fullfile(method_dir, ['UMAP_Embedding' file_suffix '.png']));
@@ -197,7 +197,7 @@ end
 
 fig2 = figure('Position',[50 50 1200 150*param.N_F]);
 tiledlayout(param.N_F, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle('UMAP (Test Set) Latent variables Z(t) and $\hat{z}(t)$', 'Interpreter', 'latex')
+sgtitle(['UMAP (Test Set, k=' num2str(num_sig_components) ') Latent variables Z(t) and z_hat(t)'])
 
 for f=1:param.N_F
     nexttile; hold on;
@@ -267,7 +267,7 @@ bar(band_avg_R2');
 set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
 ylim([-1 1]); legend(band_names, 'Location', 'southeastoutside');
 ylabel('Mean R^2'); xlabel('Latent');
-title('UMAP Band-wise R^2 (Test Set)'); grid on;
+title(['UMAP Band-wise R^2 (Test Set , k=' num2str(num_comps) ')']); grid on;
 set(findall(gcf,'-property','FontSize'),'FontSize',14);
 saveas(fig4, fullfile(method_dir, ['UMAP_Bandwise_R2' file_suffix '.png']));
 
@@ -283,7 +283,7 @@ movingwin = [1 0.05]; % 1s window, 50ms step
 
 fig5 = figure('Position',[50 50 1000 600]);
 tiledlayout(2, ceil(param.N_F/2), 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle('UMAP Coherence Analysis (Test Set)');
+sgtitle(['UMAP Coherence Analysis (Test Set, k=' num2str(num_sig_components) ')']);
 
 for i = 1:param.N_F
     nexttile;
@@ -317,7 +317,7 @@ band_lbls = repelem(band_names, param.N_F);
 
 fig6 = figure('Position',[50 50 1400 300]);
 tiledlayout(1, nBands, 'TileSpacing', 'loose', 'Padding', 'compact');
-sgtitle('UMAP Band Mean FFT Amplitudes');
+sgtitle(['UMAP Band Mean FFT Amplitudes (k=' num2str(num_sig_components) ')']);
 colors = lines(nBands); markers = {'o','s','d','h','^','hexagram','<','>'};
 
 for b = 1:nBands    
@@ -350,7 +350,7 @@ end
 
 fig7 = figure('Position',[50 50 1200 300]);
 tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle('UMAP Per-Trial Band Amplitudes');
+sgtitle(['UMAP Per-Trial Band Amplitudes (k=' num2str(num_sig_components) ')']);
 
 for b = 1:nBands
     nexttile; hold on;
@@ -371,9 +371,6 @@ outUMAP.MSE_curve = MSE_test_curve;
 outUMAP.R2_curve = R2_test_curve;
 outUMAP.n_neighbors = n_neighbors;
 outUMAP.min_dist = min_dist;
-
-% Save summary plots to main results dir
-saveas(fig2, fullfile(results_dir, ['Main_Summary_Trace_UMAP' file_suffix '.png']));
 
 close All;
 end

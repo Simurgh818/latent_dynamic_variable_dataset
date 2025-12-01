@@ -6,15 +6,12 @@ function [R2_test, MSE_test, outICA] = runICAAnalysis(eeg_train, eeg_test, h_tra
 %   h_train, h_test     : (Time x Latents)
 %   num_comps           : Number of ICA components (k)
 %   param               : Struct with .fs, .N_F, .f_peak
-%   param.fs              : Sampling rate for FFT plotting
-%   method_dir         : Parent folder for results
+%   method_dir          : Parent folder for results
 
 %% 1. Setup and Directory
-
 if ~exist(method_dir, 'dir')
     mkdir(method_dir);
 end
-
 % File suffix for saving
 file_suffix = sprintf('_k%d', num_comps);
 h_f_colors = lines(param.N_F); 
@@ -26,85 +23,72 @@ EEG.data   = double(eeg_train);
 EEG.nbchan = size(eeg_train,1);
 EEG.pnts   = size(eeg_train,2);
 EEG.trials = 1;
-EEG.srate  = param.fs; % Use param.fs if that's the current data rate
+EEG.srate  = param.fs; 
 EEG.xmin   = 0;
 EEG = eeg_checkset(EEG);
 
-% We ensure we don't try to run PCA on more dimensions than exist mathematically.
+% Rank check
 data_rank = rank(EEG.data); 
-
-% If the requested num_comps is higher than the actual rank, cap it.
-% (This prevents ICA from failing if you ever request k > 22)
 if num_comps > data_rank
-    warning('Requested %d components, but data rank is %d. Caping components.', num_comps, data_rank);
+    warning('Requested %d components, but data rank is %d. Capping components.', num_comps, data_rank);
     pca_dim = data_rank;
 else
     pca_dim = num_comps;
 end
 
 % Run ICA with PCA reduction
-% Note: 'pca' flag in pop_runica reduces dimension before ICA
 try
-    EEG = pop_runica(EEG,'extended', 1, 'pca', pca_dim, 'interrupt','off', 'verbose', 'off'); %
+    EEG = pop_runica(EEG,'extended', 1, 'pca', pca_dim, 'interrupt','off', 'verbose', 'off'); 
 catch
-    % Fallback if extended infomax fails or toolbox issues
     warning('Extended ICA failed or not found, trying "runica" default');
-    EEG = pop_runica(EEG, 'pca', pca_dim, 'interrupt','off', 'verbose', 'off'); % 
+    EEG = pop_runica(EEG, 'pca', pca_dim, 'interrupt','off', 'verbose', 'off'); 
 end
 
-% Get Activations
-icasig_train = double(EEG.icaact)';   % time x ICs
+% Get Activations (Time x Components)
+icasig_train = double(EEG.icaact)';   
 
 % Project Test Data
-% weights * sphere * data
 if ~isempty(EEG.icaweights)
+    % Unmixing matrix * Sphere * Data
     icasig_test = EEG.icaweights * EEG.icasphere * eeg_test;
-    icasig_test = real(icasig_test)';     % time x ICs
+    icasig_test = real(icasig_test)';     % Time x Components
 else
-    % Fallback for some algo implementations
-    icasig_test = zeros(size(eeg_test,2), num_comps); 
+    icasig_test = zeros(size(eeg_test,2), pca_dim); 
 end
 
 %% 3. Linear Mapping ICs -> Latent Fields
-% Reconstruction error per latent on train & test
-% R2_test = zeros(EEG.nbchan, param.N_F); 
-% MSE_test = zeros(EEG.nbchan, param.N_F); 
-% h_rec_test = zeros(size(h_test));
-% h_rec_test_norm = zeros(size(h_test));
-% 
-% for idx = 1:EEG.nbchan
-%     for f = 1:param.N_F
-%         % fit on train
-%        % Reconstruct latent field f from first 'idx' ICs using least-squares
-%         x = lsqlin(icasig_train(:,1:idx), h_train(:,f));
-%         h_rec_test(:,f) = icasig_test(:,1:idx) * x;
-% 
-%         % Normalize reconstructed latent variables by their variance (per column)h_rec_test_norm
-%         h_rec_test_norm(:,f) = h_rec_test(:,f) ./ std(h_rec_test(:,f), 0, 1);  % Time × N_F
-% 
-%         numerator = sum((h_test(:,f) - h_rec_test_norm(:,f)).^2);
-%         denominator = sum((h_test(:,f) - mean(h_test(:,f))).^2);
-%         R2_test(idx, f) = 1 - (numerator / denominator);
-%         MSE_test(idx, f) = mean((h_test(:,f) - h_rec_test_norm(:,f)).^2);
-%     end
-% end
+% We want to map the K independent components to the N_F latent fields.
+% Using ALL k components available to reconstruct the latent variables.
 
-% We learn a linear map A to get from ICs to True Latents
-A = pinv(icasig_train) * h_train;
+% Learn weights W such that: ICs_train * W ≈ H_train
+W_ica = zeros(pca_dim, param.N_F);
+for f = 1:param.N_F
+    W_ica(:,f) = lsqlin(icasig_train, h_train(:,f), [], [], [], [], [], [], [], ...
+                 optimoptions('lsqlin','Display','off'));
+end
 
-h_rec_train = icasig_train * A;
-h_rec_test  = icasig_test  * A;
+% Reconstruct Test Data: ICs_test * W
+h_rec_test = icasig_test * W_ica;
 
-%% 4. Metrics
-% Compute Global R2/MSE on Test Set
-MSE_test_vec = mean((h_test - h_rec_test).^2, 1);
-MSE_test = mean(MSE_test_vec);
+% Calculate Metrics
+R2_test_global = zeros(1, param.N_F); 
+MSE_test_global = zeros(1, param.N_F); 
 
-SS_res = sum((h_test(:) - h_rec_test(:)).^2);
-SS_tot = sum((h_test(:) - mean(h_test(:))).^2);
-R2_test = 1 - (SS_res / SS_tot);
+for f = 1:param.N_F
+    % MSE
+    MSE_test_global(f) = mean((h_test(:,f) - h_rec_test(:,f)).^2);
+    
+    % R2
+    res_var = sum((h_test(:,f) - h_rec_test(:,f)).^2);
+    tot_var = sum((h_test(:,f) - mean(h_test(:,f))).^2);
+    R2_test_global(f) = 1 - (res_var / tot_var);
+end
 
-% Compute Zero-Lag Correlation (on Train data for the Trace plot)
+% Final Outputs for Main Script (Average across latents for global score)
+R2_test = mean(R2_test_global);
+MSE_test = mean(MSE_test_global);
+
+% Compute Zero-Lag Correlation for plotting
 zeroLagCorr_ica = zeros(1, param.N_F);
 for f = 1:param.N_F
     c = corrcoef(h_test(:,f), h_rec_test(:,f));
@@ -112,7 +96,7 @@ for f = 1:param.N_F
 end
 
 %% 5. Frequency Analysis (FFT Calculation)
-% We calculate this on Training data to analyze signal capture fidelity
+% Using TEST data for reconstruction analysis
 N = size(h_test, 1);
 trial_dur = 1; 
 L = round(trial_dur * param.fs);
@@ -158,14 +142,14 @@ for b = 1:nBands
     end
 end
 
-% ============================================================
-% PLOTTING SECTION
-% ============================================================
+%% ============================================================
+%% PLOTTING SECTION
+%% ============================================================
 
 %% Plot 1: Time Domain + Zero Lag Corr
 fig1 = figure('Position',[50 50 1200 150*param.N_F]);
 tiledlayout(param.N_F, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['ICA (k=' num2str(num_comps) ') Latent variables Z(t) and $\hat{z}(t)$'], 'Interpreter', 'latex')
+sgtitle(['ICA (k=' num2str(num_comps) ') Latent variables Z(t) and $\hat{z}(t)$'], 'Interpreter','latex');
 
 for f=1:param.N_F
     nexttile
@@ -181,7 +165,7 @@ for f=1:param.N_F
     legend('Show','Interpreter', 'latex', 'Location','eastoutside');
     
     rho = zeroLagCorr_ica(f);
-    text(0.02 * param.fs, 0.7 * max(abs(h_train(:,f))), ...
+    text(0.02 * param.fs, 0.7 * max(abs(h_test(:,f))), ...
         sprintf('\\rho(0)=%.2f', rho), ...
         'FontSize', 12, 'FontWeight', 'bold',...
         'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
@@ -208,7 +192,7 @@ set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i)))
 ylim([-1 1]);
 legend(band_names, 'Location', 'southeastoutside');
 ylabel('Mean R^2 in Band'); xlabel('Latent Variable');
-title('ICA Band-wise Average R^2(f)');
+title(['ICA Band-wise Average R^2(f), (k=' num2str(num_comps) ')']);
 grid on;
 set(findall(gcf,'-property','FontSize'),'FontSize',16);
 saveas(fig2, fullfile(method_dir, ['ICA_Bandwise_R2' file_suffix '.png']));
@@ -231,7 +215,7 @@ for b = 1:nBands
     band = band_names{b};
     f_range = bands.(band);
     idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
-
+    
     mean_band_amp_ica_true(b,:)  = mean(Ht_amp_ica(idx_band,:), 1, 'omitnan');
     mean_band_amp_ica_recon(b,:) = mean(Hr_amp_ica(idx_band,:), 1, 'omitnan');
     stdDev_band_amp_ica_true(b,:)  = std(Ht_amp_ica(idx_band,:), 0, 1, 'omitnan');
@@ -244,8 +228,7 @@ band_labels = repelem(band_names, param.N_F);
 
 fig3 = figure('Position',[50 50 1400 300]);
 tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle('ICA True vs Reconstructed Band Mean FFT Amplitudes');
-
+sgtitle(['ICA True vs Reconstructed Band Mean FFT Amplitudes, (k=' num2str(num_comps) ')']);
 colors = lines(nBands);
 markers = {'o','s','d','h','^','hexagram','<','>'};
 
@@ -261,10 +244,8 @@ for b = 1:nBands
         errorbar(x_ica(m), y_ica(m), stdDev_band_amp_ica_true(b, m), stdDev_band_amp_ica_recon(b, m), ...
                  'LineStyle', 'none', 'Color', colors(b,:), 'CapSize', 5,'HandleVisibility', 'off');
     end
-
     xfit_ica = linspace(min(x_ica), max(x_ica), 100);
     plot(xfit_ica, xfit_ica, 'Color', colors(b,:), 'LineWidth', 2, 'DisplayName', "y=x");
-
     R_fit_ica = corrcoef(x_ica, y_ica);
     R2_fit_ica = R_fit_ica(1,2)^2;
     text(mean(x_ica), mean(y_ica), sprintf('R^2=%.2f', R2_fit_ica), 'Color', colors(b,:), 'FontSize', 12)
@@ -290,6 +271,7 @@ saveas(fig3, fullfile(method_dir, ['ICA_Scatter_Mean' file_suffix '.png']));
 Ht_amp_trials = abs(Ht(1:nHz, :, :)); 
 Hr_amp_trials = abs(Hr(1:nHz, :, :));
 
+% Normalize
 Ht_amp_trials = Ht_amp_trials ./ max(Ht_amp_trials(:));
 Hr_amp_trials = Hr_amp_trials ./ max(Hr_amp_trials(:));
 
@@ -310,7 +292,7 @@ end
 
 fig4 = figure('Position',[50 50 1200 300]);
 tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle('ICA True vs Reconstructed FFT Band Amplitudes (All Trials)');
+sgtitle(['ICA True vs Reconstructed FFT Band Amplitudes (All Trials), (k=' num2str(num_comps) ')']);
 
 for b = 1:nBands
     nexttile; hold on;
@@ -343,11 +325,11 @@ saveas(fig4, fullfile(method_dir, ['ICA_Scatter_Trials' file_suffix '.png']));
 outICA = struct();
 outICA.icasig_train = icasig_train;
 outICA.icasig_test  = icasig_test;
-outICA.A            = A;
-outICA.h_rec_train  = h_rec_train;
 outICA.h_rec_test   = h_rec_test;
 outICA.MSE_train    = mean((h_test - h_rec_test).^2, 'all');
-outICA.method_dir  = method_dir;
+outICA.method_dir   = method_dir;
 
-close all;
+% Close local figures
+close(fig1); close(fig2); close(fig3); close(fig4);
+
 end

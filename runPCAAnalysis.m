@@ -138,7 +138,7 @@ end
 
 fig1 = figure('Position',[50 50 1200 150*size(h_train,2)]);
 tiledlayout(size(h_train,2), 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['PCA (k=' num2str(num_sig_components) '): Latent variables Z(t) vs \hat{z}(t)']);
+sgtitle(['PCA (k=' num2str(num_sig_components) '): Latent variables Z(t) vs z_hat(t)']);
 
 for f = 1:size(h_train,2)
     nexttile; hold on;
