@@ -140,39 +140,39 @@ for m = 1:numel(methods)
         
         switch method
             
-            case 'PCA'
-                %% 1. Setup and Directories
-                method_name = 'PCA';
-                method_dir = fullfile(results_dir, method_name);
-                [R2_test, MSE_test,outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
-                    H_train, H_test, param, k, fs_new, method_dir);
-            R2_k_local(k) = mean(R2_test(k,:));
-            MSE_k_local(k) = mean(MSE_test(k,:));
-
-            case 'AE'
-                % [R2_k, MSE_k] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, k);
-                [R2_k_local(k), MSE_k_local(k), outAE] = runAutoencoderAnalysis(eeg_train, eeg_test,...
-                    H_train, H_test, k, param, fs_new, results_dir);
-            case 'ICA'
-                % 1. Setup and Directories
-                method_name = 'ICA';
-                method_dir = fullfile(results_dir, method_name);
-                [R2_k_local(k), MSE_k_local(k)] = runICAAnalysis(eeg_train, eeg_test, H_train, H_test, k, param, method_dir);
+            % case 'PCA'
+            %     %% 1. Setup and Directories
+            %     method_name = 'PCA';
+            %     method_dir = fullfile(results_dir, method_name);
+            %     [R2_test, MSE_test,outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
+            %         H_train, H_test, param, k, fs_new, method_dir);
+            % R2_k_local(k) = mean(R2_test(k,:));
+            % MSE_k_local(k) = mean(MSE_test(k,:));
+            % 
+            % case 'AE'
+            %     % [R2_k, MSE_k] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, k);
+            %     [R2_k_local(k), MSE_k_local(k), outAE] = runAutoencoderAnalysis(eeg_train, eeg_test,...
+            %         H_train, H_test, k, param, fs_new, results_dir);
+            % case 'ICA'
+            %     % 1. Setup and Directories
+            %     method_name = 'ICA';
+            %     method_dir = fullfile(results_dir, method_name);
+            %     [R2_k_local(k), MSE_k_local(k)] = runICAAnalysis(eeg_train, eeg_test, H_train, H_test, k, param, method_dir);
 
             case 'UMAP'
                 % [R2_k, MSE_k] = runUMAPAnalysis(X_train, X_test, H_train, H_test, k);
-                n_neighbors = 199;
+                n_neighbors = 100; % 199
                 min_dist    = 0.3;
                 [R2_k_local(k), MSE_k_local(k), outUMAP] = runUMAPAnalysis( ...
                     n_neighbors, min_dist, eeg_train, eeg_test, param, ...
                     H_train, H_test, k, param.fs, results_dir);
-            case 'dPCA'
-                method_name = 'dPCA';
-                method_dir = fullfile(results_dir, method_name);
-                [R2_test, MSE_test,outDPCA] = rundPCAAnalysis( ...
-                    s_eeg_ds, h_f_normalized_ds, param, k, method_dir);
-                R2_k_local(k) = mean(R2_test(k,:));
-                MSE_k_local(k) = mean(MSE_test(k,:));
+            % case 'dPCA'
+            %     method_name = 'dPCA';
+            %     method_dir = fullfile(results_dir, method_name);
+            %     [R2_test, MSE_test,outDPCA] = rundPCAAnalysis( ...
+            %         s_eeg_ds, h_f_normalized_ds, param, k, method_dir);
+            %     R2_k_local(k) = mean(R2_test(k,:));
+            %     MSE_k_local(k) = mean(MSE_test(k,:));
 
         end
 
