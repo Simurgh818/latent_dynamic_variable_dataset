@@ -23,7 +23,7 @@ file_suffix = sprintf('_k%d', bottleNeck);
 h_f_colors = lines(param.N_F); 
 
 %% 2. Train Autoencoder (Unsupervised)
-batch_size = 80;
+batch_size = 100; % 80
 
 [net, ~] = trainEEGAutoencoder(X_train, X_test,  ...
     'encoderLayerSizes', [64,32], ...
