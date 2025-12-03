@@ -153,7 +153,18 @@ for f = 1:size(h_train,2)
     text(0.02 * fs_new, 0.7 * max(h_train(:,f)), sprintf('\\rho(0)=%.2f', rho), ...
         'FontSize', 12, 'FontWeight', 'bold', 'BackgroundColor', 'w', 'EdgeColor','k');
     hold off;
+    
 end
+% scale bars (draw on last axis)
+ax = gca;
+hold(ax,'on');
+x0 = 0;
+y0 = min(ylim)+0.2;
+line([x0 x0+param.fs], [y0 y0], 'Color', 'k', 'LineWidth', 2);
+text(x0+param.fs, y0-0.1, '1 sec', 'VerticalAlignment','top');
+line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2);
+text(x0-5, y0+4, '2 a.u.', 'VerticalAlignment','bottom', ...
+    'HorizontalAlignment','right','Rotation',90);
 saveas(fig1, fullfile(method_dir, ['PCA_Trace_Reconstruction' file_suffix '.png']));
 
 

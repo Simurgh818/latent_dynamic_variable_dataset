@@ -136,7 +136,7 @@ for m = 1:numel(methods)
     R2_k_local = zeros(max_components,1);
     MSE_k_local = zeros(max_components,1);
 
-    for k = component_range % par
+    for k = 7:7 % component_range % par
         
         switch method
             
@@ -146,9 +146,9 @@ for m = 1:numel(methods)
             %     method_dir = fullfile(results_dir, method_name);
             %     [R2_test, MSE_test,outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
             %         H_train, H_test, param, k, fs_new, method_dir);
-            % R2_k_local(k) = mean(R2_test(k,:));
-            % MSE_k_local(k) = mean(MSE_test(k,:));
-            % 
+            %     R2_k_local(k) = mean(R2_test(k,:));
+            %     MSE_k_local(k) = mean(MSE_test(k,:));
+
             % case 'AE'
             %     % [R2_k, MSE_k] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, k);
             %     [R2_k_local(k), MSE_k_local(k), outAE] = runAutoencoderAnalysis(eeg_train, eeg_test,...
@@ -159,20 +159,23 @@ for m = 1:numel(methods)
             %     method_dir = fullfile(results_dir, method_name);
             %     [R2_k_local(k), MSE_k_local(k)] = runICAAnalysis(eeg_train, eeg_test, H_train, H_test, k, param, method_dir);
 
-            case 'UMAP'
-                % [R2_k, MSE_k] = runUMAPAnalysis(X_train, X_test, H_train, H_test, k);
-                n_neighbors = 100; % 199
-                min_dist    = 0.3;
-                [R2_k_local(k), MSE_k_local(k), outUMAP] = runUMAPAnalysis( ...
-                    n_neighbors, min_dist, eeg_train, eeg_test, param, ...
-                    H_train, H_test, k, param.fs, results_dir);
-            % case 'dPCA'
-            %     method_name = 'dPCA';
-            %     method_dir = fullfile(results_dir, method_name);
-            %     [R2_test, MSE_test,outDPCA] = rundPCAAnalysis( ...
-            %         s_eeg_ds, h_f_normalized_ds, param, k, method_dir);
-            %     R2_k_local(k) = mean(R2_test(k,:));
-            %     MSE_k_local(k) = mean(MSE_test(k,:));
+            % case 'UMAP'
+            %     % [R2_k, MSE_k] = runUMAPAnalysis(X_train, X_test, H_train, H_test, k);
+            %     % javaFrame = feature('JavaFrame');
+            %     java.lang.System.setProperty('java.awt.headless','true');
+            % 
+            %     n_neighbors = 100; % 199
+            %     min_dist    = 0.3;
+            %     [R2_k_local(k), MSE_k_local(k), outUMAP] = runUMAPAnalysis( ...
+            %         n_neighbors, min_dist, eeg_train, eeg_test, param, ...
+            %         H_train, H_test, k, param.fs, results_dir);
+            case 'dPCA'
+                method_name = 'dPCA';
+                method_dir = fullfile(results_dir, method_name);
+                [R2_test, MSE_test,outDPCA] = rundPCAAnalysis( ...
+                    s_eeg_ds, h_f_normalized_ds, param, k, method_dir);
+                R2_k_local(k) = mean(R2_test(k,:));
+                MSE_k_local(k) = mean(MSE_test(k,:));
 
         end
 

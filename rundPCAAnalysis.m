@@ -96,7 +96,7 @@ for f=1:num_f
     xlim([0 param.fs*2]);
     legend('Show','Location','eastoutside');
     rho = zeroLagCorr_dpca(f);
-    text(0.02 * param.fs, 0.7 * max(h_f_normalized_ds(:,f)), ...
+    text(0.02 * param.fs, 0.05 * max(h_f_normalized_ds(:,f)), ...
         sprintf('\\rho(0)=%.2f', rho), ...
         'FontSize', 12, 'FontWeight', 'bold', ...
         'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
@@ -154,7 +154,7 @@ grid on
 set(findall(fig3,'-property','FontSize'),'FontSize',12);
 saveas(fig3, fullfile(results_dir,['dPCA_ExplainedVariance_k' file_suffix '.png'])); 
 
-%%% --- Frequency-domain analysis for dPCA reconstruction ---
+%% --- Frequency-domain analysis for dPCA reconstruction ---
 Z_true = h_f_normalized_ds;
 Z_rec  = h_f_recon_dpca;
 
@@ -228,7 +228,7 @@ for b = 1:nBands
     % mean FFT amplitude within this frequency band
     mean_band_amp_true(b,:)  = mean(Ht_amp(idx_band,:), 1, 'omitnan');
     mean_band_amp_recon(b,:) = mean(Hr_amp(idx_band,:), 1, 'omitnan');
-    
+
     % Standard Deviation FFT amplitudes
     stdDev_band_amp_true(b,:)  = std(Ht_amp(idx_band,:), 0, 1, 'omitnan');
     stdDev_band_amp_recon(b,:) = std(Hr_amp(idx_band,:), 0, 1, 'omitnan');
@@ -267,7 +267,7 @@ xlim([1 50]); xticks([1 4 8 10 13 20 30 50]);
 grid on; legend('show','Location','southeastoutside');
 
 set(findall(fig4,'-property','FontSize'),'FontSize',14);
-saveas(fig4, fullfile(results_dir,['dPCA_FFT_True_vs_Recon' file_suffix '.png']));
+saveas(fig4, fullfile(results_dir,['dPCA_FFT_True_vs_Recon_' file_suffix '.png']));
 
 %%% --- Band-wise R² ---
 bands = struct('delta',[1 4],'theta',[4 8],'alpha',[8 13], ...
@@ -293,80 +293,84 @@ grid on; set(findall(fig5,'-property','FontSize'),'FontSize',14);
 saveas(fig5, fullfile(results_dir,['dPCA_Bandwise_R2' file_suffix '.png'])); 
 
 %%% --- True vs reconstructed band FFT amplitude scatter ---
-Ht_amp = abs(Ht_avg(1:nHz,:));
-Hr_amp = abs(Hr_avg(1:nHz,:));
-Ht_amp = Ht_amp ./ max(Ht_amp(:));
-Hr_amp = Hr_amp ./ max(Hr_amp(:));
-
-mean_true = zeros(nBands,nF);
-mean_rec  = zeros(nBands,nF);
-std_true  = zeros(nBands,nF);
-std_rec   = zeros(nBands,nF);
-
-for b = 1:nBands
-    f_range = bands.(band_names{b});
-    idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
-    mean_true(b,:) = mean(Ht_amp(idx_band,:),1);
-    mean_rec(b,:)  = mean(Hr_amp(idx_band,:),1);
-    std_true(b,:) = std(Ht_amp(idx_band,:),0,1);
-    std_rec(b,:)  = std(Hr_amp(idx_band,:),0,1);
-end
+% Ht_amp = abs(Ht_avg(1:nHz,:));
+% Hr_amp = abs(Hr_avg(1:nHz,:));
+% Ht_amp = Ht_amp ./ max(Ht_amp(:));
+% Hr_amp = Hr_amp ./ max(Hr_amp(:));
+% 
+% mean_true = zeros(nBands,nF);
+% mean_rec  = zeros(nBands,nF);
+% std_true  = zeros(nBands,nF);
+% std_rec   = zeros(nBands,nF);
+% 
+% for b = 1:nBands
+%     f_range = bands.(band_names{b});
+%     idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
+%     mean_true(b,:) = mean(Ht_amp(idx_band,:),1);
+%     mean_rec(b,:)  = mean(Hr_amp(idx_band,:),1);
+%     std_true(b,:) = std(Ht_amp(idx_band,:),0,1);
+%     std_rec(b,:)  = std(Hr_amp(idx_band,:),0,1);
+% end
 numF = param.N_F;
 % -------------------------------------------------------------
 % dPCA Reconstruction: True vs Reconstructed Band Amplitudes
 % -------------------------------------------------------------
 %% ===================== BAND-WISE TRUE VS RECON PLOTS (dPCA) =====================
 
-fig6 = figure('Position',[100 100 1800 350]);
-tiledlayout(1, nBands, 'TileSpacing','compact', 'Padding','compact');
+true_vals  = mean_band_amp_true(:);
+recon_vals = mean_band_amp_recon(:);
+band_labels = repelem(band_names, size(h_f_normalized_ds,2));
 
-sgtitle(['dPCA: True vs Reconstructed Band Amplitudes (k=' num2str(num_sig_components) ')']);
+fig6 = figure('Position',[50 50 1600 300]);
+tiledlayout(1, param.N_F, 'TileSpacing', 'compact', 'Padding', 'compact');
+sgtitle(['True vs Reconstructed Band Mean FFT Amplitudes (per latent) (k=' num2str(num_sig_components) ')']);
 
-colors = lines(numF);   % fields get colors now
+colors = lines(nBands);
+markers = {'o','s','d','h','^','hexagram','<','>'};
+hold on;
 
-for b = 1:nBands
-    nexttile; hold on;
-
-    for f = 1:numF
-
-        % Extract values for this band/field
-        x  = mean_band_amp_true(b, f);
-        y  = mean_band_amp_recon(b, f);
-        sx = stdDev_band_amp_true(b, f);
-        sy = stdDev_band_amp_recon(b, f);
-
-        % Scatter per field
-        scatter(x, y, 70, 'filled', ...
-                'MarkerFaceColor', colors(f,:), ...
-                'DisplayName', sprintf('Field %d', f));
-
-        % Error bars (vertical sy, horizontal sx)
-        errorbar(x, y, sy, sy, sx, sx, ...
-                 'LineStyle','none', ...
-                 'Color', colors(f,:), ...
-                 'CapSize', 6, ...
-                 'HandleVisibility','off');
+for b = 1:nBands    
+    nexttile;   
+    idx_b = strcmp(band_labels, band_names{b});
+    x = true_vals(idx_b);
+    y = recon_vals(idx_b);
+    
+    for m = 1:length(markers)
+        if m > size(x,1), break; end 
+        hold on;
+        scatter(x(m), y(m), 70, 'filled', 'MarkerFaceColor', colors(b,:),'Marker', markers{m},...
+            'DisplayName', [sprintf('Z_{%d}', param.f_peak(m))]);
+        
+        errorbar(x(m), y(m), stdDev_band_amp_true(b, m), stdDev_band_amp_recon(b, m), ...
+                 'LineStyle', 'none', 'Color', colors(b,:), 'CapSize', 5,'HandleVisibility', 'off');
     end
 
-    % Identity line
-    plot([0 1],[0 1], 'k--', 'LineWidth', 1.2, 'HandleVisibility','off');
+    xfit = linspace(min(x), max(x), 100);
+    plot(xfit, xfit, 'Color', colors(b,:), 'LineWidth', 2, 'DisplayName', "y=x");
 
-    xlabel('True amplitude');
-    ylabel('Reconstructed amplitude');
-
-    title([band_names{b} ' band']);
-
-    axis square;
+    R_fit = corrcoef(x, y);
+    R2_fit = R_fit(1,2)^2;
+    text(mean(x), mean(y), sprintf('R^2=%.2f', R2_fit), 'Color', colors(b,:), 'FontSize', 12)
+    if b==1
+        xlabel('Mean True Amp.')
+        ylabel('Mean Recon. Amp.')
+    end
+    title([band_names{b} ' band'])
     grid on;
 end
-
-% Global legend (fields)
-legend(arrayfun(@(f) sprintf('Field %d', f), 1:numF, 'UniformOutput', false), ...
-       'Location','eastoutside');
-
-set(findall(gcf,'-property','FontSize'),'FontSize',14);
-
-saveas(fig6, fullfile(results_dir, ['dPCA_BandScatter_k' file_suffix '.png']));
+nLatents = length(markers);
+proxy_handles = gobjects(nLatents + 1,1); 
+for m = 1:nLatents
+    proxy_handles(m) = scatter(nan, nan, 70, 'Marker', markers{m}, ...
+                               'MarkerEdgeColor', 'k', ...
+                               'MarkerFaceColor', 'k');
+end
+proxy_handles(end) = plot(nan, nan, 'k', 'LineWidth', 2);
+legend_labels = [arrayfun(@(m) sprintf('Z_{%s}', num2str(param.f_peak(m))), 1:length(markers), 'UniformOutput', false), {'y = x'}];
+legend(proxy_handles, legend_labels, 'Location','eastoutside','TextColor','k','IconColumnWidth',7, 'NumColumns',2);
+hold off;
+set(findall(gcf,'-property','FontSize'),'FontSize',14)
+saveas(fig6, fullfile(results_dir, ['dPCA_Scatter_Band_Amp_Mean' file_suffix '.png']));
 
 %% ===================== TRIALWISE BAND AMPLITUDE SCATTER PLOTS (dPCA) =====================
 
@@ -443,8 +447,8 @@ for b = 1:nBands
 end
 
 set(findall(gcf,'-property','FontSize'),'FontSize',14)
-saveas(fig7, fullfile(results_dir,['dPCA_BandScatter_perTrial_k' file_suffix '.png'])); 
-close All;
+saveas(fig7, fullfile(results_dir,['dPCA_BandScatter_perTrial_' file_suffix '.png'])); 
+% close All;
 %% 6) Package output struct
 outDPCA.W = W;
 outDPCA.V = V;

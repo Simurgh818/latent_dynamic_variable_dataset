@@ -10,30 +10,30 @@ function [R2_test_global, MSE_test_global, outUMAP] = runUMAPAnalysis( ...
 %   fs_new              : Sampling rate
 %   results_dir         : Output directory
 
-%% 0. CRITICAL: Override Dialog Functions to Prevent GUI Calls
-% The UMAP library tries to show dialogs even with gui=false
-% We override the dialog functions to return default values
-
-% Save original functions
-originalQuestDlg = @questdlg;
-originalAskYesOrNo = str2func('askYesOrNo');
-
-% Create dummy versions that always return 'Yes'
-questdlg = @(varargin) 'Yes';
-askYesOrNo = @(varargin) true;
-
-% Also override msgError to do nothing
-msgError = @(varargin) [];
+% %% 0. CRITICAL: Override Dialog Functions to Prevent GUI Calls
+% % The UMAP library tries to show dialogs even with gui=false
+% % We override the dialog functions to return default values
+% 
+% % Save original functions
+% originalQuestDlg = @questdlg;
+% originalAskYesOrNo = str2func('askYesOrNo');
+% 
+% % Create dummy versions that always return 'Yes'
+% questdlg = @(varargin) 'Yes';
+% askYesOrNo = @(varargin) true;
+% 
+% % Also override msgError to do nothing
+% msgError = @(varargin) [];
 %% 1. Reset Java Environment (CRITICAL FIX)
 % The previous error 'HeadlessException' happens because 'java.awt.headless'
 % was set to true in the session. We must forcefully unset it so run_umap
 % can access the Java frames it needs for internal checks.
-setenv('JAVA_TOOL_OPTIONS', ''); 
-try
-    java.lang.System.setProperty('java.awt.headless', 'false');
-catch
-end
-drawnow; % Flush any pending Java graphics events
+% setenv('JAVA_TOOL_OPTIONS', ''); 
+% try
+%     java.lang.System.setProperty('java.awt.headless', 'false');
+% catch
+% end
+% drawnow; % Flush any pending Java graphics events
 
 %% 2. Setup and Directory
 method_name = 'UMAP';
@@ -72,12 +72,10 @@ drawnow; % Ensure Java peers are created
         'n_components', umap_calc_components, ...
         'method', 'MEX', ...              % CRITICAL: Explicitly set method
         'verbose', 'none', ...
-        'gui', false, ...
-        'check_duplicates', false, ... 
-        'CheckDuplicates', false, ...
+        'metric', 'euclidean', ...
+        'randomize', true, ...
         'ask_args', false, ...
-        'AskArgs', false, ...
-        'remember_args', false);           % NEW: Don't save preferences); 
+        'save_template', false);
 
 disp('Projecting Test Set into UMAP space...');
 % Transform test data using the learned training manifold
@@ -87,12 +85,10 @@ try
         'method', 'MEX', ...              
         'n_components', umap_calc_components, ...
         'verbose', 'none', ...
-        'gui', false, ...
-        'check_duplicates', false, ...
-        'CheckDuplicates', false, ...
+        'metric', 'euclidean', ...
+        'randomize', true, ...
         'ask_args', false, ...
-        'AskArgs', false, ...
-        'remember_args', false);
+        'save_template', false);
 
 
 catch
@@ -101,20 +97,18 @@ catch
         'n_neighbors', n_neighbors, ...
         'min_dist', min_dist, ...
         'n_components', umap_calc_components, ...
-        'method', 'MEX', ...              % CRITICAL: Explicitly set method
-        'verbose', 'none', ...
-        'gui', false, ...
-        'check_duplicates', false, ...
-        'CheckDuplicates', false, ...
+        'method', 'MEX', ...   
+        'metric', 'euclidean', ...
+        'randomize', true, ...
         'ask_args', false, ...
-        'AskArgs', false, ...
-        'remember_args', false);
+        'save_template', false);
 end
+
 
 % Extract only the requested number of components for analysis
 % If k=1, we take column 1. If k>=2, we take columns 1:k.
 umap_train = umap_train_raw(:, 1:num_sig_components);
-umap_test  = umap_test_raw(:, 1:num_sig_components);
+% umap_test  = umap_test_raw(:, 1:num_sig_components);
 
 %% 5. Reconstruction Loop (Train Mapping -> Test Eval)
 % We calculate metrics for k=1 to num_sig_components
@@ -218,8 +212,9 @@ x0 = 0; y0 = min(ylim)+0.2;
 line([x0 x0+(fs_new)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
 text(x0+fs_new, y0-0.1, '1 sec', 'VerticalAlignment','top');
 line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-text(x0-5, y0+1, '2 a.u.', 'VerticalAlignment','bottom','HorizontalAlignment','right');
+text(x0-5, y0+7, '2 a.u.', 'VerticalAlignment','bottom','HorizontalAlignment','right','Rotation',90);
 set(findall(gcf,'-property','FontSize'),'FontSize',14);
+set(findall(fig2,'-property','FontSize'),'FontSize',16);
 saveas(fig2, fullfile(method_dir, ['UMAP_TimeDomain' file_suffix '.png']));
 
 %% Plot 4: Band Power Bar Chart & FFT
@@ -262,14 +257,15 @@ for b = 1:nBands
     end
 end
 
-fig4 = figure('Position',[50 50 1000 300]);
+fig3 = figure('Position',[50 50 1000 300]);
 bar(band_avg_R2');
 set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
 ylim([-1 1]); legend(band_names, 'Location', 'southeastoutside');
 ylabel('Mean R^2'); xlabel('Latent');
 title(['UMAP Band-wise R^2 (Test Set , k=' num2str(num_sig_components) ')']); grid on;
 set(findall(gcf,'-property','FontSize'),'FontSize',14);
-saveas(fig4, fullfile(method_dir, ['UMAP_Bandwise_R2' file_suffix '.png']));
+set(findall(fig3,'-property','FontSize'),'FontSize',16);
+saveas(fig3, fullfile(method_dir, ['UMAP_Bandwise_R2' file_suffix '.png']));
 
 
 %% Plot 5: Coherence Analysis (Chronux)
@@ -281,7 +277,7 @@ params_coh.err = [0 0]; % No error bars for speed in heatmap
 
 movingwin = [1 0.05]; % 1s window, 50ms step
 
-fig5 = figure('Position',[50 50 1000 600]);
+fig4 = figure('Position',[50 50 1000 600]);
 tiledlayout(2, ceil(param.N_F/2), 'TileSpacing', 'compact', 'Padding', 'compact');
 sgtitle(['UMAP Coherence Analysis (Test Set, k=' num2str(num_sig_components) ')']);
 
@@ -297,7 +293,8 @@ for i = 1:param.N_F
     end
     title(['Latent ' num2str(i)]);
 end
-saveas(fig5, fullfile(method_dir, ['UMAP_Coherence' file_suffix '.png']));
+set(findall(fig4,'-property','FontSize'),'FontSize',16);
+saveas(fig4, fullfile(method_dir, ['UMAP_Coherence' file_suffix '.png']));
 
 
 %% Plot 6: Scatter Mean Band Amplitudes
@@ -315,7 +312,7 @@ end
 flat_true = mean_true(:); flat_recon = mean_recon(:);
 band_lbls = repelem(band_names, param.N_F);
 
-fig6 = figure('Position',[50 50 1400 300]);
+fig5 = figure('Position',[50 50 1400 300]);
 tiledlayout(1, nBands, 'TileSpacing', 'loose', 'Padding', 'compact');
 sgtitle(['UMAP Band Mean FFT Amplitudes (k=' num2str(num_sig_components) ')']);
 colors = lines(nBands); markers = {'o','s','d','h','^','hexagram','<','>'};
@@ -334,7 +331,8 @@ for b = 1:nBands
     R = corrcoef(x,y); text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', colors(b,:));
     title(band_names{b}); grid on;
 end
-saveas(fig6, fullfile(method_dir, ['UMAP_Scatter_Mean' file_suffix '.png']));
+set(findall(fig5,'-property','FontSize'),'FontSize',16);
+saveas(fig5, fullfile(method_dir, ['UMAP_Scatter_Mean' file_suffix '.png']));
 
 
 %% Plot 7: Scatter Per-Trial
@@ -348,7 +346,7 @@ for b = 1:nBands
     flat_tr_true{b} = tmp_t(:); flat_tr_recon{b} = tmp_r(:);
 end
 
-fig7 = figure('Position',[50 50 1200 300]);
+fig6 = figure('Position',[50 50 1200 300]);
 tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
 sgtitle(['UMAP Per-Trial Band Amplitudes (k=' num2str(num_sig_components) ')']);
 
@@ -359,8 +357,15 @@ for b = 1:nBands
     plot([min(x) max(x)], [min(x) max(x)], 'k--');
     R = corrcoef(x, y); text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', 'k');
     title(band_names{b}); grid on;
+    if b==1
+        xlabel('True Band Amp.')
+        ylabel('Recon. Band Amp.')
+    end
+
+    legend('Location','southoutside','TextColor','k','Orientation','horizontal');
 end
-saveas(fig7, fullfile(method_dir, ['UMAP_Scatter_Trials' file_suffix '.png']));
+set(findall(fig6,'-property','FontSize'),'FontSize',16);
+saveas(fig6, fullfile(method_dir, ['UMAP_Scatter_Trials' file_suffix '.png']));
 
 %% Output Structure
 outUMAP = struct();

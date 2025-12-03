@@ -178,11 +178,27 @@ x0 = 0; y0 = min(ylim)+0.2;
 line([x0 x0+(param.fs)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
 text(x0+param.fs, y0-0.1, '1 sec', 'VerticalAlignment','top');
 line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-text(x0-5, y0+1, '2 a.u.', 'VerticalAlignment','bottom','HorizontalAlignment','right');
+text(x0-5, y0+7, '2 a.u.', 'VerticalAlignment','bottom','HorizontalAlignment','right','Rotation',90);
 set(findall(gcf,'-property','FontSize'),'FontSize',16);
 saveas(fig1, fullfile(method_dir, ['ICA_TimeDomain' file_suffix '.png']));
 
 
+% num_sig_components = sum(eig_vals > lambda_max);
+fig1_2 = figure('Position',[50 50 1200 (num_comps*250)/2]);
+tiledlayout(num_comps, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+pc_colors = lines(num_comps);
+sgtitle('IC Traces');
+
+for ic=1:num_comps
+    nexttile;
+    plot(h_rec_test(:,ic)', 'LineStyle', '-', 'Color', pc_colors(ic,:),'DisplayName', ['IC(t) ' num2str(ic)]);
+    xlabel('Time bins')
+    ylabel('IC amp.')
+    xlim([0 1000]);
+    legend('show');
+end
+set(findall(gcf,'-property','FontSize'),'FontSize',16);
+saveas(fig1_2, fullfile(method_dir, ['IC_traces' file_suffix '.png']));
 %% Plot 2: Band-wise R2 Bar Chart
 fig2 = figure('Position',[50 50 1000 300]);
 tiledlayout(1, 1, 'TileSpacing', 'compact', 'Padding', 'compact');

@@ -80,7 +80,28 @@ MSE_test = mean((H_test(:) - H_recon_test(:)).^2);
 % for f = 1:param.N_F
 %     disp(corr(H_test(:,f), H_recon_test(:,f)));
 % end
+%% Zero-lag cross correlation
+%   Z_true     [T × F]  — true latent time series
+Z_true_train = H_train;
+Z_true_test = H_test;
+%   Z_recon_pca [T × F] — latent reconstructed via PCA
+Z_recon_train = H_recon_train;
+Z_recon_test = H_recon_test;
 
+maxLag = 200;               % number of lags to compute on either side
+lags   = -maxLag:maxLag;    
+
+[~, param.N_F] = size(Z_true_train);
+zeroLagCorr_train = zeros(1, param.N_F);
+zeroLagCorr_test = zeros(1, param.N_F);
+for f = 1:param.N_F
+    % compute normalized cross‐correlation
+    c_train = xcorr(Z_true_train(:,f), Z_recon_train(:,f), maxLag, 'coeff');
+    c_test = xcorr(Z_true_test(:,f), Z_recon_test(:,f), maxLag, 'coeff');
+    % pick out the zero‐lag value
+    zeroLagCorr_train(f) = c_train(lags==0);
+    zeroLagCorr_test(f) = c_test(lags==0);
+end
 
 % ============================================================
 % PLOTTING SECTION
@@ -122,27 +143,63 @@ for f = 1:param.N_F
     % --- Train Column ---
     nexttile; hold on;
     set(gca, 'XColor', 'none', 'YColor', 'none'); box on
-    plot(H_train(1:vis_len_train, f), '-',  'Color', h_f_colors(f,:), 'LineWidth', 1.5,'DisplayName', 'True'); 
-    plot(H_recon_train(1:vis_len_train, f), '--', 'Color', 'k', 'LineWidth', 1.5,'DisplayName', 'Recon');
+    plot(H_train(1:vis_len_train, f), '-',  'Color', h_f_colors(f,:), 'LineWidth', 1.5,'DisplayName', ['$Z_{' num2str(param.f_peak(f)) '}$']); 
+    plot(H_recon_train(1:vis_len_train, f), '--', 'Color', 'k', 'LineWidth', 1.5,'DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$']);
     xlim([0 fs_new*2]);
     if f==1, title('Training Set'); end
-    if f==param.N_F, legend('location', 'southeastoutside'); end
-    
+    legend('location', 'southeastoutside', 'Interpreter', 'latex');
+    rho_train = zeroLagCorr_train(f);
+    text(0.02 * fs_new, 0.05 * max(H_train(:,f)), ...
+    sprintf('\\rho(0)=%.2f', rho_train), ...
+    'FontSize', 12, 'FontWeight', 'bold',...
+    'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
+    'Margin', 3, 'EdgeColor','k');
     % Scale bar on last plot
-    if f == param.N_F
-        x0 = 0; y0 = min(ylim)+0.2;
+      if f == param.N_F
+        %set(gca, 'XTickLabel', []);
+        x0 = 0;           % starting point of scale bar (x)
+        y0 = min(ylim)+0.2; % bottom of scale bar (y)
+        
+        % time bar (horizontal)
         line([x0 x0+(fs_new)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
         text(x0+fs_new, y0-0.1, '1 sec', 'VerticalAlignment','top');
-    end
+        
+        % amplitude bar (vertical)
+        line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+        text(x0-5, y0+4, '2 a.u.', 'VerticalAlignment','bottom','HorizontalAlignment','right','Rotation',90);
+        hold off;
+     end
 
     % --- Test Column ---
     nexttile; hold on;
     set(gca, 'XColor', 'none', 'YColor', 'none'); box on
-    plot(H_test(1:vis_len_test, f), '-',  'Color', h_f_colors(f,:), 'LineWidth', 1.5, 'DisplayName','True');  
-    plot(H_recon_test(1:vis_len_test, f), '--', 'Color', 'k', 'LineWidth', 1.5, 'DisplayName', 'Recon');
+    plot(H_test(1:vis_len_test, f), '-',  'Color', h_f_colors(f,:), 'LineWidth', 1.5, 'DisplayName',[' $Z_{' num2str(param.f_peak(f)) '}$']);  
+    plot(H_recon_test(1:vis_len_test, f), '--', 'Color', 'k', 'LineWidth', 1.5, 'DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$']);
     xlim([0 fs_new*2]);
+        rho_test = zeroLagCorr_test(f);
+    text(0.02 * fs_new, 0.05 * max(H_test(:,f)), ...
+    sprintf('\\rho(0)=%.2f', rho_test), ...
+    'FontSize', 12, 'FontWeight', 'bold',...
+    'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
+    'Margin', 3, 'EdgeColor','k');
+    legend('location', 'southeastoutside', 'Interpreter', 'latex');
     if f==1, title('Test Set'); end
+        if f == param.N_F
+        %set(gca, 'XTickLabel', []);
+        x0 = 0;           % starting point of scale bar (x)
+        y0 = min(ylim)+0.2; % bottom of scale bar (y)
+        
+        % time bar (horizontal)
+        line([x0 x0+(fs_new)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+        text(x0+fs_new, y0-0.1, '1 sec', 'VerticalAlignment','top');
+        
+        % amplitude bar (vertical)
+        line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+        text(x0-5, y0+4, '2 a.u.', 'VerticalAlignment','bottom','HorizontalAlignment','right','Rotation',90);
+        hold off;
+     end
 end
+set(findall(fig3,'-property','FontSize'),'FontSize',16);
 saveas(fig3, fullfile(method_dir, ['AE_Split_Reconstruction' file_suffix '.png']));
 
 
@@ -216,6 +273,7 @@ for fidx=1:param.N_F
 end
 xlabel('Frequency (Hz)'); ylabel('|Ẑ(f)|'); title('FFT Amplitude Reconstructed');
 xlim([1, 50]); xticks([1, 4, 8, 13, 30, 50]); grid on; hold off;
+set(findall(fig4,'-property','FontSize'),'FontSize',16);
 saveas(fig4, fullfile(method_dir, ['AE_Frequency_Analysis' file_suffix '.png']));
 
 
@@ -261,6 +319,7 @@ for fidx = 1:param.N_F
     grid on;
 end
 legend({'True','Reconstructed'}, 'Location','northoutside','Orientation','horizontal');
+set(findall(fig5,'-property','FontSize'),'FontSize',16);
 saveas(fig5, fullfile(method_dir, ['AE_Band_Power' file_suffix '.png']));
 
 
@@ -272,6 +331,7 @@ ylim([-1 1]);
 legend(band_names, 'Location', 'southeastoutside');
 ylabel('Mean R^2'); xlabel('Latent Variable'); title(['Autoencoder Band-wise R^2 for k= ' num2str(bottleNeck)]);
 grid on;
+set(findall(fig6,'-property','FontSize'),'FontSize',16);
 saveas(fig6, fullfile(method_dir, ['AE_Bandwise_R2' file_suffix '.png']));
 
 
@@ -321,6 +381,7 @@ for b = 1:nBands
     text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', colors(b,:), 'FontSize', 12);
     title([band_names{b} ' band']); grid on;
 end
+set(findall(fig7,'-property','FontSize'),'FontSize',16);
 saveas(fig7, fullfile(method_dir, ['AE_Scatter_Mean' file_suffix '.png']));
 
 
@@ -351,7 +412,14 @@ for b = 1:nBands
     R = corrcoef(x,y);
     text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', 'k', 'FontSize', 12);
     title(band_names{b}); grid on;
+    if b==1
+        xlabel('True Band Amp.')
+        ylabel('Recon. Band Amp.')
+    end
+
+    legend('Location','southoutside','TextColor','k','Orientation','horizontal');
 end
+set(findall(fig8,'-property','FontSize'),'FontSize',16);
 saveas(fig8, fullfile(method_dir, ['AE_Scatter_Trials' file_suffix '.png']));
 
 
