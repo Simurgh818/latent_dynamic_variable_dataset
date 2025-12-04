@@ -448,7 +448,7 @@ end
 
 set(findall(gcf,'-property','FontSize'),'FontSize',14)
 saveas(fig7, fullfile(results_dir,['dPCA_BandScatter_perTrial_' file_suffix '.png'])); 
-% close All;
+close All;
 %% 6) Package output struct
 outDPCA.W = W;
 outDPCA.V = V;
