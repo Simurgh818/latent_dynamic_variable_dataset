@@ -17,10 +17,19 @@ fs_orig          = 1/simEEG.dt;
 param.N_F       = size(simEEG.train_true_hF,1);
 
 % Output path
-baseFolder = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
+if exist('H:\', 'dir')
+    baseFolder = ['C:' filesep 'Users' filesep 'sinad' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
     'Dimensionality Reduction Review Paper'];
+elseif exist('G:\', 'dir')
+    baseFolder = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
+    'OneDrive - Georgia Institute of Technology' filesep ...
+    'Dr. Sederberg MaTRIX Lab' filesep ...
+    'Dimensionality Reduction Review Paper'];
+else
+    error('Unknown system: Cannot determine input and output paths.');
+end
 
 % eegFilename = 'simEEG_set1';         % given EEG filename
 subfolderName = ['results_' eegFilename];  % e.g., "results_simEEG_set1"
@@ -159,23 +168,25 @@ for m = 1:numel(methods)
             %     method_dir = fullfile(results_dir, method_name);
             %     [R2_k_local(k), MSE_k_local(k)] = runICAAnalysis(eeg_train, eeg_test, H_train, H_test, k, param, method_dir);
 
-            % case 'UMAP'
-            %     % [R2_k, MSE_k] = runUMAPAnalysis(X_train, X_test, H_train, H_test, k);
-            %     % javaFrame = feature('JavaFrame');
-            %     java.lang.System.setProperty('java.awt.headless','true');
-            % 
-            %     n_neighbors = 100; % 199
-            %     min_dist    = 0.3;
-            %     [R2_k_local(k), MSE_k_local(k), outUMAP] = runUMAPAnalysis( ...
-            %         n_neighbors, min_dist, eeg_train, eeg_test, param, ...
-            %         H_train, H_test, k, param.fs, results_dir);
-            case 'dPCA'
-                method_name = 'dPCA';
-                method_dir = fullfile(results_dir, method_name);
-                [R2_test, MSE_test,outDPCA] = rundPCAAnalysis( ...
-                    s_eeg_ds, h_f_normalized_ds, param, k, method_dir);
-                R2_k_local(k) = mean(R2_test(k,:));
-                MSE_k_local(k) = mean(MSE_test(k,:));
+            case 'UMAP'
+                % [R2_k, MSE_k] = runUMAPAnalysis(X_train, X_test, H_train, H_test, k);
+                % javaFrame = feature('JavaFrame');
+                java.lang.System.setProperty('java.awt.headless','false');   
+                % Reduce spurious Swing paint events
+                java.lang.System.setProperty('sun.awt.noerasebackground','true');
+
+                n_neighbors = 100; % 199
+                min_dist    = 0.3;
+                [R2_k_local(k), MSE_k_local(k), outUMAP] = runUMAPAnalysis( ...
+                    n_neighbors, min_dist, eeg_train, eeg_test, param, ...
+                    H_train, H_test, k, param.fs, results_dir);
+            % case 'dPCA'
+            %     method_name = 'dPCA';
+            %     method_dir = fullfile(results_dir, method_name);
+            %     [R2_test, MSE_test,outDPCA] = rundPCAAnalysis( ...
+            %         s_eeg_ds, h_f_normalized_ds, param, k, method_dir);
+            %     R2_k_local(k) = mean(R2_test(k,:));
+            %     MSE_k_local(k) = mean(MSE_test(k,:));
 
         end
 

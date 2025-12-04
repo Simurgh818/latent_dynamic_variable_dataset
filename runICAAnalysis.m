@@ -184,7 +184,7 @@ saveas(fig1, fullfile(method_dir, ['ICA_TimeDomain' file_suffix '.png']));
 
 
 % num_sig_components = sum(eig_vals > lambda_max);
-fig1_2 = figure('Position',[50 50 1200 (num_comps*250)/2]);
+fig1_2 = figure('Position',[50 50 1200 (num_comps*150)]);
 tiledlayout(num_comps, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
 pc_colors = lines(num_comps);
 sgtitle('IC Traces');
@@ -317,7 +317,7 @@ for b = 1:nBands
 
     scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), ...
         'MarkerFaceColor', colors(b,:), 'MarkerFaceAlpha', 0.3, ...
-        'DisplayName', [sprintf('Z_{%d}', param.f_peak(b))]);
+        'DisplayName', [sprintf('Z_{%s}', num2str(param.f_peak(b)))]);
 
     xfit = linspace(min(x), max(x), 100);
     plot(xfit, xfit, 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
@@ -329,8 +329,14 @@ for b = 1:nBands
     end
 
     title([band_names{b} ' band']);
-    if b==1, xlabel('True Band Amp.'); ylabel('Recon Band Amp.'); end
-    grid on; hold off;
+    if b==1
+        xlabel('True Band Amplitude')
+        ylabel('Reconstructed Band Amplitude')
+    end
+
+    legend('Location','southoutside','TextColor','k','Orientation','horizontal');
+    grid on;
+    hold off;
 end
 legend('Location','southoutside','TextColor','k','Orientation','horizontal');
 set(findall(gcf,'-property','FontSize'),'FontSize',14)

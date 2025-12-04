@@ -57,11 +57,11 @@ disp(['Running UMAP (k=' num2str(num_sig_components) ') on Training Set...']);
 % If num_sig_components is 1, we must request 2, then ignore the 2nd dim.
 umap_calc_components = max(2, num_sig_components);
 
-% WORKAROUND 3: Create a dummy invisible figure. 
-% The library crashes in 'getjframe' because it tries to find a parent window 
-% for a warning dialog. We provide one to prevent the crash.
-dummy_fig = figure('Visible', 'off', 'Name', 'UMAP_Java_Context_Holder', 'HandleVisibility', 'off');
-drawnow; % Ensure Java peers are created
+% % WORKAROUND 3: Create a dummy invisible figure. 
+% % The library crashes in 'getjframe' because it tries to find a parent window 
+% % for a warning dialog. We provide one to prevent the crash.
+% dummy_fig = figure('Visible', 'off', 'Name', 'UMAP_Java_Context_Holder', 'HandleVisibility', 'off');
+% drawnow; % Ensure Java peers are created
 
 % Run UMAP on training data and keep the object (struct) to transform test data
 % WORKAROUND 2: 'check_duplicates', false prevents the library from asking 
@@ -74,8 +74,10 @@ drawnow; % Ensure Java peers are created
         'verbose', 'none', ...
         'metric', 'euclidean', ...
         'randomize', true, ...
-        'ask_args', false, ...
-        'save_template', false);
+        'ask_args',false, ...
+        'check_duplicates', false, ...   % another hidden popup
+        'gui', false, ...
+        'graph', false);
 
 disp('Projecting Test Set into UMAP space...');
 % Transform test data using the learned training manifold
@@ -87,8 +89,10 @@ try
         'verbose', 'none', ...
         'metric', 'euclidean', ...
         'randomize', true, ...
-        'ask_args', false, ...
-        'save_template', false);
+        'ask_args',false, ...
+        'check_duplicates', false, ...   % another hidden popup
+        'gui', false, ...
+        'graph', false);
 
 
 catch
@@ -100,8 +104,10 @@ catch
         'method', 'MEX', ...   
         'metric', 'euclidean', ...
         'randomize', true, ...
-        'ask_args', false, ...
-        'save_template', false);
+        'ask_args',false, ...
+        'check_duplicates', false, ...   % another hidden popup
+        'gui', false, ...
+        'graph', false);
 end
 
 
@@ -354,7 +360,7 @@ for b = 1:nBands
     nexttile; hold on;
     x = flat_tr_true{b}; y = flat_tr_recon{b};
     scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceAlpha', 0.3);
-    plot([min(x) max(x)], [min(x) max(x)], 'k--');
+    plot([min(x) max(x)], [min(x) max(x)], 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
     R = corrcoef(x, y); text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', 'k');
     title(band_names{b}); grid on;
     if b==1
