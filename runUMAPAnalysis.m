@@ -181,6 +181,7 @@ title(t, {'UMAP (Train) Colored by Latent Clusters', ...
           ['n=' num2str(n_neighbors) ', dist=' num2str(min_dist) ', (k=' num2str(num_sig_components) ')']}, ...
           'FontSize', 14, 'FontWeight', 'bold');
 colormap(turbo);
+set(findall(fig1,'-property','FontSize'),'FontSize',16);
 saveas(fig1, fullfile(method_dir, ['UMAP_Embedding' file_suffix '.png']));
 
 
@@ -219,7 +220,6 @@ line([x0 x0+(fs_new)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility',
 text(x0+fs_new, y0-0.1, '1 sec', 'VerticalAlignment','top');
 line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
 text(x0-5, y0+7, '2 a.u.', 'VerticalAlignment','bottom','HorizontalAlignment','right','Rotation',90);
-set(findall(gcf,'-property','FontSize'),'FontSize',14);
 set(findall(fig2,'-property','FontSize'),'FontSize',16);
 saveas(fig2, fullfile(method_dir, ['UMAP_TimeDomain' file_suffix '.png']));
 
@@ -269,7 +269,6 @@ set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i)))
 ylim([-1 1]); legend(band_names, 'Location', 'southeastoutside');
 ylabel('Mean R^2'); xlabel('Latent');
 title(['UMAP Band-wise R^2 (Test Set , k=' num2str(num_sig_components) ')']); grid on;
-set(findall(gcf,'-property','FontSize'),'FontSize',14);
 set(findall(fig3,'-property','FontSize'),'FontSize',16);
 saveas(fig3, fullfile(method_dir, ['UMAP_Bandwise_R2' file_suffix '.png']));
 
@@ -359,7 +358,8 @@ sgtitle(['UMAP Per-Trial Band Amplitudes (k=' num2str(num_sig_components) ')']);
 for b = 1:nBands
     nexttile; hold on;
     x = flat_tr_true{b}; y = flat_tr_recon{b};
-    scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceAlpha', 0.3);
+    scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceAlpha', 0.3,...
+        'DisplayName', [sprintf('Z_{%s}', band_names{b})]);
     plot([min(x) max(x)], [min(x) max(x)], 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
     R = corrcoef(x, y); text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', 'k');
     title(band_names{b}); grid on;

@@ -407,8 +407,9 @@ sgtitle(['AE: True vs Reconstructed Per-Trial Band Amplitudes for k= ' num2str(b
 for b = 1:nBands
     nexttile; hold on;
     x = true_vals_band{b}; y = recon_vals_band{b};
-    scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceAlpha', 0.3);
-    plot(linspace(min(x),max(x)), linspace(min(x),max(x)), 'k--');
+    scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceAlpha', 0.3,...
+        'DisplayName', [sprintf('Z_{%s}', band_names{b})]);
+    plot(linspace(min(x),max(x)), linspace(min(x),max(x)), 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
     R = corrcoef(x,y);
     text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', 'k', 'FontSize', 12);
     title(band_names{b}); grid on;

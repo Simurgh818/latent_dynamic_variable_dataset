@@ -143,8 +143,8 @@ for b = 1:nBands
 end
 
 %% ============================================================
-%% PLOTTING SECTION
-%% ============================================================
+% PLOTTING SECTION
+% ============================================================
 
 %% Plot 1: Time Domain + Zero Lag Corr
 fig1 = figure('Position',[50 50 1200 150*param.N_F]);
@@ -317,7 +317,7 @@ for b = 1:nBands
 
     scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), ...
         'MarkerFaceColor', colors(b,:), 'MarkerFaceAlpha', 0.3, ...
-        'DisplayName', [sprintf('Z_{%s}', num2str(param.f_peak(b)))]);
+        'DisplayName', [sprintf('Z_{%s}', band_names{b})]);
 
     xfit = linspace(min(x), max(x), 100);
     plot(xfit, xfit, 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
@@ -331,7 +331,7 @@ for b = 1:nBands
     title([band_names{b} ' band']);
     if b==1
         xlabel('True Band Amplitude')
-        ylabel('Reconstructed Band Amplitude')
+        ylabel('Recon. Band Amp.')
     end
 
     legend('Location','southoutside','TextColor','k','Orientation','horizontal');

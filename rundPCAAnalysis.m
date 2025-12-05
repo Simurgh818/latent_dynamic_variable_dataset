@@ -108,9 +108,9 @@ ax = gca;
 hold(ax,'on');
 x0 = 0;
 y0 = min(ylim)+0.2;
-line([x0 x0+param.fs], [y0 y0], 'Color', 'k', 'LineWidth', 2);
+line([x0 x0+param.fs], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
 text(x0+param.fs, y0-0.1, '1 sec', 'VerticalAlignment','top');
-line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2);
+line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
 text(x0-5, y0+4, '2 a.u.', 'VerticalAlignment','bottom', ...
     'HorizontalAlignment','right','Rotation',90);
 set(findall(fig1,'-property','FontSize'),'FontSize',16);
@@ -339,7 +339,7 @@ for b = 1:nBands
         if m > size(x,1), break; end 
         hold on;
         scatter(x(m), y(m), 70, 'filled', 'MarkerFaceColor', colors(b,:),'Marker', markers{m},...
-            'DisplayName', [sprintf('Z_{%d}', param.f_peak(m))]);
+            'DisplayName', [sprintf('Z_{%s}', num2str(param.f_peak(m)))]);
         
         errorbar(x(m), y(m), stdDev_band_amp_true(b, m), stdDev_band_amp_recon(b, m), ...
                  'LineStyle', 'none', 'Color', colors(b,:), 'CapSize', 5,'HandleVisibility', 'off');
@@ -421,7 +421,7 @@ for b = 1:nBands
         'MarkerEdgeColor', colors(b,:), ...
         'MarkerFaceColor', colors(b,:), ...
         'MarkerFaceAlpha', 0.3, ...
-        'DisplayName', band_names{b});
+        'DisplayName', [sprintf('Z_{%s}', band_names{b})]);
 
     % Identity line
     xfit = linspace(min(x), max(x), 100);
@@ -438,7 +438,7 @@ for b = 1:nBands
     title([band_names{b} ' band'])
     if b==1
         xlabel('True Band Amplitude')
-        ylabel('Reconstructed Band Amplitude')
+        ylabel('Recon. Band Amp.')
     end
 
     legend('Location','southoutside','TextColor','k','Orientation','horizontal');
@@ -446,7 +446,7 @@ for b = 1:nBands
     hold off;
 end
 
-set(findall(gcf,'-property','FontSize'),'FontSize',14)
+set(findall(gcf,'-property','FontSize'),'FontSize',16)
 saveas(fig7, fullfile(results_dir,['dPCA_BandScatter_perTrial_' file_suffix '.png'])); 
 close All;
 %% 6) Package output struct

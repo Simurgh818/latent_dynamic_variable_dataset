@@ -160,11 +160,12 @@ ax = gca;
 hold(ax,'on');
 x0 = 0;
 y0 = min(ylim)+0.2;
-line([x0 x0+param.fs], [y0 y0], 'Color', 'k', 'LineWidth', 2);
+line([x0 x0+param.fs], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
 text(x0+param.fs, y0-0.1, '1 sec', 'VerticalAlignment','top');
-line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2);
+line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
 text(x0-5, y0+4, '2 a.u.', 'VerticalAlignment','bottom', ...
     'HorizontalAlignment','right','Rotation',90);
+set(findall(fig1,'-property','FontSize'),'FontSize',16);
 saveas(fig1, fullfile(method_dir, ['PCA_Trace_Reconstruction' file_suffix '.png']));
 
 
@@ -176,10 +177,11 @@ sgtitle(['PC Traces (k=' num2str(num_sig_components) ')']);
 for pc=1:num_sig_components
     nexttile;
     plot(score(:,pc), 'LineStyle', '-', 'Color', pc_colors(pc,:),'DisplayName', ['PC(t) ' num2str(pc)]);
-    xlabel('Time bins'); ylabel('PC amplitude');
+    xlabel('Time bins'); ylabel('PC Amp.');
     xlim([0 1000]);
     legend('show');
 end
+set(findall(fig2,'-property','FontSize'),'FontSize',16);
 saveas(fig2, fullfile(method_dir, ['PCA_PC_Traces' file_suffix '.png']));
 
 
@@ -203,6 +205,7 @@ xlabel('PC Index'); ylabel('Metric Value');
 title('PCA R² (Solid) and MSE (Dashed)');
 grid('on'); hold off;
 legend('show', 'Location','southeastoutside');
+set(findall(fig3,'-property','FontSize'),'FontSize',16);
 saveas(fig3, fullfile(method_dir, ['PCA_Metrics_vs_Components' file_suffix '.png']));
 
 
@@ -228,6 +231,7 @@ for fidx=1:size(h_train,2)
 end
 xlabel('Frequency (Hz)'); ylabel('|Ẑ(f)|'); title('FFT Amplitude Reconstructed');
 grid on; hold off;
+set(findall(fig4,'-property','FontSize'),'FontSize',16);
 saveas(fig4, fullfile(method_dir, ['PCA_Frequency_Analysis' file_suffix '.png']));
 
 
@@ -272,6 +276,7 @@ for fidx = 1:size(h_train,2)
     grid on;
 end
 legend({'True','Reconstructed'}, 'Location','northoutside','Orientation','horizontal');
+set(findall(fig5,'-property','FontSize'),'FontSize',16);
 saveas(fig5, fullfile(method_dir, ['PCA_Band_Power' file_suffix '.png']));
 
 
@@ -283,6 +288,7 @@ ylim([-1 1]);
 legend(band_names, 'Location', 'southeastoutside');
 title(['PCA Band-wise Average R^2 (k=' num2str(num_sig_components) ')']);
 grid on;
+set(findall(fig6,'-property','FontSize'),'FontSize',16);
 saveas(fig6, fullfile(method_dir, ['PCA_Bandwise_R2' file_suffix '.png']));
 
 
@@ -333,7 +339,7 @@ for b = 1:nBands
         if m > size(x,1), break; end 
         hold on;
         scatter(x(m), y(m), 70, 'filled', 'MarkerFaceColor', colors(b,:),'Marker', markers{m},...
-            'DisplayName', [sprintf('Z_{%d}', param.f_peak(m))]);
+            'DisplayName', [sprintf('Z_{%s}', num2str(param.f_peak(m)))]);
         
         errorbar(x(m), y(m), stdDev_band_amp_true(b, m), stdDev_band_amp_recon(b, m), ...
                  'LineStyle', 'none', 'Color', colors(b,:), 'CapSize', 5,'HandleVisibility', 'off');
@@ -363,7 +369,7 @@ proxy_handles(end) = plot(nan, nan, 'k', 'LineWidth', 2);
 legend_labels = [arrayfun(@(m) sprintf('Z_{%s}', num2str(param.f_peak(m))), 1:length(markers), 'UniformOutput', false), {'y = x'}];
 legend(proxy_handles, legend_labels, 'Location','eastoutside','TextColor','k','IconColumnWidth',7, 'NumColumns',2);
 hold off;
-set(findall(gcf,'-property','FontSize'),'FontSize',14)
+set(findall(fig7,'-property','FontSize'),'FontSize',16);
 saveas(fig7, fullfile(method_dir, ['PCA_Scatter_Band_Amp_Mean' file_suffix '.png']));
 
 
@@ -395,19 +401,23 @@ for b = 1:nBands
     nexttile; hold on;
     x = true_vals_band{b};
     y = recon_vals_band{b};
-    scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceColor', colors(b,:), 'MarkerFaceAlpha', 0.3); 
+    scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceColor', colors(b,:), 'MarkerFaceAlpha', 0.3,...
+        'DisplayName', [sprintf('Z_{%s}', band_names{b})]); 
     xfit = linspace(min(x), max(x), 100);
-    plot(xfit, xfit, 'k--', 'LineWidth', 1.5);
+    plot(xfit, xfit, 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
     R_fit = corrcoef(x, y);
     if numel(R_fit) > 1
         R2_fit = R_fit(1,2)^2;
         text(mean(x), mean(y), sprintf('R^2=%.2f', R2_fit), 'Color', 'k', 'FontSize', 12);
     end
     title([band_names{b} ' band'])
-    if b==1, xlabel('True Band Amplitude'); ylabel('Reconstructed Band Amplitude'); end
-    grid on; hold off;
+    if b==1, xlabel('True Band Amplitude'); ylabel('Recon. Band Amp.'); end
+    grid on; 
+    legend('Location','southoutside','TextColor','k','Orientation','horizontal');
+    hold off;
 end
-set(findall(gcf,'-property','FontSize'),'FontSize',14)
+
+set(findall(fig8,'-property','FontSize'),'FontSize',16)
 saveas(fig8, fullfile(method_dir, ['PCA_Scatter_Band_Amp_Trials' file_suffix '.png']));
 
 
