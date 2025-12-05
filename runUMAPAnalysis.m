@@ -10,30 +10,6 @@ function [R2_test_global, MSE_test_global, outUMAP] = runUMAPAnalysis( ...
 %   fs_new              : Sampling rate
 %   results_dir         : Output directory
 
-% %% 0. CRITICAL: Override Dialog Functions to Prevent GUI Calls
-% % The UMAP library tries to show dialogs even with gui=false
-% % We override the dialog functions to return default values
-% 
-% % Save original functions
-% originalQuestDlg = @questdlg;
-% originalAskYesOrNo = str2func('askYesOrNo');
-% 
-% % Create dummy versions that always return 'Yes'
-% questdlg = @(varargin) 'Yes';
-% askYesOrNo = @(varargin) true;
-% 
-% % Also override msgError to do nothing
-% msgError = @(varargin) [];
-%% 1. Reset Java Environment (CRITICAL FIX)
-% The previous error 'HeadlessException' happens because 'java.awt.headless'
-% was set to true in the session. We must forcefully unset it so run_umap
-% can access the Java frames it needs for internal checks.
-% setenv('JAVA_TOOL_OPTIONS', ''); 
-% try
-%     java.lang.System.setProperty('java.awt.headless', 'false');
-% catch
-% end
-% drawnow; % Flush any pending Java graphics events
 
 %% 2. Setup and Directory
 method_name = 'UMAP';
@@ -57,16 +33,12 @@ disp(['Running UMAP (k=' num2str(num_sig_components) ') on Training Set...']);
 % If num_sig_components is 1, we must request 2, then ignore the 2nd dim.
 umap_calc_components = max(2, num_sig_components);
 
-% % WORKAROUND 3: Create a dummy invisible figure. 
-% % The library crashes in 'getjframe' because it tries to find a parent window 
-% % for a warning dialog. We provide one to prevent the crash.
-% dummy_fig = figure('Visible', 'off', 'Name', 'UMAP_Java_Context_Holder', 'HandleVisibility', 'off');
-% drawnow; % Ensure Java peers are created
 
 % Run UMAP on training data and keep the object (struct) to transform test data
 % WORKAROUND 2: 'check_duplicates', false prevents the library from asking 
 % "run_umap will remove duplicates..." which halts automation.
-[umap_train_raw, umap_struct] = run_umap(eeg_train, ...
+try
+    [umap_train_raw, umap_struct] = run_umap(eeg_train, ...
         'n_neighbors', n_neighbors, ...
         'min_dist', min_dist, ...
         'n_components', umap_calc_components, ...
@@ -74,12 +46,15 @@ umap_calc_components = max(2, num_sig_components);
         'verbose', 'none', ...
         'metric', 'euclidean', ...
         'randomize', true, ...
-        'ask_args',false, ...
-        'check_duplicates', false, ...   % another hidden popup
-        'gui', false, ...
-        'graph', false);
-
+        'check_duplicates', false, ...   % FIX: Don't ask to remove duplicates (prevents dialog crash)
+        'plot_output', 'none', ...       % FIX: Don't try to plot results (prevents Toolbar crash)
+        'save_template_file', false);    % Optimization: Don't save .mat template automatically
+catch ME
+    warning('UMAP Train failed: %s. Attempting fallback settings.', ME.message);
+    rethrow(ME); % Rethrow the error for debugging purposes
+end 
 disp('Projecting Test Set into UMAP space...');
+
 % Transform test data using the learned training manifold
 try
     umap_test_raw = run_umap(eeg_test, ...
@@ -89,10 +64,8 @@ try
         'verbose', 'none', ...
         'metric', 'euclidean', ...
         'randomize', true, ...
-        'ask_args',false, ...
-        'check_duplicates', false, ...   % another hidden popup
-        'gui', false, ...
-        'graph', false);
+        'check_duplicates', false, ...       % FIX ADDED
+        'plot_output', 'none');              % FIX ADDED
 
 
 catch
@@ -104,10 +77,8 @@ catch
         'method', 'MEX', ...   
         'metric', 'euclidean', ...
         'randomize', true, ...
-        'ask_args',false, ...
-        'check_duplicates', false, ...   % another hidden popup
-        'gui', false, ...
-        'graph', false);
+        'check_duplicates', false, ...       % FIX ADDED
+        'plot_output', 'none');              % FIX ADDED
 end
 
 

@@ -4,8 +4,35 @@ clear; clc;
 %% ----------------------------------------------------------
 % 1. Load & Prepare Data
 % ----------------------------------------------------------
+% Paths
+if exist('H:\', 'dir')
+    input_dir = ['C:' filesep 'Users' filesep 'sinad' filesep ...
+    'OneDrive - Georgia Institute of Technology' filesep ...
+    'Dr. Sederberg MaTRIX Lab' filesep ...
+    'Shared Code'];
+
+    baseFolder = ['C:' filesep 'Users' filesep 'sinad' filesep ...
+    'OneDrive - Georgia Institute of Technology' filesep ...
+    'Dr. Sederberg MaTRIX Lab' filesep ...
+    'Dimensionality Reduction Review Paper'];
+
+elseif exist('G:\', 'dir')
+    input_dir = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
+    'OneDrive - Georgia Institute of Technology' filesep ...
+    'Dr. Sederberg MaTRIX Lab' filesep ...
+    'Shared Code'];
+
+    baseFolder = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
+    'OneDrive - Georgia Institute of Technology' filesep ...
+    'Dr. Sederberg MaTRIX Lab' filesep ...
+    'Dimensionality Reduction Review Paper'];
+else
+    error('Unknown system: Cannot determine input and output paths.');
+end
+
 eegFilename = 'simEEG_set4';
 fullName = strcat(eegFilename, '.mat');
+fullName_path = fullfile(input_dir,fullName);
 simEEG   = load(fullName);
 
 s_eeg_like      = simEEG.train_sim_eeg_vals;
@@ -15,21 +42,6 @@ h_f   = simEEG.train_true_hF';
 param.f_peak    = round([2 2.4 8 20 21 32 40 40],1);
 fs_orig          = 1/simEEG.dt;
 param.N_F       = size(simEEG.train_true_hF,1);
-
-% Output path
-if exist('H:\', 'dir')
-    baseFolder = ['C:' filesep 'Users' filesep 'sinad' filesep ...
-    'OneDrive - Georgia Institute of Technology' filesep ...
-    'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Dimensionality Reduction Review Paper'];
-elseif exist('G:\', 'dir')
-    baseFolder = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
-    'OneDrive - Georgia Institute of Technology' filesep ...
-    'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Dimensionality Reduction Review Paper'];
-else
-    error('Unknown system: Cannot determine input and output paths.');
-end
 
 % eegFilename = 'simEEG_set1';         % given EEG filename
 subfolderName = ['results_' eegFilename];  % e.g., "results_simEEG_set1"
@@ -108,7 +120,7 @@ max_components = 10;       % or param-driven
 component_range = 1:max_components;
 
 % Store results: structure indexed by method name
-methods = {'UMAP','dPCA'}; % ,'PCA', 'AE', 'ICA',
+methods = {'PCA','dPCA', 'ICA','UMAP', 'AE'}; % 
 
 results = struct();
 for m = 1:numel(methods)
@@ -119,20 +131,6 @@ end
 %% ----------------------------------------------------------
 % 3. Loop through dimensionality reduction methods
 % ----------------------------------------------------------
-% java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment;
-% warning('off','MATLAB:HandleGraphics:ObsoletedProperty:JavaFrame');
-% 
-% % Force headless Java mode (best chance in MATLAB)
-% setenv('JAVA_TOOL_OPTIONS','-Djava.awt.headless=true');
-% 
-% % Also try MATLAB's internal headless toggle
-% try
-%     system_dependent('setheadless', true);
-% catch
-%     % Some versions don't support this; ignore gracefully
-% end
-
-
 
 % Start parallel pool (default: use all available cores)
 % if isempty(gcp('nocreate'))
@@ -145,7 +143,7 @@ for m = 1:numel(methods)
     R2_k_local = zeros(max_components,1);
     MSE_k_local = zeros(max_components,1);
 
-    for k = 7:7 % component_range % par
+    for k = component_range % par
         
         switch method
             
@@ -172,17 +170,8 @@ for m = 1:numel(methods)
                 % [R2_k, MSE_k] = runUMAPAnalysis(X_train, X_test, H_train, H_test, k);
                 % javaFrame = feature('JavaFrame');
                 java.lang.System.setProperty('java.awt.headless','false');   
-                % Reduce spurious Swing paint events
-                java.lang.System.setProperty('sun.awt.noerasebackground','true');
-
-                % % --- Hard override for Meehan UMAP dialog functions (GLOBAL) ---
-                % % These must exist in the caller workspace so the library finds them.
-                % 
-                % assignin('caller', 'questDlg', @(varargin) 'Yes');
-                % assignin('caller', 'askYesOrNo', @(varargin) true);
-                % assignin('caller', 'msg', @(varargin) []);
-                % assignin('caller', 'msgError', @(varargin) []);
-                % assignin('caller', 'PopUp', struct());    % disables PopUp.Pane
+                % % Reduce spurious Swing paint events
+                % java.lang.System.setProperty('sun.awt.noerasebackground','true');
 
                 n_neighbors = 100; % 199
                 min_dist    = 0.3;

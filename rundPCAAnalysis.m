@@ -114,7 +114,7 @@ line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off')
 text(x0-5, y0+4, '2 a.u.', 'VerticalAlignment','bottom', ...
     'HorizontalAlignment','right','Rotation',90);
 set(findall(fig1,'-property','FontSize'),'FontSize',16);
-saveas(fig1, fullfile(results_dir,['dPCA_TimeDomain_Reconstruction_k' file_suffix '.png'])); 
+saveas(fig1, fullfile(results_dir,['dPCA_TimeDomain_Reconstruction_' file_suffix '.png'])); 
 
 %%% ---------------------- Plot Z_dpca component traces ------------------------
 fig2 = figure('Position',[50 50 1000 (num_sig_components*250)/2]);
@@ -132,7 +132,7 @@ for pc = 1:num_sig_components
     legend('show');
 end
 set(findall(fig2,'-property','FontSize'),'FontSize',12);
-saveas(fig2, fullfile(results_dir,['dPCA_Component_Traces_k' file_suffix '.png'])); 
+saveas(fig2, fullfile(results_dir,['dPCA_Component_Traces_' file_suffix '.png'])); 
 
 %%% -------------------- Explained variance figure -----------------------------
 fig3 = figure('Position',[50 50 800 600]);
@@ -152,7 +152,7 @@ ylim([0 100])
 title('Cumulative Explained Variance')
 grid on
 set(findall(fig3,'-property','FontSize'),'FontSize',12);
-saveas(fig3, fullfile(results_dir,['dPCA_ExplainedVariance_k' file_suffix '.png'])); 
+saveas(fig3, fullfile(results_dir,['dPCA_ExplainedVariance_' file_suffix '.png'])); 
 
 %% --- Frequency-domain analysis for dPCA reconstruction ---
 Z_true = h_f_normalized_ds;
@@ -252,7 +252,7 @@ end
 xlabel('Frequency (Hz)'); ylabel('|Z(f)|');
 title('FFT of Original Latents');
 xlim([1 50]); xticks([1 4 8 10 13 20 30 50]);
-grid on; legend('show','Location','southeastoutside');
+grid on; legend('show','Location','southeastoutside', 'Interpreter','latex');
 
 % Reconstructed FFT
 nexttile;
@@ -264,7 +264,7 @@ end
 xlabel('Frequency (Hz)'); ylabel('|Ẑ(f)|');
 title('FFT of Reconstructed Latents');
 xlim([1 50]); xticks([1 4 8 10 13 20 30 50]);
-grid on; legend('show','Location','southeastoutside');
+grid on; legend('show','Location','southeastoutside', 'Interpreter','latex');
 
 set(findall(fig4,'-property','FontSize'),'FontSize',14);
 saveas(fig4, fullfile(results_dir,['dPCA_FFT_True_vs_Recon_' file_suffix '.png']));
@@ -290,7 +290,7 @@ ylim([-1 1]);
 ylabel('Mean R^2'); xlabel('Latent Variable');
 legend(band_names, 'Location','southeastoutside'); title('Band-wise R^2 of dPCA Reconstruction');
 grid on; set(findall(fig5,'-property','FontSize'),'FontSize',14);
-saveas(fig5, fullfile(results_dir,['dPCA_Bandwise_R2' file_suffix '.png'])); 
+saveas(fig5, fullfile(results_dir,['dPCA_Bandwise_R2_' file_suffix '.png'])); 
 
 %%% --- True vs reconstructed band FFT amplitude scatter ---
 % Ht_amp = abs(Ht_avg(1:nHz,:));
@@ -370,7 +370,7 @@ legend_labels = [arrayfun(@(m) sprintf('Z_{%s}', num2str(param.f_peak(m))), 1:le
 legend(proxy_handles, legend_labels, 'Location','eastoutside','TextColor','k','IconColumnWidth',7, 'NumColumns',2);
 hold off;
 set(findall(gcf,'-property','FontSize'),'FontSize',14)
-saveas(fig6, fullfile(results_dir, ['dPCA_Scatter_Band_Amp_Mean' file_suffix '.png']));
+saveas(fig6, fullfile(results_dir, ['dPCA_Scatter_Band_Amp_Mean_' file_suffix '.png']));
 
 %% ===================== TRIALWISE BAND AMPLITUDE SCATTER PLOTS (dPCA) =====================
 
