@@ -170,11 +170,17 @@ saveas(fig1, fullfile(method_dir, ['PCA_Trace_Reconstruction' file_suffix '.png'
 
 
 %% Plot 2: PC Traces
-fig2 = figure('Position',[50 50 1000 (num_sig_components*250)/2]);
-tiledlayout(num_sig_components, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-pc_colors = lines(num_sig_components);
+if num_sig_components <= param.N_F
+    num_comps_plot = num_sig_components;
+else
+    num_comps_plot = param.N_F;
+end
+
+fig2 = figure('Position',[50 50 1000 (num_comps_plot*250)/2]);
+tiledlayout(num_comps_plot, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+pc_colors = lines(num_comps_plot);
 sgtitle(['PC Traces (k=' num2str(num_sig_components) ')']);
-for pc=1:num_sig_components
+for pc=1:num_comps_plot
     nexttile;
     plot(score(:,pc), 'LineStyle', '-', 'Color', pc_colors(pc,:),'DisplayName', ['PC(t) ' num2str(pc)]);
     xlabel('Time bins'); ylabel('PC Amp.');

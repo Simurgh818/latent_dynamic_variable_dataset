@@ -184,12 +184,17 @@ saveas(fig1, fullfile(method_dir, ['ICA_TimeDomain' file_suffix '.png']));
 
 
 % num_sig_components = sum(eig_vals > lambda_max);
-fig1_2 = figure('Position',[50 50 1200 (num_comps*150)]);
-tiledlayout(num_comps, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-pc_colors = lines(num_comps);
+if num_comps <= param.N_F
+    num_comps_plot = num_comps;
+else
+    num_comps_plot = param.N_F;
+end
+fig1_2 = figure('Position',[50 50 1200 (num_comps_plot*150)]);
+tiledlayout(num_comps_plot, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+pc_colors = lines(num_comps_plot);
 sgtitle('IC Traces');
 
-for ic=1:num_comps
+for ic=1:num_comps_plot
     nexttile;
     plot(h_rec_test(:,ic)', 'LineStyle', '-', 'Color', pc_colors(ic,:),'DisplayName', ['IC(t) ' num2str(ic)]);
     xlabel('Time bins')
@@ -352,6 +357,6 @@ outICA.MSE_train    = mean((h_test - h_rec_test).^2, 'all');
 outICA.method_dir   = method_dir;
 
 % Close local figures
-close(fig1); close(fig2); close(fig3); close(fig4);
+close All;
 
 end

@@ -117,12 +117,18 @@ set(findall(fig1,'-property','FontSize'),'FontSize',16);
 saveas(fig1, fullfile(results_dir,['dPCA_TimeDomain_Reconstruction_' file_suffix '.png'])); 
 
 %%% ---------------------- Plot Z_dpca component traces ------------------------
-fig2 = figure('Position',[50 50 1000 (num_sig_components*250)/2]);
-tiledlayout(num_sig_components, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-pc_colors = lines(num_sig_components);
+if num_sig_components <= param.N_F
+    num_comps_plot = num_sig_components;
+else
+    num_comps_plot = param.N_F;
+end
+
+fig2 = figure('Position',[50 50 1000 (num_comps_plot*250)/2]);
+tiledlayout(num_comps_plot, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+pc_colors = lines(num_comps_plot);
 sgtitle(['PC Traces (k=' num2str(num_sig_components) ')'])
 
-for pc = 1:num_sig_components
+for pc = 1:num_comps_plot
     nexttile;
     plot(Z_dpca(pc,:), 'LineStyle', '-', 'Color', pc_colors(pc,:), ...
         'DisplayName', ['PC(t) ' num2str(pc)]);
