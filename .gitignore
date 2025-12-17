@@ -202,3 +202,8 @@ main_DR.asv
 runAutoencoderAnalysis.asv
 latent_to_eeg_tanh.asv
 rundPCAAnalysis.asv
+approx_eeg_locs.csv
+layout1_fig.fig
+layout1_fig.pdf
+simEEG_set4_key_randF.mat
+source_params.mat

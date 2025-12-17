@@ -97,7 +97,7 @@ f_plot = f_freq(1:nHz);
 Ht = zeros(L, param.N_F, nTrials);
 Hr = zeros(L, param.N_F, nTrials);
 R2_trials = zeros(L, param.N_F, nTrials);
-
+% TODO: add comments for the code 
 for tr = 1:nTrials
     idx = (tr-1)*L + (1:L);
     Z_true_sub = h_train(idx, :);
