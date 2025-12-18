@@ -1,4 +1,4 @@
-function corr_table = match_components_to_latents(C, H, method_name)
+function [corr_table, R] = match_components_to_latents(C, H, method_name)
     % C: T x K   (components)
     % H: T x N_F (true latents)
 

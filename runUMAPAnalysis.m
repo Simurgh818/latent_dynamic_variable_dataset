@@ -87,6 +87,13 @@ end
 umap_train = umap_train_raw(:, 1:num_sig_components);
 % umap_test  = umap_test_raw(:, 1:num_sig_components);
 
+% Mapping components to latents
+% Mapping components to latents
+C = umap_train;   % T x nComp
+H = h_train(1:size(C,1), :);
+
+[corr_UMAP, R_UMAP] = match_components_to_latents(C, H, 'UMAP');
+
 %% 5. Reconstruction Loop (Train Mapping -> Test Eval)
 % We calculate metrics for k=1 to num_sig_components
 MSE_test_curve = zeros(1, param.N_F);
@@ -353,6 +360,8 @@ outUMAP.MSE_curve = MSE_test_curve;
 outUMAP.R2_curve = R2_test_curve;
 outUMAP.n_neighbors = n_neighbors;
 outUMAP.min_dist = min_dist;
+outUMAP.corr_UMAP = corr_UMAP;
+outUMAP.R_full = R_UMAP; 
 
 close All;
 end

@@ -120,12 +120,13 @@ max_components = 10;       % or param-driven
 component_range = 1:max_components;
 
 % Store results: structure indexed by method name
-methods = {'PCA','dPCA', 'ICA','UMAP', 'AE'}; %, 
+methods = {'PCA','dPCA', 'ICA','UMAP', 'AE'}; %,
 
 results = struct();
 for m = 1:numel(methods)
     results.(methods{m}).R2  = zeros(1, max_components);
     results.(methods{m}).MSE = zeros(1, max_components);
+    results.(methods{m}).CORR = cell(1, max_components); 
 end
 
 %% ----------------------------------------------------------
@@ -137,13 +138,24 @@ end
 %     parpool;  
 % end
 
+outPCA.corr_PCA = table();
+outDPCA.corr_dPCA = table();
+outICA.corr_ICA = table();
+outUMAP.corr_UMAP = table();
+outAE.corr_AE = table();
+
 for m = 1:numel(methods)
     method = methods{m};
     fprintf("Running %s...\n", method);
     R2_k_local = zeros(max_components,1);
     MSE_k_local = zeros(max_components,1);
+    CORR_k_local = cell(max_components,1);
 
-    for k = component_range % par
+    method_dir = fullfile(results_dir, method);
+    if ~exist(method_dir, 'dir')
+        mkdir(method_dir);
+    end
+    for k = 7:7 % component_range % par
         
         switch method
             
@@ -155,17 +167,21 @@ for m = 1:numel(methods)
                     H_train, H_test, param, k, fs_new, method_dir);
                 R2_k_local(k) = mean(R2_test(k,:));
                 MSE_k_local(k) = mean(MSE_test(k,:));
-
+                corr = outPCA.corr_PCA;
+                R = outPCA.R_full;   
             case 'AE'
                 % [R2_k, MSE_k] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, k);
                 [R2_k_local(k), MSE_k_local(k), outAE] = runAutoencoderAnalysis(eeg_train, eeg_test,...
                     H_train, H_test, k, param, fs_new, results_dir);
+                corr = outAE.corr_AE;
+                R = outAE.R_full; 
             case 'ICA'
                 % 1. Setup and Directories
                 method_name = 'ICA';
                 method_dir = fullfile(results_dir, method_name);
-                [R2_k_local(k), MSE_k_local(k)] = runICAAnalysis(eeg_train, eeg_test, H_train, H_test, k, param, method_dir);
-
+                [R2_k_local(k), MSE_k_local(k), outICA] = runICAAnalysis(eeg_train, eeg_test, H_train, H_test, k, param, method_dir);
+                corr = outICA.corr_ICA;
+                R = outICA.R_full; 
             case 'UMAP'
                 % [R2_k, MSE_k] = runUMAPAnalysis(X_train, X_test, H_train, H_test, k);
                 % javaFrame = feature('JavaFrame');
@@ -178,6 +194,8 @@ for m = 1:numel(methods)
                 [R2_k_local(k), MSE_k_local(k), outUMAP] = runUMAPAnalysis( ...
                     n_neighbors, min_dist, eeg_train, eeg_test, param, ...
                     H_train, H_test, k, param.fs, results_dir);
+                corr = outUMAP.corr_UMAP;
+                R = outUMAP.R_full; 
             case 'dPCA'
                 method_name = 'dPCA';
                 method_dir = fullfile(results_dir, method_name);
@@ -185,16 +203,62 @@ for m = 1:numel(methods)
                     s_eeg_ds, h_f_normalized_ds, param, k, method_dir);
                 R2_k_local(k) = mean(R2_test(k,:));
                 MSE_k_local(k) = mean(MSE_test(k,:));
-
+                corr = outDPCA.corr_dPCA;
+                R = outDPCA.R_full; 
         end
+
+        CORR_k_local{k} = corr;
+        if isempty(corr), continue; end
+        results.(method).summary(k).mean_corr = mean(corr{:,'corr_value'});
+
+        fig = figure;   
+        imagesc(R);
+        axis square;
+        xticks(1:size(R,2));
+        yticks(1:size(R,1));
+        xlabel('Component index (C)');
+        ylabel('True latent index (h_f)');
+        title(sprintf('%s: Latent–Component Correlation', method));
+        set(gca, 'YDir','normal',...
+            'TickLength',[0 0], ...
+            'FontSize',14);
+        colormap(parula);
+        colorbar;
+        % Save
+        heatmap_name = fullfile(method_dir, ...
+            sprintf('%s_CorrHeatmap_k%d.png', method, k));
+        saveas(fig, heatmap_name);
+        close(fig);
 
     end
     results.(method).R2 = R2_k_local; 
     results.(method).MSE = MSE_k_local;
+    results.(method).CORR = CORR_k_local;
+  
     R2_k_local = zeros(max_components,1);
     MSE_k_local = zeros(max_components,1);
 end
 
+all_corr_tables = [outPCA.corr_PCA;
+                   outDPCA.corr_dPCA;
+                   outICA.corr_ICA;
+                   outUMAP.corr_UMAP;
+                   outAE.corr_AE];
+
+summary = groupsummary(all_corr_tables, 'method', 'mean', 'corr_value');
+summary_min = groupsummary(all_corr_tables, 'method', 'min', 'corr_value');
+threshold = 0.46;
+good_counts = groupsummary( ...
+                all_corr_tables(all_corr_tables.corr_value > threshold,:), ...
+                'method',@sum,'corr_value');
+results.summary.mean = summary;
+results.summary.min  = summary_min;
+results.summary.good_counts = good_counts;
+results.summary.threshold = threshold;
+
+% Save file -------------------------------------------------------------
+outFile = fullfile(results_dir, "Component_latentVariable_Corr.mat");
+save(outFile, '-struct', 'results', 'summary')
 %% ----------------------------------------------------------
 % 4. Plot R^2 and MSE vs # components
 % ----------------------------------------------------------

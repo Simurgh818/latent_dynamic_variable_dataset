@@ -56,6 +56,13 @@ else
     icasig_test = zeros(size(eeg_test,2), pca_dim); 
 end
 
+% Mapping components to latents
+C = icasig_train;   % dPCA gives nComp x T → transpose to T x nComp
+H = h_train(1:size(C,1), :);
+
+[corr_ICA, R_ICA] = match_components_to_latents(C, H, 'ICA');
+
+
 %% 3. Linear Mapping ICs -> Latent Fields
 % We want to map the K independent components to the N_F latent fields.
 % Using ALL k components available to reconstruct the latent variables.
@@ -355,6 +362,8 @@ outICA.icasig_test  = icasig_test;
 outICA.h_rec_test   = h_rec_test;
 outICA.MSE_train    = mean((h_test - h_rec_test).^2, 'all');
 outICA.method_dir   = method_dir;
+outICA.corr_ICA    = corr_ICA;
+outICA.R_full = R_ICA; 
 
 % Close local figures
 close All;

@@ -33,6 +33,10 @@ score_test = (eeg_test' - mean(eeg_train', 1)) * coeff;
 var_test = var(score_test);
 explained_test = 100 * var_test / sum(var_test);
 
+% Match components to latents
+[corr_PCA, R_PCA] = match_components_to_latents(score, h_train, 'PCA');
+
+
 %% 3. Compute R^2 and MSE for Increasing Components
 max_comp_check = num_sig_components; 
 reconstruction_error_pca = zeros(max_comp_check, param.N_F, 2); % dim 3: 1=R2, 2=MSE (Train)
@@ -438,5 +442,8 @@ outPCA.errorTrainCurve = reconstruction_error_pca;
 outPCA.errorTestCurve = reconstruction_error_test_pca;
 outPCA.h_recon_train = h_recon_final;
 outPCA.method_dir = method_dir;
+outPCA.corr_PCA = corr_PCA;
+outPCA.R_full = R_PCA;
+
 close all;
 end

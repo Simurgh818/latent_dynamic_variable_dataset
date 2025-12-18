@@ -34,6 +34,11 @@ X_dpca(:,:,1) = s_eeg_ds;
 Z_dpca = W' * s_eeg_ds;         % nComp × T
 Z_dpca_T = Z_dpca';             % T × nComp
 
+% 2c) Mapping Components to latents
+H      = h_f_normalized_ds(1:size(Z_dpca_T,1), :);
+
+[corr_dPCA, R_dPCA] = match_components_to_latents(Z_dpca_T, H, 'dPCA');
+
 % 3) Reconstruct original h_f using lsqlin
 T = size(s_eeg_ds,2);
 num_f = size(h_f_normalized_ds,2);
@@ -464,6 +469,8 @@ outDPCA.explainedVar_frac = explainedVar_frac;
 outDPCA.explainedVar_pct  = explainedVar_pct;
 outDPCA.explainedVar_cum  = explainedVar_cum;
 outDPCA.folder = results_dir;
+outDPCA.corr_dPCA = corr_dPCA;
+outDPCA.R_full = R_dPCA;
 
 % Inputs:
 %   X          : nChannels x T  (single condition) OR nChannels x T x C
