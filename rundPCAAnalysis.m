@@ -257,7 +257,7 @@ sgtitle(['dPCA Frequency Analysis (k=' num2str(num_sig_components) ')']);
 nexttile;
 for fidx=1:nF
     loglog(f_plot, abs(Ht_avg(1:nHz,fidx)), 'Color', h_f_colors(fidx,:), ...
-        'DisplayName', sprintf('Z_{%s}(f)', num2str(param.f_peak(fidx))));
+        'DisplayName', [sprintf('Z_{%s}(f)', num2str(param.f_peak(fidx)))]);
     hold on;
 end
 xlabel('Frequency (Hz)'); ylabel('|Z(f)|');
@@ -269,7 +269,7 @@ grid on; legend('show','Location','southeastoutside', 'Interpreter','latex');
 nexttile;
 for fidx=1:nF
     loglog(f_plot, abs(Hr_avg(1:nHz,fidx)), 'Color', h_f_colors(fidx,:), ...
-        'DisplayName', sprintf('\\hat{Z}_{%d}(f)', param.f_peak(fidx)));
+        'DisplayName', [sprintf('\\hat{Z}_{%s}(f)', num2str(param.f_peak(fidx)))]);
     hold on;
 end
 xlabel('Frequency (Hz)'); ylabel('|Ẑ(f)|');

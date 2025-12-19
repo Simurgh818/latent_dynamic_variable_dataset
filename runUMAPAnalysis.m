@@ -88,7 +88,6 @@ umap_train = umap_train_raw(:, 1:num_sig_components);
 % umap_test  = umap_test_raw(:, 1:num_sig_components);
 
 % Mapping components to latents
-% Mapping components to latents
 C = umap_train;   % T x nComp
 H = h_train(1:size(C,1), :);
 

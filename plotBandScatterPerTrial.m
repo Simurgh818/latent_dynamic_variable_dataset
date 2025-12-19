@@ -53,17 +53,17 @@ for b = 1:nBands
             'DisplayName', sprintf('Z_{%d}', param.f_peak(z)));
     end
 
-    % ---- y = x reference ----
-    lim = [min([X(:);Y(:)]) max([X(:);Y(:)])];
-    plot(lim, lim, 'k--', 'LineWidth',1.5, 'DisplayName','y = x');
-
-    % ---- R² ----
-    R = corrcoef(X(:), Y(:));
-    if numel(R) > 1
-        text(mean(lim), mean(lim), ...
-            sprintf('R^2=%.2f', R(1,2)^2), ...
-            'FontSize',12,'FontWeight','bold');
-    end
+    % % ---- y = x reference ----
+    % lim = [min([X(:);Y(:)]) max([X(:);Y(:)])];
+    % plot(lim, lim, 'k--', 'LineWidth',1.5, 'DisplayName','y = x');
+    % 
+    % % ---- R² ----
+    % R = corrcoef(X(:), Y(:));
+    % if numel(R) > 1
+    %     text(mean(lim), mean(lim), ...
+    %         sprintf('R^2=%.2f', R(1,2)^2), ...
+    %         'FontSize',12,'FontWeight','bold');
+    % end
 
     title([band_names{b} ' band']);
 

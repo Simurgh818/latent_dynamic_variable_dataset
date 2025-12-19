@@ -30,7 +30,7 @@ else
     error('Unknown system: Cannot determine input and output paths.');
 end
 
-eegFilename = 'simEEG_set4';
+eegFilename = 'simEEG_set2';
 fullName = strcat(eegFilename, '.mat');
 fullName_path = fullfile(input_dir,fullName);
 simEEG   = load(fullName);
@@ -39,7 +39,7 @@ s_eeg_like      = simEEG.train_sim_eeg_vals;
 s_eeg_like_test = simEEG.test_sim_eeg_vals;
 h_f   = simEEG.train_true_hF';
 
-param.f_peak    = round([2 5 10 12 20 30 40 50],1);
+param.f_peak    = round([2 2.4 8 20 21 32 40 40],1);
 fs_orig          = 1/simEEG.dt;
 param.N_F       = size(simEEG.train_true_hF,1);
 
@@ -120,7 +120,7 @@ max_components = 10;       % or param-driven
 component_range = 1:max_components;
 
 % Store results: structure indexed by method name
-methods = {'PCA','dPCA'}; %,, 'ICA','UMAP', 'AE'
+methods = {'PCA','dPCA', 'ICA','UMAP', 'AE'}; %
 
 results = struct();
 for m = 1:numel(methods)
@@ -143,6 +143,9 @@ outDPCA.corr_dPCA = table();
 outICA.corr_ICA = table();
 outUMAP.corr_UMAP = table();
 outAE.corr_AE = table();
+
+f = param.f_peak(:);
+[f_sorted, f_sortIdx] = sort(f, 'ascend');
 
 for m = 1:numel(methods)
     method = methods{m};
@@ -213,6 +216,7 @@ for m = 1:numel(methods)
 
         fig = figure;   
         imagesc(R);
+        clim([-1 1]); 
         axis square;
         xticks(1:size(R,2));
         yticks(1:size(R,1));
@@ -230,6 +234,30 @@ for m = 1:numel(methods)
         saveas(fig, heatmap_name);
         close(fig);
 
+        % Ensure column vectors (defensive programming, EEG-style)
+        c = corr.corr_value(:);
+        
+        % Sort by peak frequency (low → high)
+        c_sorted = c(f_sortIdx);
+        
+        % Plot
+        fig0 = figure;
+        hold on;
+        plot(f_sorted, c_sorted, '-o', 'LineWidth', 1.5,'DisplayName', method);
+        xticks(unique(f_sorted));
+        xticklabels(string(unique(f_sorted)));
+        xlabel('Peak Frequencies (Hz)');
+        ylabel('Correlation Value');
+        title('Latent–Component Correlation Across Methods');
+        grid on;
+        ylim([0 1]);
+        legend('Location','eastoutside');
+        hold off;
+        % Save and close
+        cmp_name = fullfile(method_dir, 'CrossMethod_Corr_vs_Frequency.png');
+        saveas(fig0, cmp_name);
+        close(fig0);
+
     end
     results.(method).R2 = R2_k_local; 
     results.(method).MSE = MSE_k_local;
@@ -239,11 +267,51 @@ for m = 1:numel(methods)
     MSE_k_local = zeros(max_components,1);
 end
 
+
 all_corr_tables = [outPCA.corr_PCA;
                    outDPCA.corr_dPCA;
                    outICA.corr_ICA;
                    outUMAP.corr_UMAP;
                    outAE.corr_AE];
+
+fig_cmp = figure;
+hold on;
+for m = 1:numel(methods)
+    method = methods{m};
+
+    % Filter rows for this method
+    tbl_m = all_corr_tables(strcmp(all_corr_tables.method, method), :);
+
+    if isempty(tbl_m)
+        continue
+    end
+
+    % Defensive alignment: ensure one row per latent
+    % Assumes h_f column is 1..N_F
+    c = nan(numel(f),1);
+    c(tbl_m.h_f) = tbl_m.corr_value;
+
+    % Sort correlations to match frequency order
+    c_sorted = c(f_sortIdx);
+
+    % Plot
+    plot(f_sorted, c_sorted, '-o', ...
+        'LineWidth', 1.8, ...
+        'DisplayName', method);
+end
+xticks(unique(f_sorted));
+xlabel('Peak Frequencies (Hz)');
+ylabel('Correlation Value');
+title('Latent–Component Correlation Across Methods');
+ylim([0 1]);          % keep honest comparisons
+grid on;
+legend('Location','eastoutside');
+set(gca, 'FontSize', 14);
+
+% Save
+cmp_name = fullfile(results_dir, 'CrossMethod_Corr_vs_Frequency.png');
+saveas(fig_cmp, cmp_name);
+% close(fig_cmp);
 
 summary = groupsummary(all_corr_tables, 'method', 'mean', 'corr_value');
 summary_min = groupsummary(all_corr_tables, 'method', 'min', 'corr_value');
