@@ -120,7 +120,7 @@ max_components = 10;       % or param-driven
 component_range = 1:max_components;
 
 % Store results: structure indexed by method name
-methods = {'PCA','dPCA', 'ICA','UMAP', 'AE'}; %,
+methods = {'PCA','dPCA'}; %,, 'ICA','UMAP', 'AE'
 
 results = struct();
 for m = 1:numel(methods)

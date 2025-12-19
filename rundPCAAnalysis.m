@@ -385,80 +385,83 @@ saveas(fig6, fullfile(results_dir, ['dPCA_Scatter_Band_Amp_Mean_' file_suffix '.
 
 %% ===================== TRIALWISE BAND AMPLITUDE SCATTER PLOTS (dPCA) =====================
 
-% Trialwise FFT amplitudes
-Ht_amp_trials = abs(Ht(1:nHz, :, :));              % true latent FFT
-Hr_amp_trials_dpca = abs(Hr(1:nHz, :, :));    % dPCA reconstructed FFT
-
-% Normalize across everything exactly like before
-Ht_amp_trials = Ht_amp_trials ./ max(Ht_amp_trials(:));
-Hr_amp_trials_dpca = Hr_amp_trials_dpca ./ max(Hr_amp_trials_dpca(:));
-
-% Containers for scatter values
-true_vals_band  = cell(nBands, 1);
-recon_vals_band_dpca = cell(nBands, 1);
-
-for b = 1:nBands
-    band = band_names{b};
-    f_range = bands.(band);
-    idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
-
-    % Band-averaged amplitudes per trial × latent
-    % size → [nLatent × nTrials]
-    temp_true  = squeeze(mean(Ht_amp_trials(idx_band, :, :), 1, 'omitnan'));
-    temp_recon = squeeze(mean(Hr_amp_trials_dpca(idx_band, :, :), 1, 'omitnan'));
-
-    % Flatten latent × trial into long vectors
-    true_vals_band{b}  = temp_true(:);
-    recon_vals_band_dpca{b} = temp_recon(:);
-end
+% % Trialwise FFT amplitudes
+% Ht_amp_trials = abs(Ht(1:nHz, :, :));              % true latent FFT
+% Hr_amp_trials_dpca = abs(Hr(1:nHz, :, :));    % dPCA reconstructed FFT
+% 
+% % Normalize across everything exactly like before
+% Ht_amp_trials = Ht_amp_trials ./ max(Ht_amp_trials(:));
+% Hr_amp_trials_dpca = Hr_amp_trials_dpca ./ max(Hr_amp_trials_dpca(:));
+% 
+% % Containers for scatter values
+% true_vals_band  = cell(nBands, 1);
+% recon_vals_band_dpca = cell(nBands, 1);
+% 
+% for b = 1:nBands
+%     band = band_names{b};
+%     f_range = bands.(band);
+%     idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
+% 
+%     % Band-averaged amplitudes per trial × latent
+%     % size → [nLatent × nTrials]
+%     temp_true  = squeeze(mean(Ht_amp_trials(idx_band, :, :), 1, 'omitnan'));
+%     temp_recon = squeeze(mean(Hr_amp_trials_dpca(idx_band, :, :), 1, 'omitnan'));
+% 
+%     % Flatten latent × trial into long vectors
+%     true_vals_band{b}  = temp_true(:);
+%     recon_vals_band_dpca{b} = temp_recon(:);
+% end
 
 %% --------------------- PLOTTING ------------------------
-fig7 = figure('Position',[50 50 1400 350]);
-tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['True vs dPCA Reconstructed FFT Band Amplitudes (All Trials × Latents), (k=' num2str(num_sig_components) ')']);
+% fig7 = figure('Position',[50 50 1400 350]);
+% tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
+% sgtitle(['True vs dPCA Reconstructed FFT Band Amplitudes (All Trials × Latents), (k=' num2str(num_sig_components) ')']);
+% 
+% colors = lines(nBands);
+% markers = {'o','s','d','h','^','hexagram','<','>'};
+% 
+% for b = 1:nBands
+%     nexttile;
+%     hold on;
+% 
+%     x = true_vals_band{b};
+%     y = recon_vals_band_dpca{b};
+% 
+%     % Scatter of all trial points
+%     scatter(x, y, 30, 'Marker', markers{b}, ...
+%         'MarkerEdgeColor', colors(b,:), ...
+%         'MarkerFaceColor', colors(b,:), ...
+%         'MarkerFaceAlpha', 0.3, ...
+%         'DisplayName', [sprintf('Z_{%s}', band_names{b})]);
+% 
+%     % Identity line
+%     xfit = linspace(min(x), max(x), 100);
+%     plot(xfit, xfit, 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
+% 
+%     % Regression R²
+%     Rfit = corrcoef(x, y);
+%     if numel(Rfit) > 1
+%         R2fit = Rfit(1,2)^2;
+%         text(mean(x), mean(y), sprintf('R^2=%.2f', R2fit), ...
+%             'Color', 'k', 'FontSize', 12);
+%     end
+% 
+%     title([band_names{b} ' band'])
+%     if b==1
+%         xlabel('True Band Amplitude')
+%         ylabel('Recon. Band Amp.')
+%     end
+% 
+%     legend('Location','southoutside','TextColor','k','Orientation','horizontal');
+%     grid on;
+%     hold off;
+% end
+% 
+% set(findall(gcf,'-property','FontSize'),'FontSize',16)
+% saveas(fig7, fullfile(results_dir,['dPCA_BandScatter_perTrial_' file_suffix '.png'])); 
 
-colors = lines(nBands);
-markers = {'o','s','d','h','^','hexagram','<','>'};
+plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, num_sig_components, "dPCA", results_dir);
 
-for b = 1:nBands
-    nexttile;
-    hold on;
-
-    x = true_vals_band{b};
-    y = recon_vals_band_dpca{b};
-
-    % Scatter of all trial points
-    scatter(x, y, 30, 'Marker', markers{b}, ...
-        'MarkerEdgeColor', colors(b,:), ...
-        'MarkerFaceColor', colors(b,:), ...
-        'MarkerFaceAlpha', 0.3, ...
-        'DisplayName', [sprintf('Z_{%s}', band_names{b})]);
-
-    % Identity line
-    xfit = linspace(min(x), max(x), 100);
-    plot(xfit, xfit, 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
-
-    % Regression R²
-    Rfit = corrcoef(x, y);
-    if numel(Rfit) > 1
-        R2fit = Rfit(1,2)^2;
-        text(mean(x), mean(y), sprintf('R^2=%.2f', R2fit), ...
-            'Color', 'k', 'FontSize', 12);
-    end
-
-    title([band_names{b} ' band'])
-    if b==1
-        xlabel('True Band Amplitude')
-        ylabel('Recon. Band Amp.')
-    end
-
-    legend('Location','southoutside','TextColor','k','Orientation','horizontal');
-    grid on;
-    hold off;
-end
-
-set(findall(gcf,'-property','FontSize'),'FontSize',16)
-saveas(fig7, fullfile(results_dir,['dPCA_BandScatter_perTrial_' file_suffix '.png'])); 
 close All;
 %% 6) Package output struct
 outDPCA.W = W;

@@ -384,52 +384,8 @@ saveas(fig7, fullfile(method_dir, ['PCA_Scatter_Band_Amp_Mean' file_suffix '.png
 
 
 %% Plot 8: Scatter plot: True vs Reconstructed Band Amplitudes (per trial)
-Ht_amp_trials = abs(Ht(1:nHz, :, :)); 
-Hr_amp_trials = abs(Hr(1:nHz, :, :));
-Ht_amp_trials = Ht_amp_trials ./ max(Ht_amp_trials(:));
-Hr_amp_trials = Hr_amp_trials ./ max(Hr_amp_trials(:));
 
-true_vals_band  = cell(nBands, 1);
-recon_vals_band = cell(nBands, 1);
-
-for b = 1:nBands
-    band = band_names{b};
-    f_range = bands.(band);
-    idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
-    temp_true  = squeeze(mean(Ht_amp_trials(idx_band, :, :), 1, 'omitnan'));
-    temp_recon = squeeze(mean(Hr_amp_trials(idx_band, :, :), 1, 'omitnan'));
-    true_vals_band{b}  = temp_true(:);
-    recon_vals_band{b} = temp_recon(:);
-end
-
-fig8 = figure('Position',[50 50 1200 300]);
-tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['True vs PCA Reconstructed FFT Band Amplitudes (All Trials × Latents) (k=' num2str(num_sig_components) ')']);
-colors = lines(nBands);
-
-for b = 1:nBands
-    nexttile; hold on;
-    x = true_vals_band{b};
-    y = recon_vals_band{b};
-    scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceColor', colors(b,:), 'MarkerFaceAlpha', 0.3,...
-        'DisplayName', [sprintf('Z_{%s}', band_names{b})]); 
-    xfit = linspace(min(x), max(x), 100);
-    plot(xfit, xfit, 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
-    R_fit = corrcoef(x, y);
-    if numel(R_fit) > 1
-        R2_fit = R_fit(1,2)^2;
-        text(mean(x), mean(y), sprintf('R^2=%.2f', R2_fit), 'Color', 'k', 'FontSize', 12);
-    end
-    title([band_names{b} ' band'])
-    if b==1, xlabel('True Band Amplitude'); ylabel('Recon. Band Amp.'); end
-    grid on; 
-    legend('Location','southoutside','TextColor','k','Orientation','horizontal');
-    hold off;
-end
-
-set(findall(fig8,'-property','FontSize'),'FontSize',16)
-saveas(fig8, fullfile(method_dir, ['PCA_Scatter_Band_Amp_Trials' file_suffix '.png']));
-
+plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, num_sig_components, "PCA", method_dir);
 
 %% 6. Final Output Structure
 outPCA = struct();
