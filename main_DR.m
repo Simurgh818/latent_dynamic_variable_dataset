@@ -30,7 +30,7 @@ else
     error('Unknown system: Cannot determine input and output paths.');
 end
 
-eegFilename = 'simEEG_set2';
+eegFilename = 'simEEG_set2_1_randF';
 fullName = strcat(eegFilename, '.mat');
 fullName_path = fullfile(input_dir,fullName);
 simEEG   = load(fullName);
@@ -120,7 +120,7 @@ max_components = 10;       % or param-driven
 component_range = 1:max_components;
 
 % Store results: structure indexed by method name
-methods = {'PCA','dPCA', 'ICA','UMAP', 'AE'}; %
+methods = {'PCA','dPCA', 'ICA','UMAP','AE'}; % 'PCA','dPCA', 'ICA','UMAP', 
 
 results = struct();
 for m = 1:numel(methods)

@@ -391,44 +391,44 @@ saveas(fig7, fullfile(method_dir, ['AE_Scatter_Mean' file_suffix '.png']));
 
 
 %% Plot 8: Scatter Per-Trial Band Amplitudes
-Ht_amp_tr = abs(Ht_ae(1:nHz, :, :)) ./ max(abs(Ht_ae(:)));
-Hr_amp_tr = abs(Hr_ae(1:nHz, :, :)) ./ max(abs(Hr_ae(:)));
-true_vals_band = cell(nBands, 1);
-recon_vals_band = cell(nBands, 1);
+% Ht_amp_tr = abs(Ht_ae(1:nHz, :, :)) ./ max(abs(Ht_ae(:)));
+% Hr_amp_tr = abs(Hr_ae(1:nHz, :, :)) ./ max(abs(Hr_ae(:)));
+% true_vals_band = cell(nBands, 1);
+% recon_vals_band = cell(nBands, 1);
+% 
+% for b = 1:nBands
+%     f_range = bands.(band_names{b});
+%     idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
+%     temp_t = squeeze(mean(Ht_amp_tr(idx_band, :, :), 1, 'omitnan'));
+%     temp_r = squeeze(mean(Hr_amp_tr(idx_band, :, :), 1, 'omitnan'));
+%     true_vals_band{b} = temp_t(:);
+%     recon_vals_band{b} = temp_r(:);
+% end
+% 
+% fig8 = figure('Position',[50 50 1200 300]);
+% tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
+% sgtitle(['AE: True vs Reconstructed Per-Trial Band Amplitudes for k= ' num2str(bottleNeck)]);
+% 
+% for b = 1:nBands
+%     nexttile; hold on;
+%     x = true_vals_band{b}; y = recon_vals_band{b};
+%     scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceAlpha', 0.3,...
+%         'DisplayName', [sprintf('Z_{%s}', band_names{b})]);
+%     plot(linspace(min(x),max(x)), linspace(min(x),max(x)), 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
+%     R = corrcoef(x,y);
+%     text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', 'k', 'FontSize', 12);
+%     title(band_names{b}); grid on;
+%     if b==1
+%         xlabel('True Band Amp.')
+%         ylabel('Recon. Band Amp.')
+%     end
+% 
+%     legend('Location','southoutside','TextColor','k','Orientation','horizontal');
+% end
+% set(findall(fig8,'-property','FontSize'),'FontSize',16);
+% saveas(fig8, fullfile(method_dir, ['AE_Scatter_Trials' file_suffix '.png']));
 
-for b = 1:nBands
-    f_range = bands.(band_names{b});
-    idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
-    temp_t = squeeze(mean(Ht_amp_tr(idx_band, :, :), 1, 'omitnan'));
-    temp_r = squeeze(mean(Hr_amp_tr(idx_band, :, :), 1, 'omitnan'));
-    true_vals_band{b} = temp_t(:);
-    recon_vals_band{b} = temp_r(:);
-end
-
-fig8 = figure('Position',[50 50 1200 300]);
-tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['AE: True vs Reconstructed Per-Trial Band Amplitudes for k= ' num2str(bottleNeck)]);
-
-for b = 1:nBands
-    nexttile; hold on;
-    x = true_vals_band{b}; y = recon_vals_band{b};
-    scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceAlpha', 0.3,...
-        'DisplayName', [sprintf('Z_{%s}', band_names{b})]);
-    plot(linspace(min(x),max(x)), linspace(min(x),max(x)), 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
-    R = corrcoef(x,y);
-    text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', 'k', 'FontSize', 12);
-    title(band_names{b}); grid on;
-    if b==1
-        xlabel('True Band Amp.')
-        ylabel('Recon. Band Amp.')
-    end
-
-    legend('Location','southoutside','TextColor','k','Orientation','horizontal');
-end
-set(findall(fig8,'-property','FontSize'),'FontSize',16);
-saveas(fig8, fullfile(method_dir, ['AE_Scatter_Trials' file_suffix '.png']));
-
-
+plotBandScatterPerTrial(Ht_ae, Hr_ae, f_plot, bands, band_names, param, bottleNeck, "AE", method_dir);
 %% 6. Outputs and Summary Saves
 outAE = struct();
 outAE.net = net;

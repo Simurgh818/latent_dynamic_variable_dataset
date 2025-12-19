@@ -298,7 +298,7 @@ saveas(fig5, fullfile(method_dir, ['PCA_Band_Power' file_suffix '.png']));
 %% Plot 6: Band R2 Bar Chart
 fig6 = figure('Position',[50 50 1000 300]);
 bar(band_avg_R2');
-set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%d}', param.f_peak(i)), 1:size(h_train,2), 'UniformOutput', false));
+set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i))), 1:size(h_train,2), 'UniformOutput', false));
 ylim([-1 1]);
 legend(band_names, 'Location', 'southeastoutside');
 title(['PCA Band-wise Average R^2 (k=' num2str(num_sig_components) ')']);

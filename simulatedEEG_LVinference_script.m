@@ -2,7 +2,7 @@ clc; clear;
 % Simulated EEG set
 
 % This ensures rand() and randn() produce the same sequence every time.
-rng(42);
+rng(42,'twister');
 
 % freq_peak_latents = [2 2.4 8 20 21 32 40 40];
 freq_peak_latents = [40 40 32 21 20 8 2.4 2];
@@ -134,10 +134,10 @@ test_sim_eeg_vals = sim_eeg_vals(:, 150000:end);
 train_true_hF = all_h_F(:, train_t_range);
 test_true_hF = all_h_F(:, test_t_range);
 
-save('exploratory_scripts/simEEG_set2_randF.mat', "train_sim_eeg_vals", ...
+save('simEEG_set2_1_randF.mat', "train_sim_eeg_vals", ...
     "train_true_hF", "test_sim_eeg_vals", "dt")
 
-save('exploratory_scripts/simEEG_set2_key_randF.mat', "test_sim_eeg_vals", "test_true_hF", ...
+save('simEEG_set2_1_randF_key.mat', "test_sim_eeg_vals", "test_true_hF", ...
     "select_comps", "spatial_comps", "gain_par", "bias_par")
 
 %% Set 3: nonlinear
@@ -178,10 +178,10 @@ test_sim_eeg_vals = sim_eeg_vals(:, 150000:end);
 train_true_hF = all_h_F(:, train_t_range);
 test_true_hF = all_h_F(:, test_t_range);
 
-save('simEEG_set4_randF.mat', "train_sim_eeg_vals", ...
+save('simEEG_set4_1.mat', "train_sim_eeg_vals", ...
     "train_true_hF", "test_sim_eeg_vals", "dt")
 
-save('simEEG_set4_key_randF.mat', "test_sim_eeg_vals", "test_true_hF", ...
+save('simEEG_set4_1_key.mat', "test_sim_eeg_vals", "test_true_hF", ...
     "select_comps", "spatial_comps", "gain_par", "bias_par")
 %% Parsimonious plots: just show the electrodes, color by component
 t_range = 1:500;
