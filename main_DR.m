@@ -39,7 +39,7 @@ s_eeg_like      = simEEG.train_sim_eeg_vals;
 s_eeg_like_test = simEEG.test_sim_eeg_vals;
 h_f   = simEEG.train_true_hF';
 
-param.f_peak    = round([2 2.4 8 20 21 32 40 40],1);
+param.f_peak    = round([40 40 32 21 20 8 2.4 2],1);
 fs_orig          = 1/simEEG.dt;
 param.N_F       = size(simEEG.train_true_hF,1);
 
@@ -120,7 +120,7 @@ max_components = 10;       % or param-driven
 component_range = 1:max_components;
 
 % Store results: structure indexed by method name
-methods = {'PCA','dPCA', 'ICA','UMAP','AE'}; % 'PCA','dPCA', 'ICA','UMAP', 
+methods = {'ICA','UMAP','AE'}; % 'PCA','dPCA',
 
 results = struct();
 for m = 1:numel(methods)

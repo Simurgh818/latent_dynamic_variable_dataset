@@ -318,38 +318,39 @@ saveas(fig5, fullfile(method_dir, ['UMAP_Scatter_Mean' file_suffix '.png']));
 
 
 %% Plot 7: Scatter Per-Trial
-Ht_tr = abs(Ht(1:nHz,:,:))./max(abs(Ht(:))); 
-Hr_tr = abs(Hr(1:nHz,:,:))./max(abs(Hr(:)));
-flat_tr_true = cell(nBands,1); flat_tr_recon = cell(nBands,1);
+% Ht_tr = abs(Ht(1:nHz,:,:))./max(abs(Ht(:))); 
+% Hr_tr = abs(Hr(1:nHz,:,:))./max(abs(Hr(:)));
+% flat_tr_true = cell(nBands,1); flat_tr_recon = cell(nBands,1);
+% 
+% for b = 1:nBands
+%     idx = f_plot >= bands.(band_names{b})(1) & f_plot <= bands.(band_names{b})(2);
+%     tmp_t = squeeze(mean(Ht_tr(idx,:,:),1)); tmp_r = squeeze(mean(Hr_tr(idx,:,:),1));
+%     flat_tr_true{b} = tmp_t(:); flat_tr_recon{b} = tmp_r(:);
+% end
+% 
+% fig6 = figure('Position',[50 50 1200 300]);
+% tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
+% sgtitle(['UMAP Per-Trial Band Amplitudes (k=' num2str(num_sig_components) ')']);
+% 
+% for b = 1:nBands
+%     nexttile; hold on;
+%     x = flat_tr_true{b}; y = flat_tr_recon{b};
+%     scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceAlpha', 0.3,...
+%         'DisplayName', [sprintf('Z_{%s}', band_names{b})]);
+%     plot([min(x) max(x)], [min(x) max(x)], 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
+%     R = corrcoef(x, y); text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', 'k');
+%     title(band_names{b}); grid on;
+%     if b==1
+%         xlabel('True Band Amp.')
+%         ylabel('Recon. Band Amp.')
+%     end
+% 
+%     legend('Location','southoutside','TextColor','k','Orientation','horizontal');
+% end
+% set(findall(fig6,'-property','FontSize'),'FontSize',16);
+% saveas(fig6, fullfile(method_dir, ['UMAP_Scatter_Trials' file_suffix '.png']));
 
-for b = 1:nBands
-    idx = f_plot >= bands.(band_names{b})(1) & f_plot <= bands.(band_names{b})(2);
-    tmp_t = squeeze(mean(Ht_tr(idx,:,:),1)); tmp_r = squeeze(mean(Hr_tr(idx,:,:),1));
-    flat_tr_true{b} = tmp_t(:); flat_tr_recon{b} = tmp_r(:);
-end
-
-fig6 = figure('Position',[50 50 1200 300]);
-tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['UMAP Per-Trial Band Amplitudes (k=' num2str(num_sig_components) ')']);
-
-for b = 1:nBands
-    nexttile; hold on;
-    x = flat_tr_true{b}; y = flat_tr_recon{b};
-    scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceAlpha', 0.3,...
-        'DisplayName', [sprintf('Z_{%s}', band_names{b})]);
-    plot([min(x) max(x)], [min(x) max(x)], 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
-    R = corrcoef(x, y); text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', 'k');
-    title(band_names{b}); grid on;
-    if b==1
-        xlabel('True Band Amp.')
-        ylabel('Recon. Band Amp.')
-    end
-
-    legend('Location','southoutside','TextColor','k','Orientation','horizontal');
-end
-set(findall(fig6,'-property','FontSize'),'FontSize',16);
-saveas(fig6, fullfile(method_dir, ['UMAP_Scatter_Trials' file_suffix '.png']));
-
+plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, num_sig_components, "UMAP", method_dir);
 %% Output Structure
 outUMAP = struct();
 outUMAP.umap_train = umap_train;
