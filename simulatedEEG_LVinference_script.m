@@ -4,8 +4,8 @@ clc; clear;
 % This ensures rand() and randn() produce the same sequence every time.
 rng(42,'twister');
 
-% freq_peak_latents = [2 2.4 8 20 21 32 40 40];
-freq_peak_latents = [40 40 32 21 20 8 2.4 2];
+freq_peak_latents = [2 2.4 8 20 21 32 40 40];
+% freq_peak_latents = [40 40 32 21 20 8 2.4 2];
 
 num_latents = length(freq_peak_latents);
 zeta_latents = 0.15;
@@ -17,8 +17,11 @@ for i_fpl= 1:length(freq_peak_latents)
     h_F = generateSDHO(freq_peak_latents(i_fpl), zeta_latents, dt, T);
     all_h_F(i_fpl, :) = h_F;
 end
+% normalize temporal latents (unit variance)
+all_h_F = all_h_F ./ std(all_h_F, [], 2);
 
 %% Set up the Import Options and import the data
+% Load EEG electrode locations
 opts = delimitedTextImportOptions("NumVariables", 2);
 
 % Specify range and delimiter
@@ -36,153 +39,163 @@ opts.EmptyLineRule = "read";
 % Import the data
 approxeeglocs = readtable("C:/Users/sdabiri/OneDrive - Georgia Institute of Technology/Dr. Sederberg MaTRIX Lab/Shared Code/latent_dynamic_variable_dataset/approx_eeg_locs.csv", opts);
 
-
-%% Clear temporary variables
+% Clear temporary variables
 clear opts
 % Model is spatial filter + tanh nonlinearity 
 eeg_loc_x = approxeeglocs.x;
 eeg_loc_y = approxeeglocs.y;
 num_channels = length(eeg_loc_x);
 %% get full component images 
-% get postive source locs
-pos_src_locs = rand(num_latents, 2)*1.5 - 0.75;
-neg_src_locs = rand(num_latents, 2)*1.5 - 0.75;
+num_spatial_realizations = 10;
 
-src_widths = 0.5 + 0.05*randn(num_latents, 2);
-src_pks = 1 + 0.1*rand(num_latents, 2);
+for i_spat = 1:num_spatial_realizations
 
-figure()
-plot(eeg_loc_x, eeg_loc_y, 'ko')
-hold on
-% Replace line 53 with:
-plot(pos_src_locs(:, 1), pos_src_locs(:, 2), 'r*')
-hold on
-plot(neg_src_locs(:, 1), neg_src_locs(:, 2), 'b*') % Plot negative sources in blue
-legend('EEG Locs', 'Pos Sources', 'Neg Sources')
-
-%%
-[mesh_x, mesh_y] = meshgrid(-.8:0.05:0.8);
-all_comp_masks = repmat(mesh_x, [1 1 num_latents]);
-figure()
-for i_fpl = 1:num_latents
-    comp_mask = spatial_mask_fun(pos_src_locs(i_fpl, :), neg_src_locs(i_fpl, :), ...
-        src_widths(i_fpl, :), src_pks(i_fpl,:), mesh_x, mesh_y);
-    all_comp_masks(:, :, i_fpl) = comp_mask;
+    % get postive source locs
+    pos_src_locs = rand(num_latents, 2)*1.5 - 0.75;
+    neg_src_locs = rand(num_latents, 2)*1.5 - 0.75;
     
+    src_widths = 0.5 + 0.05*randn(num_latents, 2);
+    src_pks = 1 + 0.1*rand(num_latents, 2);
+    
+    figure()
+    plot(eeg_loc_x, eeg_loc_y, 'ko')
+    hold on
+    % Replace line 53 with:
+    plot(pos_src_locs(:, 1), pos_src_locs(:, 2), 'r*')
+    hold on
+    plot(neg_src_locs(:, 1), neg_src_locs(:, 2), 'b*') % Plot negative sources in blue
+    legend('EEG Locs', 'Pos Sources', 'Neg Sources')
+    
+    % Continuous spatial masks
+    [mesh_x, mesh_y] = meshgrid(-.8:0.05:0.8);
+    all_comp_masks = repmat(mesh_x, [1 1 num_latents]);
+    figure()
+    for i_fpl = 1:num_latents
+        comp_mask = spatial_mask_fun(pos_src_locs(i_fpl, :), neg_src_locs(i_fpl, :), ...
+            src_widths(i_fpl, :), src_pks(i_fpl,:), mesh_x, mesh_y);
+        all_comp_masks(:, :, i_fpl) = comp_mask;
+        
+        nexttile
+        imagesc(comp_mask)
+    end
+    save(sprintf('source_params%02d_key.mat', i_spat), 'src_pks', 'src_widths', 'eeg_loc_y', 'eeg_loc_x', ...
+        'all_comp_masks', 'freq_peak_latents', 'zeta_latents')
+    
+    % now sample spatial filters at EEG locations
+    
+    spatial_comps = zeros(num_channels, num_latents);
+    for i_fpl = 1:num_latents
+        spatial_comps(:, i_fpl) = interp2(mesh_x, mesh_y, all_comp_masks(:, :, i_fpl), eeg_loc_x, eeg_loc_y);
+        % normalize spatial components
+        spatial_comps(:, i_fpl) = spatial_comps(:, i_fpl) / norm(spatial_comps(:, i_fpl));
+    end
+    
+    % check that it worked
+    
+    figure()
     nexttile
-    imagesc(comp_mask)
-end
-save('source_params.mat', 'src_pks', 'src_widths', 'eeg_loc_y', 'eeg_loc_x', ...
-    'all_comp_masks', 'freq_peak_latents', 'zeta_latents')
-
-%% now sample spatial filters at EEG locations
-
-spatial_comps = zeros(num_channels, num_latents);
-for i_fpl = 1:num_latents
-    spatial_comps(:, i_fpl) = interp2(mesh_x, mesh_y, all_comp_masks(:, :, i_fpl), eeg_loc_x, eeg_loc_y);
+    imagesc(mesh_x(1, :), mesh_y(:, 1), all_comp_masks(:, :, 5))
+    set(gca, 'YDir', 'normal')
+    hold on
+    scatter(eeg_loc_x, eeg_loc_y, 100, (spatial_comps(:, 5)), 'filled', 'MarkerEdgeColor', [0 0 0])
+    axis equal tight
+    title('should match')
+    nexttile
+    imagesc(mesh_x(1, :), mesh_y(:, 1), all_comp_masks(:, :, 5))
+    hold on
+    scatter(eeg_loc_x, eeg_loc_y, 100, (spatial_comps(:, 3)), 'filled', 'MarkerEdgeColor', [0 0 0])
+    title('shouldn''t match')
+    %  Great, now use tanh + spatial filter to generate EEG
+    % select_comps = [1 2 4 7];
+    % wx_vals = spatial_comps(:, select_comps)*all_h_F(select_comps, :);
+    % 
+    % % small gain, bias 0 : approximately linear
+    % gain_par = 0.2;
+    % bias_par = 0;
+    % sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
+    % 
+    % train_t_range = 1:120000;
+    % test_t_range = 150000:200000;
+    % train_sim_eeg_vals = sim_eeg_vals(:, train_t_range);
+    % test_sim_eeg_vals = sim_eeg_vals(:, 150000:end);
+    % train_true_hF = all_h_F(:, train_t_range);
+    % test_true_hF = all_h_F(:, test_t_range);
+    % 
+    % save('exploratory_scripts/simEEG_set1_randF.mat', "train_sim_eeg_vals", ...
+    %     "train_true_hF", "test_sim_eeg_vals", "dt")
+    % 
+    % save('exploratory_scripts/simEEG_set1_key_randF.mat', "test_sim_eeg_vals", "test_true_hF", ...
+    %     "select_comps", "spatial_comps", "gain_par", "bias_par")
     
+    % set 2: still linear, more components
+    select_comps = 1:8;
+    wx_vals = spatial_comps(:, select_comps)*all_h_F(select_comps, :);
+    
+    % small gain, bias 0 : approximately linear
+    gain_par = 0.2;
+    bias_par = 0;
+    sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
+    
+    train_t_range = 1:120000;
+    test_t_range = 150000:200000;
+    train_sim_eeg_vals = sim_eeg_vals(:, train_t_range);
+    test_sim_eeg_vals = sim_eeg_vals(:, 150000:end);
+    train_true_hF = all_h_F(:, train_t_range);
+    test_true_hF = all_h_F(:, test_t_range);
+    
+    save(sprintf('simEEG_set2_spat%02d.mat', i_spat), "train_sim_eeg_vals", ...
+        "train_true_hF", "test_sim_eeg_vals", "dt")
+    
+    save(sprintf('simEEG_set2_spat%02d_key.mat', i_spat), "test_sim_eeg_vals", "test_true_hF", ...
+        "pos_src_locs", "neg_src_locs", "src_widths", "src_pks",...
+        "select_comps", "spatial_comps", "gain_par", "bias_par")
+    
+    % Set 3: nonlinear
+    % select_comps = [1 2 4 7];
+    % wx_vals = spatial_comps(:, select_comps)*all_h_F(select_comps, :);
+    % 
+    % % small gain, bias 0 : approximately linear
+    % gain_par = 2;
+    % bias_par = 1;
+    % sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
+    % 
+    % train_t_range = 1:120000;
+    % test_t_range = 150000:200000;
+    % train_sim_eeg_vals = sim_eeg_vals(:, train_t_range);
+    % test_sim_eeg_vals = sim_eeg_vals(:, 150000:end);
+    % train_true_hF = all_h_F(:, train_t_range);
+    % test_true_hF = all_h_F(:, test_t_range);
+    % 
+    % save('exploratory_scripts/simEEG_set3.mat', "train_sim_eeg_vals", ...
+    %     "train_true_hF", "test_sim_eeg_vals", "dt")
+    % 
+    % save('exploratory_scripts/simEEG_set3_key_.mat', "test_sim_eeg_vals", "test_true_hF", ...
+    %     "select_comps", "spatial_comps", "gain_par", "bias_par")
+    
+    % Set 4: nonlinear, all components
+    select_comps = 1:8;
+    wx_vals = spatial_comps(:, select_comps)*all_h_F(select_comps, :);
+    
+    % small gain, bias 0 : approximately linear
+    gain_par = 2;
+    bias_par = 1;
+    sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
+    
+    train_t_range = 1:120000;
+    test_t_range = 150000:200000;
+    train_sim_eeg_vals = sim_eeg_vals(:, train_t_range);
+    test_sim_eeg_vals = sim_eeg_vals(:, 150000:end);
+    train_true_hF = all_h_F(:, train_t_range);
+    test_true_hF = all_h_F(:, test_t_range);
+    
+    save(sprintf('simEEG_set4_spat%02d.mat', i_spat), "train_sim_eeg_vals", ...
+        "train_true_hF", "test_sim_eeg_vals", "dt")
+    
+    save(sprintf('simEEG_set4_spat%02d_key.mat', i_spat), "test_sim_eeg_vals", "test_true_hF", ...
+        "pos_src_locs", "neg_src_locs", "src_widths", "src_pks", ...
+        "select_comps", "spatial_comps", "gain_par", "bias_par")
+
 end
-
-%% check that it worked
-
-figure()
-nexttile
-imagesc(mesh_x(1, :), mesh_y(:, 1), all_comp_masks(:, :, 5))
-hold on
-scatter(eeg_loc_x, eeg_loc_y, 100, (spatial_comps(:, 5)), 'filled', 'MarkerEdgeColor', [0 0 0])
-title('should match')
-nexttile
-imagesc(mesh_x(1, :), mesh_y(:, 1), all_comp_masks(:, :, 5))
-hold on
-scatter(eeg_loc_x, eeg_loc_y, 100, (spatial_comps(:, 3)), 'filled', 'MarkerEdgeColor', [0 0 0])
-title('shouldn''t match')
-%%  Great, now use tanh + spatial filter to generate EEG
-select_comps = [1 2 4 7];
-wx_vals = spatial_comps(:, select_comps)*all_h_F(select_comps, :);
-
-% small gain, bias 0 : approximately linear
-gain_par = 0.2;
-bias_par = 0;
-sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
-
-train_t_range = 1:120000;
-test_t_range = 150000:200000;
-train_sim_eeg_vals = sim_eeg_vals(:, train_t_range);
-test_sim_eeg_vals = sim_eeg_vals(:, 150000:end);
-train_true_hF = all_h_F(:, train_t_range);
-test_true_hF = all_h_F(:, test_t_range);
-
-save('exploratory_scripts/simEEG_set1_randF.mat', "train_sim_eeg_vals", ...
-    "train_true_hF", "test_sim_eeg_vals", "dt")
-
-save('exploratory_scripts/simEEG_set1_key_randF.mat', "test_sim_eeg_vals", "test_true_hF", ...
-    "select_comps", "spatial_comps", "gain_par", "bias_par")
-
-%% set 2: still linear, more components
-select_comps = 1:8;
-wx_vals = spatial_comps(:, select_comps)*all_h_F(select_comps, :);
-
-% small gain, bias 0 : approximately linear
-gain_par = 0.2;
-bias_par = 0;
-sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
-
-train_t_range = 1:120000;
-test_t_range = 150000:200000;
-train_sim_eeg_vals = sim_eeg_vals(:, train_t_range);
-test_sim_eeg_vals = sim_eeg_vals(:, 150000:end);
-train_true_hF = all_h_F(:, train_t_range);
-test_true_hF = all_h_F(:, test_t_range);
-
-save('simEEG_set2_1_randF.mat', "train_sim_eeg_vals", ...
-    "train_true_hF", "test_sim_eeg_vals", "dt")
-
-save('simEEG_set2_1_randF_key.mat', "test_sim_eeg_vals", "test_true_hF", ...
-    "select_comps", "spatial_comps", "gain_par", "bias_par")
-
-%% Set 3: nonlinear
-select_comps = [1 2 4 7];
-wx_vals = spatial_comps(:, select_comps)*all_h_F(select_comps, :);
-
-% small gain, bias 0 : approximately linear
-gain_par = 2;
-bias_par = 1;
-sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
-
-train_t_range = 1:120000;
-test_t_range = 150000:200000;
-train_sim_eeg_vals = sim_eeg_vals(:, train_t_range);
-test_sim_eeg_vals = sim_eeg_vals(:, 150000:end);
-train_true_hF = all_h_F(:, train_t_range);
-test_true_hF = all_h_F(:, test_t_range);
-
-save('exploratory_scripts/simEEG_set3_randF.mat', "train_sim_eeg_vals", ...
-    "train_true_hF", "test_sim_eeg_vals", "dt")
-
-save('exploratory_scripts/simEEG_set3_key_randF.mat', "test_sim_eeg_vals", "test_true_hF", ...
-    "select_comps", "spatial_comps", "gain_par", "bias_par")
-
-%% Set 4: nonlinear, all components
-select_comps = 1:8;
-wx_vals = spatial_comps(:, select_comps)*all_h_F(select_comps, :);
-
-% small gain, bias 0 : approximately linear
-gain_par = 2;
-bias_par = 1;
-sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
-
-train_t_range = 1:120000;
-test_t_range = 150000:200000;
-train_sim_eeg_vals = sim_eeg_vals(:, train_t_range);
-test_sim_eeg_vals = sim_eeg_vals(:, 150000:end);
-train_true_hF = all_h_F(:, train_t_range);
-test_true_hF = all_h_F(:, test_t_range);
-
-save('simEEG_set4_1.mat', "train_sim_eeg_vals", ...
-    "train_true_hF", "test_sim_eeg_vals", "dt")
-
-save('simEEG_set4_1_key.mat', "test_sim_eeg_vals", "test_true_hF", ...
-    "select_comps", "spatial_comps", "gain_par", "bias_par")
 %% Parsimonious plots: just show the electrodes, color by component
 t_range = 1:500;
 makeMyFigure(20, 15);
