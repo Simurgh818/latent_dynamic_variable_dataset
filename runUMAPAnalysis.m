@@ -175,7 +175,7 @@ end
 
 fig2 = figure('Position',[50 50 1200 150*param.N_F]);
 tiledlayout(param.N_F, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['UMAP (Test Set, k=' num2str(num_sig_components) ') Latent variables Z(t) and z_hat(t)'])
+sgtitle(['UMAP (Test Set, k=' num2str(num_sig_components) ') Latent variables Z(t) and $\hat{Z}$(t)' ])
 
 for f=1:param.N_F
     nexttile; hold on;

@@ -33,8 +33,8 @@ end
 %% Loop through experiments
 
 conditions = {'set2','set4'};          % linear, nonlinear
-nDatasets  = 1; % 10
-k_range    = 7:7; %4:7
+nDatasets  = 10; % 10
+k_range    = 4:7; %4:7
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
@@ -246,6 +246,12 @@ for c = 1:numel(conditions)
                         R = outDPCA.R_full; 
                 end
                 
+                if ~isempty(corr)
+                    corr.method  = repmat(string(method), height(corr), 1);
+                    corr.dataset = repmat(d, height(corr), 1);
+                    corr.k       = repmat(k, height(corr), 1);
+                end
+
                 EXP.(cond).dataset(d).(method).R2(ki)  = R2_k_local(k);
                 EXP.(cond).dataset(d).(method).MSE(ki) = MSE_k_local(k);
                 EXP.(cond).dataset(d).(method).CORR{ki} = corr;
@@ -300,11 +306,14 @@ for c = 1:numel(conditions)
                 close(fig0);
         
             end
-            if ~isempty(corr)
-                corr.method  = repmat(string(method), height(corr), 1);
-                corr.dataset = repmat(d, height(corr), 1);
-                corr.k       = repmat(k, height(corr), 1);
-            end
+            %  if ~isempty(corr)
+            %     corr.method  = repmat(string(method), height(corr), 1);
+            %     corr.dataset = repmat(d, height(corr), 1);
+            %     corr.k       = repmat(k, height(corr), 1);
+            % end
+            
+            EXP.(cond).dataset(d).(method).CORR{ki} = corr;
+
 
             R2_k_local = zeros(max_components,1);
             MSE_k_local = zeros(max_components,1);
@@ -433,10 +442,11 @@ for c = 1:numel(conditions)
         title(sprintf('Latent–Component Corr (k=%d, %s)', k, cond));
         grid on;
         legend('Location','eastoutside');
+        set(gca, 'FontSize', 16);
     end
 end
 
-set(gca, 'FontSize', 14);
+
 
 % Save
 cmp_name = fullfile(results_dir, 'CrossMethod_Corr_vs_Frequency.png');
@@ -448,10 +458,22 @@ CORR_ALL = struct();
 for c = 1:numel(conditions)
     cond = conditions{c};
 
+    CORR_ALL.(cond).dataset = struct();  % force struct array
+
     for d = 1:nDatasets
-        CORR_ALL.(cond).dataset(d) = table();
+        CORR_ALL.(cond).dataset(d).tbl = table();
     end
 end
+
+CANON_VARS = {
+    'corr_value', ...
+    'h_f', ...
+    'component', ...
+    'method', ...
+    'dataset', ...
+    'k'
+};
+
 
 for c = 1:numel(conditions)
     cond = conditions{c};
@@ -469,11 +491,35 @@ for c = 1:numel(conditions)
                     continue
                 end
 
-                tbl_d = [tbl_d; corr];
+                % --- Enforce canonical schema -----------------------------------------
+                if isempty(tbl_d)
+                    % First non-empty table defines the template
+                    tbl_d = corr(:, intersect(CANON_VARS, corr.Properties.VariableNames));
+                else
+                    % Add missing variables to corr
+                    missing = setdiff(tbl_d.Properties.VariableNames, corr.Properties.VariableNames);
+                    for v = missing
+                        corr.(v{1}) = nan(height(corr),1);
+                    end
+                
+                    % Add missing variables to tbl_d (rare but safe)
+                    missing = setdiff(corr.Properties.VariableNames, tbl_d.Properties.VariableNames);
+                    for v = missing
+                        tbl_d.(v{1}) = nan(height(tbl_d),1);
+                    end
+                
+                    % Reorder corr to match tbl_d
+                    corr = corr(:, tbl_d.Properties.VariableNames);
+                
+                    % Concatenate
+                    tbl_d = [tbl_d; corr];
+                end
+
             end
         end
 
-        CORR_ALL.(cond).dataset(d) = tbl_d;
+        CORR_ALL.(cond).dataset(d).tbl = tbl_d;
+
     end
 end
 
@@ -484,7 +530,7 @@ for c = 1:numel(conditions)
     cond = conditions{c};
 
     for d = 1:nDatasets
-        tbl = CORR_ALL.(cond).dataset(d);
+        tbl = CORR_ALL.(cond).dataset(d).tbl;
 
         if isempty(tbl), continue; end
 
@@ -549,6 +595,7 @@ for c = 1:numel(conditions)
     title(sprintf('R^2 vs k (%s)', cond));
     grid on;
     legend('Location','eastoutside');
+    set(gca, 'FontSize', 16);
 end
 
 
@@ -587,6 +634,7 @@ for c = 1:numel(conditions)
     title(sprintf('MSE^2 vs k (%s)', cond));
     grid on;
     legend('Location','eastoutside');
+    set(gca, 'FontSize', 16);
 end
 
 set(findall(gcf,'-property','FontSize'),'FontSize',16)
