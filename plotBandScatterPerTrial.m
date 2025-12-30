@@ -72,7 +72,7 @@ for b = 1:nBands
         ylabel('Recon. Band Amp.');
     end
 
-    axis tight; grid on;
+    axis tight; grid on; axis equal;
 end
 legend('Location','eastoutside', ...
                'Orientation','horizontal', ...

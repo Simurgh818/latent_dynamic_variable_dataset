@@ -32,9 +32,9 @@ end
 
 %% Loop through experiments
 
-conditions = {'set2','set4'};          % linear, nonlinear
+conditions = { 'set2','set4'};          % linear, nonlinear
 nDatasets  = 10; % 10
-k_range    = 4:7; %4:7
+k_range    = 1:10; %4:7
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
@@ -42,11 +42,16 @@ methods = {'PCA','dPCA','ICA','UMAP','AE'}; %
 
 EXP = struct();
 
+% Start parallel pool (default: use all available cores)
+% if isempty(gcp('nocreate'))
+%     parpool;  
+% end
+
 for c = 1:numel(conditions)
 
     cond = conditions{c};
     fprintf('\n=== Running condition: %s ===\n', cond);
-
+% ToDO: 
     for d = 1:nDatasets
 
         fprintf('Dataset %d / %d\n', d, nDatasets);
@@ -163,11 +168,8 @@ for c = 1:numel(conditions)
         % 3. Loop through dimensionality reduction methods
         % ----------------------------------------------------------
         
-        % Start parallel pool (default: use all available cores)
-        % if isempty(gcp('nocreate'))
-        %     parpool;  
-        % end
-        
+      
+        % TODO: be careful 
         outPCA.corr_PCA = table();
         outDPCA.corr_dPCA = table();
         outICA.corr_ICA = table();

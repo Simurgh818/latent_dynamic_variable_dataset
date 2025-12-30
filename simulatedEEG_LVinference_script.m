@@ -4,8 +4,9 @@ clc; clear;
 % This ensures rand() and randn() produce the same sequence every time.
 rng(42,'twister');
 
-freq_peak_latents = [2 2.4 8 20 21 32 40 40];
+% freq_peak_latents = [2 2.4 8 20 21 32 40 40];
 % freq_peak_latents = [40 40 32 21 20 8 2.4 2];
+freq_peak_latents = [2 5 8 20 21 32 40 40];
 
 num_latents = length(freq_peak_latents);
 zeta_latents = 0.15;
