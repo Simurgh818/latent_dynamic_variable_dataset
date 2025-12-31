@@ -152,210 +152,212 @@ end
 %% ============================================================
 % PLOTTING SECTION
 % ============================================================
+if isempty(getCurrentTask())
 
-%% Plot 1: Time Domain + Zero Lag Corr
-fig1 = figure('Position',[50 50 1200 150*param.N_F]);
-tiledlayout(param.N_F, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['ICA (k=' num2str(num_comps) ') Latent variables Z(t) and $\hat{z}(t)$'], 'Interpreter','latex');
-
-for f=1:param.N_F
-    nexttile
-    hold on;
-    set(gca, 'XColor', 'none', 'YColor', 'none'); box on
-    % Plot True
-    plot(h_test(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :),'DisplayName', ['$Z_{' num2str(param.f_peak(f)) '}$ (t) ']);
-    % Plot Recon
-    plot(h_rec_test(:, f), 'LineStyle', '--','Color', 'k','DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$ (t) ']);
+    %% Plot 1: Time Domain + Zero Lag Corr
+    fig1 = figure('Position',[50 50 1200 150*param.N_F]);
+    tiledlayout(param.N_F, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+    sgtitle(['ICA (k=' num2str(num_comps) ') Latent variables Z(t) and $\hat{z}(t)$'], 'Interpreter','latex');
     
-    ylabel('Amp');
-    xlim([0 param.fs*2]); % 2 seconds snapshot
-    legend('Show','Interpreter', 'latex', 'Location','eastoutside');
-    
-    rho = zeroLagCorr_ica(f);
-    text(0.02 * param.fs, 0.7 * max(abs(h_test(:,f))), ...
-        sprintf('\\rho(0)=%.2f', rho), ...
-        'FontSize', 12, 'FontWeight', 'bold',...
-        'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
-        'Margin', 3, 'EdgeColor','k');
-    hold off;
-end
-
-% Scale bars on last tile
-x0 = 0; y0 = min(ylim)+0.2;
-line([x0 x0+(param.fs)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-text(x0+param.fs, y0-0.1, '1 sec', 'VerticalAlignment','top');
-line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-text(x0-5, y0+7, '2 a.u.', 'VerticalAlignment','bottom','HorizontalAlignment','right','Rotation',90);
-set(findall(gcf,'-property','FontSize'),'FontSize',16);
-saveas(fig1, fullfile(method_dir, ['ICA_TimeDomain' file_suffix '.png']));
-
-
-% num_sig_components = sum(eig_vals > lambda_max);
-if num_comps <= param.N_F
-    num_comps_plot = num_comps;
-else
-    num_comps_plot = param.N_F;
-end
-fig1_2 = figure('Position',[50 50 1200 (num_comps_plot*150)]);
-tiledlayout(num_comps_plot, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-pc_colors = lines(num_comps_plot);
-sgtitle('IC Traces');
-
-for ic=1:num_comps_plot
-    nexttile;
-    plot(h_rec_test(:,ic)', 'LineStyle', '-', 'Color', pc_colors(ic,:),'DisplayName', ['IC(t) ' num2str(ic)]);
-    xlabel('Time bins')
-    ylabel('IC amp.')
-    xlim([0 1000]);
-    legend('show');
-end
-set(findall(gcf,'-property','FontSize'),'FontSize',16);
-saveas(fig1_2, fullfile(method_dir, ['IC_traces' file_suffix '.png']));
-%% Plot 2: Band-wise R2 Bar Chart
-fig2 = figure('Position',[50 50 1000 300]);
-tiledlayout(1, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-nexttile;
-bar(band_avg_R2_ica');
-set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
-ylim([-1 1]);
-legend(band_names, 'Location', 'southeastoutside');
-ylabel('Mean R^2 in Band'); xlabel('Latent Variable');
-title(['ICA Band-wise Average R^2(f), (k=' num2str(num_comps) ')']);
-grid on;
-set(findall(gcf,'-property','FontSize'),'FontSize',16);
-saveas(fig2, fullfile(method_dir, ['ICA_Bandwise_R2' file_suffix '.png']));
-
-
-%% Plot 3: Scatter plot: True vs Reconstructed Band Amplitudes (Mean)
-Ht_amp_ica = abs(Ht_avg_ica(1:nHz, :));  
-Hr_amp_ica = abs(Hr_avg_ica(1:nHz, :)); 
-
-% Normalizing amplitudes
-Ht_amp_ica = Ht_amp_ica ./ max(Ht_amp_ica(:));
-Hr_amp_ica = Hr_amp_ica ./ max(Hr_amp_ica(:));
-
-mean_band_amp_ica_true  = zeros(nBands, param.N_F);
-mean_band_amp_ica_recon = zeros(nBands, param.N_F);
-stdDev_band_amp_ica_true  = zeros(nBands, param.N_F);
-stdDev_band_amp_ica_recon = zeros(nBands, param.N_F);
-
-for b = 1:nBands
-    band = band_names{b};
-    f_range = bands.(band);
-    idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
-    
-    mean_band_amp_ica_true(b,:)  = mean(Ht_amp_ica(idx_band,:), 1, 'omitnan');
-    mean_band_amp_ica_recon(b,:) = mean(Hr_amp_ica(idx_band,:), 1, 'omitnan');
-    stdDev_band_amp_ica_true(b,:)  = std(Ht_amp_ica(idx_band,:), 0, 1, 'omitnan');
-    stdDev_band_amp_ica_recon(b,:) = std(Hr_amp_ica(idx_band,:), 0, 1, 'omitnan');
-end
-
-true_vals_ica  = mean_band_amp_ica_true(:);
-recon_vals_ica = mean_band_amp_ica_recon(:);
-band_labels = repelem(band_names, param.N_F);
-
-fig3 = figure('Position',[50 50 1400 300]);
-tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['ICA True vs Reconstructed Band Mean FFT Amplitudes, (k=' num2str(num_comps) ')']);
-colors = lines(nBands);
-markers = {'o','s','d','h','^','hexagram','<','>'};
-
-for b = 1:nBands    
-    nexttile; hold on; 
-    idx_b = strcmp(band_labels, band_names{b});
-    x_ica = true_vals_ica(idx_b);
-    y_ica = recon_vals_ica(idx_b);
-    
-    for m = 1:length(markers)
-        if m > numel(x_ica), break; end
-        scatter(x_ica(m), y_ica(m), 70, 'filled', 'MarkerFaceColor', colors(b,:),'Marker', markers{m});
-        errorbar(x_ica(m), y_ica(m), stdDev_band_amp_ica_true(b, m), stdDev_band_amp_ica_recon(b, m), ...
-                 'LineStyle', 'none', 'Color', colors(b,:), 'CapSize', 5,'HandleVisibility', 'off');
+    for f=1:param.N_F
+        nexttile
+        hold on;
+        set(gca, 'XColor', 'none', 'YColor', 'none'); box on
+        % Plot True
+        plot(h_test(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :),'DisplayName', ['$Z_{' num2str(param.f_peak(f)) '}$ (t) ']);
+        % Plot Recon
+        plot(h_rec_test(:, f), 'LineStyle', '--','Color', 'k','DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$ (t) ']);
+        
+        ylabel('Amp');
+        xlim([0 param.fs*2]); % 2 seconds snapshot
+        legend('Show','Interpreter', 'latex', 'Location','eastoutside');
+        
+        rho = zeroLagCorr_ica(f);
+        text(0.02 * param.fs, 0.7 * max(abs(h_test(:,f))), ...
+            sprintf('\\rho(0)=%.2f', rho), ...
+            'FontSize', 12, 'FontWeight', 'bold',...
+            'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
+            'Margin', 3, 'EdgeColor','k');
+        hold off;
     end
-    xfit_ica = linspace(min(x_ica), max(x_ica), 100);
-    plot(xfit_ica, xfit_ica, 'Color', colors(b,:), 'LineWidth', 2, 'DisplayName', "y=x");
-    R_fit_ica = corrcoef(x_ica, y_ica);
-    R2_fit_ica = R_fit_ica(1,2)^2;
-    text(mean(x_ica), mean(y_ica), sprintf('R^2=%.2f', R2_fit_ica), 'Color', colors(b,:), 'FontSize', 12)
-    if b==1, xlabel('Mean True Amp.'); ylabel('Mean Recon. Amp.'); end
-    title([band_names{b} ' band']); grid on;
+    
+    % Scale bars on last tile
+    x0 = 0; y0 = min(ylim)+0.2;
+    line([x0 x0+(param.fs)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+    text(x0+param.fs, y0-0.1, '1 sec', 'VerticalAlignment','top');
+    line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+    text(x0-5, y0+7, '2 a.u.', 'VerticalAlignment','bottom','HorizontalAlignment','right','Rotation',90);
+    set(findall(gcf,'-property','FontSize'),'FontSize',16);
+    saveas(fig1, fullfile(method_dir, ['ICA_TimeDomain' file_suffix '.png']));
+    
+    
+    % num_sig_components = sum(eig_vals > lambda_max);
+    if num_comps <= param.N_F
+        num_comps_plot = num_comps;
+    else
+        num_comps_plot = param.N_F;
+    end
+    fig1_2 = figure('Position',[50 50 1200 (num_comps_plot*150)]);
+    tiledlayout(num_comps_plot, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+    pc_colors = lines(num_comps_plot);
+    sgtitle('IC Traces');
+    
+    for ic=1:num_comps_plot
+        nexttile;
+        plot(h_rec_test(:,ic)', 'LineStyle', '-', 'Color', pc_colors(ic,:),'DisplayName', ['IC(t) ' num2str(ic)]);
+        xlabel('Time bins')
+        ylabel('IC amp.')
+        xlim([0 1000]);
+        legend('show');
+    end
+    set(findall(gcf,'-property','FontSize'),'FontSize',16);
+    saveas(fig1_2, fullfile(method_dir, ['IC_traces' file_suffix '.png']));
+    %% Plot 2: Band-wise R2 Bar Chart
+    fig2 = figure('Position',[50 50 1000 300]);
+    tiledlayout(1, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+    nexttile;
+    bar(band_avg_R2_ica');
+    set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
+    ylim([-1 1]);
+    legend(band_names, 'Location', 'southeastoutside');
+    ylabel('Mean R^2 in Band'); xlabel('Latent Variable');
+    title(['ICA Band-wise Average R^2(f), (k=' num2str(num_comps) ')']);
+    grid on;
+    set(findall(gcf,'-property','FontSize'),'FontSize',16);
+    saveas(fig2, fullfile(method_dir, ['ICA_Bandwise_R2' file_suffix '.png']));
+    
+    
+    %% Plot 3: Scatter plot: True vs Reconstructed Band Amplitudes (Mean)
+    Ht_amp_ica = abs(Ht_avg_ica(1:nHz, :));  
+    Hr_amp_ica = abs(Hr_avg_ica(1:nHz, :)); 
+    
+    % Normalizing amplitudes
+    Ht_amp_ica = Ht_amp_ica ./ max(Ht_amp_ica(:));
+    Hr_amp_ica = Hr_amp_ica ./ max(Hr_amp_ica(:));
+    
+    mean_band_amp_ica_true  = zeros(nBands, param.N_F);
+    mean_band_amp_ica_recon = zeros(nBands, param.N_F);
+    stdDev_band_amp_ica_true  = zeros(nBands, param.N_F);
+    stdDev_band_amp_ica_recon = zeros(nBands, param.N_F);
+    
+    for b = 1:nBands
+        band = band_names{b};
+        f_range = bands.(band);
+        idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
+        
+        mean_band_amp_ica_true(b,:)  = mean(Ht_amp_ica(idx_band,:), 1, 'omitnan');
+        mean_band_amp_ica_recon(b,:) = mean(Hr_amp_ica(idx_band,:), 1, 'omitnan');
+        stdDev_band_amp_ica_true(b,:)  = std(Ht_amp_ica(idx_band,:), 0, 1, 'omitnan');
+        stdDev_band_amp_ica_recon(b,:) = std(Hr_amp_ica(idx_band,:), 0, 1, 'omitnan');
+    end
+    
+    true_vals_ica  = mean_band_amp_ica_true(:);
+    recon_vals_ica = mean_band_amp_ica_recon(:);
+    band_labels = repelem(band_names, param.N_F);
+    
+    fig3 = figure('Position',[50 50 1400 300]);
+    tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
+    sgtitle(['ICA True vs Reconstructed Band Mean FFT Amplitudes, (k=' num2str(num_comps) ')']);
+    colors = lines(nBands);
+    markers = {'o','s','d','h','^','hexagram','<','>'};
+    
+    for b = 1:nBands    
+        nexttile; hold on; 
+        idx_b = strcmp(band_labels, band_names{b});
+        x_ica = true_vals_ica(idx_b);
+        y_ica = recon_vals_ica(idx_b);
+        
+        for m = 1:length(markers)
+            if m > numel(x_ica), break; end
+            scatter(x_ica(m), y_ica(m), 70, 'filled', 'MarkerFaceColor', colors(b,:),'Marker', markers{m});
+            errorbar(x_ica(m), y_ica(m), stdDev_band_amp_ica_true(b, m), stdDev_band_amp_ica_recon(b, m), ...
+                     'LineStyle', 'none', 'Color', colors(b,:), 'CapSize', 5,'HandleVisibility', 'off');
+        end
+        xfit_ica = linspace(min(x_ica), max(x_ica), 100);
+        plot(xfit_ica, xfit_ica, 'Color', colors(b,:), 'LineWidth', 2, 'DisplayName', "y=x");
+        R_fit_ica = corrcoef(x_ica, y_ica);
+        R2_fit_ica = R_fit_ica(1,2)^2;
+        text(mean(x_ica), mean(y_ica), sprintf('R^2=%.2f', R2_fit_ica), 'Color', colors(b,:), 'FontSize', 12)
+        if b==1, xlabel('Mean True Amp.'); ylabel('Mean Recon. Amp.'); end
+        title([band_names{b} ' band']); grid on;
+    end
+    
+    % Proxy Legend
+    nLatents = length(markers);
+    proxy_handles = gobjects(nLatents + 1,1);
+    for m = 1:nLatents
+        proxy_handles(m) = scatter(nan, nan, 70, 'Marker', markers{m}, 'MarkerEdgeColor', 'k', 'MarkerFaceColor', 'k');
+    end
+    proxy_handles(end) = plot(nan, nan, 'k', 'LineWidth', 2);
+    legend_labels = [arrayfun(@(m) sprintf('Z_{%s}', num2str(param.f_peak(m))), 1:length(markers), 'UniformOutput', false), {'y = x'}];
+    legend(proxy_handles, legend_labels, 'Location','eastoutside','TextColor','k','IconColumnWidth',7, 'NumColumns',2);
+    hold off;
+    set(findall(gcf,'-property','FontSize'),'FontSize',14)
+    saveas(fig3, fullfile(method_dir, ['ICA_Scatter_Mean' file_suffix '.png']));
+    
+    
+    %% Plot 4: Scatter plot: True vs Reconstructed Band Amplitudes (per trial)
+    % Ht_amp_trials = abs(Ht(1:nHz, :, :)); 
+    % Hr_amp_trials = abs(Hr(1:nHz, :, :));
+    % 
+    % % Normalize
+    % Ht_amp_trials = Ht_amp_trials ./ max(Ht_amp_trials(:));
+    % Hr_amp_trials = Hr_amp_trials ./ max(Hr_amp_trials(:));
+    % 
+    % true_vals_band  = cell(nBands, 1);
+    % recon_vals_band = cell(nBands, 1);
+    % 
+    % for b = 1:nBands
+    %     band = band_names{b};
+    %     f_range = bands.(band);
+    %     idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
+    % 
+    %     temp_true  = squeeze(mean(Ht_amp_trials(idx_band, :, :), 1, 'omitnan'));
+    %     temp_recon = squeeze(mean(Hr_amp_trials(idx_band, :, :), 1, 'omitnan'));
+    % 
+    %     true_vals_band{b}  = temp_true(:);
+    %     recon_vals_band{b} = temp_recon(:);
+    % end
+    % 
+    % fig4 = figure('Position',[50 50 1200 300]);
+    % tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
+    % sgtitle(['ICA True vs Reconstructed FFT Band Amplitudes (All Trials), (k=' num2str(num_comps) ')']);
+    % 
+    % for b = 1:nBands
+    %     nexttile; hold on;
+    %     x = true_vals_band{b};
+    %     y = recon_vals_band{b};
+    % 
+    %     scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), ...
+    %         'MarkerFaceColor', colors(b,:), 'MarkerFaceAlpha', 0.3, ...
+    %         'DisplayName', [sprintf('Z_{%s}', band_names{b})]);
+    % 
+    %     xfit = linspace(min(x), max(x), 100);
+    %     plot(xfit, xfit, 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
+    % 
+    %     R_fit = corrcoef(x, y);
+    %     if numel(R_fit) > 1
+    %         R2_fit = R_fit(1,2)^2;
+    %         text(mean(x), mean(y), sprintf('R^2=%.2f', R2_fit), 'Color', 'k', 'FontSize', 12);
+    %     end
+    % 
+    %     title([band_names{b} ' band']);
+    %     if b==1
+    %         xlabel('True Band Amplitude')
+    %         ylabel('Recon. Band Amp.')
+    %     end
+    % 
+    %     legend('Location','southoutside','TextColor','k','Orientation','horizontal');
+    %     grid on;
+    %     hold off;
+    % end
+    % legend('Location','southoutside','TextColor','k','Orientation','horizontal');
+    % set(findall(gcf,'-property','FontSize'),'FontSize',14)
+    % saveas(fig4, fullfile(method_dir, ['ICA_Scatter_Trials' file_suffix '.png']));
+    
+    
+    plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, num_comps, "ICA", method_dir);
 end
-
-% Proxy Legend
-nLatents = length(markers);
-proxy_handles = gobjects(nLatents + 1,1);
-for m = 1:nLatents
-    proxy_handles(m) = scatter(nan, nan, 70, 'Marker', markers{m}, 'MarkerEdgeColor', 'k', 'MarkerFaceColor', 'k');
-end
-proxy_handles(end) = plot(nan, nan, 'k', 'LineWidth', 2);
-legend_labels = [arrayfun(@(m) sprintf('Z_{%s}', num2str(param.f_peak(m))), 1:length(markers), 'UniformOutput', false), {'y = x'}];
-legend(proxy_handles, legend_labels, 'Location','eastoutside','TextColor','k','IconColumnWidth',7, 'NumColumns',2);
-hold off;
-set(findall(gcf,'-property','FontSize'),'FontSize',14)
-saveas(fig3, fullfile(method_dir, ['ICA_Scatter_Mean' file_suffix '.png']));
-
-
-%% Plot 4: Scatter plot: True vs Reconstructed Band Amplitudes (per trial)
-% Ht_amp_trials = abs(Ht(1:nHz, :, :)); 
-% Hr_amp_trials = abs(Hr(1:nHz, :, :));
-% 
-% % Normalize
-% Ht_amp_trials = Ht_amp_trials ./ max(Ht_amp_trials(:));
-% Hr_amp_trials = Hr_amp_trials ./ max(Hr_amp_trials(:));
-% 
-% true_vals_band  = cell(nBands, 1);
-% recon_vals_band = cell(nBands, 1);
-% 
-% for b = 1:nBands
-%     band = band_names{b};
-%     f_range = bands.(band);
-%     idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
-% 
-%     temp_true  = squeeze(mean(Ht_amp_trials(idx_band, :, :), 1, 'omitnan'));
-%     temp_recon = squeeze(mean(Hr_amp_trials(idx_band, :, :), 1, 'omitnan'));
-% 
-%     true_vals_band{b}  = temp_true(:);
-%     recon_vals_band{b} = temp_recon(:);
-% end
-% 
-% fig4 = figure('Position',[50 50 1200 300]);
-% tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-% sgtitle(['ICA True vs Reconstructed FFT Band Amplitudes (All Trials), (k=' num2str(num_comps) ')']);
-% 
-% for b = 1:nBands
-%     nexttile; hold on;
-%     x = true_vals_band{b};
-%     y = recon_vals_band{b};
-% 
-%     scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), ...
-%         'MarkerFaceColor', colors(b,:), 'MarkerFaceAlpha', 0.3, ...
-%         'DisplayName', [sprintf('Z_{%s}', band_names{b})]);
-% 
-%     xfit = linspace(min(x), max(x), 100);
-%     plot(xfit, xfit, 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
-% 
-%     R_fit = corrcoef(x, y);
-%     if numel(R_fit) > 1
-%         R2_fit = R_fit(1,2)^2;
-%         text(mean(x), mean(y), sprintf('R^2=%.2f', R2_fit), 'Color', 'k', 'FontSize', 12);
-%     end
-% 
-%     title([band_names{b} ' band']);
-%     if b==1
-%         xlabel('True Band Amplitude')
-%         ylabel('Recon. Band Amp.')
-%     end
-% 
-%     legend('Location','southoutside','TextColor','k','Orientation','horizontal');
-%     grid on;
-%     hold off;
-% end
-% legend('Location','southoutside','TextColor','k','Orientation','horizontal');
-% set(findall(gcf,'-property','FontSize'),'FontSize',14)
-% saveas(fig4, fullfile(method_dir, ['ICA_Scatter_Trials' file_suffix '.png']));
-
-
-plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, num_comps, "ICA", method_dir);
 %% 6. Outputs
 outICA = struct();
 outICA.icasig_train = icasig_train;

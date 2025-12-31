@@ -136,221 +136,223 @@ end
 %% ============================================================
 % PLOTTING SECTION (Using TEST Data)
 % ============================================================
+if isempty(getCurrentTask())
 
-% Plot 1: UMAP Embedding (Training) colored by Latents
-% We visualize the Training embedding because that's the manifold structure we learned
-cluster_idx = kmeans(h_train, param.N_F,'MaxIter', 1000, 'Replicates', 5, 'Display', 'off');
-
-fig1 = figure('Position', [100, 100, 1200, 800]);
-% If we only have 1 component, we can't do a 2D scatter properly vs another dim.
-% We default to plotting the 2 components calculated (even if only 1 was requested/used).
-plot_comps = min(size(umap_train_raw,2), max(2, num_sig_components)); 
-
-t = tiledlayout(ceil((plot_comps-1)/3), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
-% Plot Dim 1 vs others
-for d = 2:plot_comps
-    nexttile;
-    gscatter(umap_train_raw(:,1), umap_train_raw(:,d), cluster_idx, [],[],10);
-    xlabel('UMAP Dim 1'); ylabel(['UMAP Dim ' num2str(d)]);
-    title(['Dim 1 vs. ' num2str(d)]); grid on; legend off;
-end
-title(t, {'UMAP (Train) Colored by Latent Clusters', ...
-          ['n=' num2str(n_neighbors) ', dist=' num2str(min_dist) ', (k=' num2str(num_sig_components) ')']}, ...
-          'FontSize', 14, 'FontWeight', 'bold');
-colormap(turbo);
-set(findall(fig1,'-property','FontSize'),'FontSize',16);
-saveas(fig1, fullfile(method_dir, ['UMAP_Embedding' file_suffix '.png']));
-
-
-%% Plot 2: Time Domain Reconstruction (Test Set)
-% Zero-lag correlation
-Z_true = h_test; 
-Z_recon = h_rec_test_final; % Use non-normalized for correlation calc
-maxLag = 200; lags = -maxLag:maxLag;
-zeroLagCorr = zeros(1, param.N_F);
-for f = 1:param.N_F
-    c = xcorr(Z_true(:,f), Z_recon(:,f), maxLag, 'coeff');
-    zeroLagCorr(f) = c(lags==0);
-end
-
-fig2 = figure('Position',[50 50 1200 150*param.N_F]);
-tiledlayout(param.N_F, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['UMAP (Test Set, k=' num2str(num_sig_components) ') Latent variables Z(t) and $\hat{Z}$(t)' ])
-
-for f=1:param.N_F
-    nexttile; hold on;
-    set(gca, 'XColor', 'none', 'YColor', 'none'); box on
-    plot(h_test(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :),'DisplayName', ['$Z_{' num2str(param.f_peak(f)) '}$ (t) ']);
-    plot(h_rec_test_final(:, f), 'LineStyle', '--','Color', 'k','DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$ (t) ']);
+    % Plot 1: UMAP Embedding (Training) colored by Latents
+    % We visualize the Training embedding because that's the manifold structure we learned
+    cluster_idx = kmeans(h_train, param.N_F,'MaxIter', 1000, 'Replicates', 5, 'Display', 'off');
     
-    xlim([0 fs_new*2]);
-    legend('Show','Interpreter', 'latex', 'Location','eastoutside');
+    fig1 = figure('Position', [100, 100, 1200, 800]);
+    % If we only have 1 component, we can't do a 2D scatter properly vs another dim.
+    % We default to plotting the 2 components calculated (even if only 1 was requested/used).
+    plot_comps = min(size(umap_train_raw,2), max(2, num_sig_components)); 
     
-    text(0.02 * fs_new, 0.7 * max(h_test(:,f)), ...
-        sprintf('\\rho(0)=%.2f', zeroLagCorr(f)), ...
-        'FontSize', 12, 'FontWeight', 'bold', 'BackgroundColor', 'w', 'EdgeColor','k');
-    hold off;
-end
-% Scale bar
-x0 = 0; y0 = min(ylim)+0.2;
-line([x0 x0+(fs_new)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-text(x0+fs_new, y0-0.1, '1 sec', 'VerticalAlignment','top');
-line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-text(x0-5, y0+7, '2 a.u.', 'VerticalAlignment','bottom','HorizontalAlignment','right','Rotation',90);
-set(findall(fig2,'-property','FontSize'),'FontSize',16);
-saveas(fig2, fullfile(method_dir, ['UMAP_TimeDomain' file_suffix '.png']));
-
-%% Plot 4: Band Power Bar Chart & FFT
-% Setup FFT
-N = size(h_test, 1);
-L = round(1 * fs_new); % 1 sec window
-nTrials = floor(N/L);
-f_freq = (0:L-1)*(fs_new/L);
-nHz = L/2+1;
-f_plot = f_freq(1:nHz);
-
-Ht = zeros(L, param.N_F, nTrials);
-Hr = zeros(L, param.N_F, nTrials);
-R2_trials = zeros(L, param.N_F, nTrials);
-
-for tr = 1:nTrials
-    idx = (tr-1)*L + (1:L);
-    Ht(:,:,tr) = fft(h_test(idx, :));
-    Hr(:,:,tr) = fft(h_rec_test_final(idx, :));
-    for fidx = 1:param.N_F
-        num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
-        den = abs(Ht(:,fidx,tr)).^2 + eps;
-        R2_trials(:,fidx,tr) = 1 - num./den;
+    t = tiledlayout(ceil((plot_comps-1)/3), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
+    % Plot Dim 1 vs others
+    for d = 2:plot_comps
+        nexttile;
+        gscatter(umap_train_raw(:,1), umap_train_raw(:,d), cluster_idx, [],[],10);
+        xlabel('UMAP Dim 1'); ylabel(['UMAP Dim ' num2str(d)]);
+        title(['Dim 1 vs. ' num2str(d)]); grid on; legend off;
     end
-end
-R2_avg = mean(R2_trials, 3);
-Ht_avg = mean(Ht, 3);
-Hr_avg = mean(Hr, 3);
-
-% Band Calc
-bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 13], 'beta', [13 30], 'gamma', [30 50]);
-band_names = fieldnames(bands);
-nBands = numel(band_names);
-band_avg_R2 = zeros(nBands, param.N_F);
-for b = 1:nBands
-    f_range = bands.(band_names{b});
-    idx = f_freq >= f_range(1) & f_freq <= f_range(2);
-    for fidx = 1:param.N_F
-        band_avg_R2(b, fidx) = mean(R2_avg(idx, fidx));
-    end
-end
-
-fig3 = figure('Position',[50 50 1000 300]);
-bar(band_avg_R2');
-set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
-ylim([-1 1]); legend(band_names, 'Location', 'southeastoutside');
-ylabel('Mean R^2'); xlabel('Latent');
-title(['UMAP Band-wise R^2 (Test Set , k=' num2str(num_sig_components) ')']); grid on;
-set(findall(fig3,'-property','FontSize'),'FontSize',16);
-saveas(fig3, fullfile(method_dir, ['UMAP_Bandwise_R2' file_suffix '.png']));
-
-
-%% Plot 5: Coherence Analysis (Chronux)
-% Multitaper params
-params_coh.Fs = fs_new; 
-params_coh.tapers = [3 5]; 
-params_coh.pad = 0;
-params_coh.err = [0 0]; % No error bars for speed in heatmap
-
-movingwin = [1 0.05]; % 1s window, 50ms step
-
-fig4 = figure('Position',[50 50 1000 600]);
-tiledlayout(2, ceil(param.N_F/2), 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['UMAP Coherence Analysis (Test Set, k=' num2str(num_sig_components) ')']);
-
-for i = 1:param.N_F
-    nexttile;
-    try
-        [C,~,~,~,~,t_coh,f_coh] = cohgramc(h_test(:, i), h_rec_test_final(:, i), movingwin, params_coh);
-        imagesc(t_coh, f_coh, C'); axis xy;
-        xlabel('Time (s)'); ylabel('Freq (Hz)');
-        caxis([0 1]); colorbar;
-    catch
-        text(0.5,0.5,'Chronux Toolbox missing or error','HorizontalAlignment','center');
-    end
-    title(['Latent ' num2str(i)]);
-end
-set(findall(fig4,'-property','FontSize'),'FontSize',16);
-saveas(fig4, fullfile(method_dir, ['UMAP_Coherence' file_suffix '.png']));
-
-
-%% Plot 6: Scatter Mean Band Amplitudes
-Ht_amp = abs(Ht_avg(1:nHz, :)); Hr_amp = abs(Hr_avg(1:nHz, :));
-Ht_amp = Ht_amp ./ max(Ht_amp(:)); Hr_amp = Hr_amp ./ max(Hr_amp(:));
-
-mean_true = zeros(nBands, param.N_F); mean_recon = zeros(nBands, param.N_F);
-std_true = zeros(nBands, param.N_F); std_recon = zeros(nBands, param.N_F);
-
-for b = 1:nBands
-    idx = f_plot >= bands.(band_names{b})(1) & f_plot <= bands.(band_names{b})(2);
-    mean_true(b,:) = mean(Ht_amp(idx,:), 1); mean_recon(b,:) = mean(Hr_amp(idx,:), 1);
-    std_true(b,:) = std(Ht_amp(idx,:), 0, 1); std_recon(b,:) = std(Hr_amp(idx,:), 0, 1);
-end
-flat_true = mean_true(:); flat_recon = mean_recon(:);
-band_lbls = repelem(band_names, param.N_F);
-
-fig5 = figure('Position',[50 50 1400 300]);
-tiledlayout(1, nBands, 'TileSpacing', 'loose', 'Padding', 'compact');
-sgtitle(['UMAP Band Mean FFT Amplitudes (k=' num2str(num_sig_components) ')']);
-colors = lines(nBands); markers = {'o','s','d','h','^','hexagram','<','>'};
-
-for b = 1:nBands    
-    nexttile; hold on;
-    idx_b = strcmp(band_lbls, band_names{b});
-    x = flat_true(idx_b); y = flat_recon(idx_b);
+    title(t, {'UMAP (Train) Colored by Latent Clusters', ...
+              ['n=' num2str(n_neighbors) ', dist=' num2str(min_dist) ', (k=' num2str(num_sig_components) ')']}, ...
+              'FontSize', 14, 'FontWeight', 'bold');
+    colormap(turbo);
+    set(findall(fig1,'-property','FontSize'),'FontSize',16);
+    saveas(fig1, fullfile(method_dir, ['UMAP_Embedding' file_suffix '.png']));
     
-    for m = 1:length(markers)
-        if m>numel(x), break; end
-        scatter(x(m), y(m), 70, 'filled', 'MarkerFaceColor', colors(b,:),'Marker', markers{m});
-        errorbar(x(m), y(m), std_true(b,m), std_recon(b,m), 'LineStyle', 'none', 'Color', colors(b,:));
+    
+    %% Plot 2: Time Domain Reconstruction (Test Set)
+    % Zero-lag correlation
+    Z_true = h_test; 
+    Z_recon = h_rec_test_final; % Use non-normalized for correlation calc
+    maxLag = 200; lags = -maxLag:maxLag;
+    zeroLagCorr = zeros(1, param.N_F);
+    for f = 1:param.N_F
+        c = xcorr(Z_true(:,f), Z_recon(:,f), maxLag, 'coeff');
+        zeroLagCorr(f) = c(lags==0);
     end
-    plot([min(x) max(x)], [min(x) max(x)], 'Color', colors(b,:), 'LineWidth', 2);
-    R = corrcoef(x,y); text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', colors(b,:));
-    title(band_names{b}); grid on;
+    
+    fig2 = figure('Position',[50 50 1200 150*param.N_F]);
+    tiledlayout(param.N_F, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+    sgtitle(['UMAP (Test Set, k=' num2str(num_sig_components) ') Latent variables Z(t) and $\hat{Z}$(t)' ])
+    
+    for f=1:param.N_F
+        nexttile; hold on;
+        set(gca, 'XColor', 'none', 'YColor', 'none'); box on
+        plot(h_test(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :),'DisplayName', ['$Z_{' num2str(param.f_peak(f)) '}$ (t) ']);
+        plot(h_rec_test_final(:, f), 'LineStyle', '--','Color', 'k','DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$ (t) ']);
+        
+        xlim([0 fs_new*2]);
+        legend('Show','Interpreter', 'latex', 'Location','eastoutside');
+        
+        text(0.02 * fs_new, 0.7 * max(h_test(:,f)), ...
+            sprintf('\\rho(0)=%.2f', zeroLagCorr(f)), ...
+            'FontSize', 12, 'FontWeight', 'bold', 'BackgroundColor', 'w', 'EdgeColor','k');
+        hold off;
+    end
+    % Scale bar
+    x0 = 0; y0 = min(ylim)+0.2;
+    line([x0 x0+(fs_new)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+    text(x0+fs_new, y0-0.1, '1 sec', 'VerticalAlignment','top');
+    line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+    text(x0-5, y0+7, '2 a.u.', 'VerticalAlignment','bottom','HorizontalAlignment','right','Rotation',90);
+    set(findall(fig2,'-property','FontSize'),'FontSize',16);
+    saveas(fig2, fullfile(method_dir, ['UMAP_TimeDomain' file_suffix '.png']));
+    
+    %% Plot 4: Band Power Bar Chart & FFT
+    % Setup FFT
+    N = size(h_test, 1);
+    L = round(1 * fs_new); % 1 sec window
+    nTrials = floor(N/L);
+    f_freq = (0:L-1)*(fs_new/L);
+    nHz = L/2+1;
+    f_plot = f_freq(1:nHz);
+    
+    Ht = zeros(L, param.N_F, nTrials);
+    Hr = zeros(L, param.N_F, nTrials);
+    R2_trials = zeros(L, param.N_F, nTrials);
+    
+    for tr = 1:nTrials
+        idx = (tr-1)*L + (1:L);
+        Ht(:,:,tr) = fft(h_test(idx, :));
+        Hr(:,:,tr) = fft(h_rec_test_final(idx, :));
+        for fidx = 1:param.N_F
+            num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
+            den = abs(Ht(:,fidx,tr)).^2 + eps;
+            R2_trials(:,fidx,tr) = 1 - num./den;
+        end
+    end
+    R2_avg = mean(R2_trials, 3);
+    Ht_avg = mean(Ht, 3);
+    Hr_avg = mean(Hr, 3);
+    
+    % Band Calc
+    bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 13], 'beta', [13 30], 'gamma', [30 50]);
+    band_names = fieldnames(bands);
+    nBands = numel(band_names);
+    band_avg_R2 = zeros(nBands, param.N_F);
+    for b = 1:nBands
+        f_range = bands.(band_names{b});
+        idx = f_freq >= f_range(1) & f_freq <= f_range(2);
+        for fidx = 1:param.N_F
+            band_avg_R2(b, fidx) = mean(R2_avg(idx, fidx));
+        end
+    end
+    
+    fig3 = figure('Position',[50 50 1000 300]);
+    bar(band_avg_R2');
+    set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
+    ylim([-1 1]); legend(band_names, 'Location', 'southeastoutside');
+    ylabel('Mean R^2'); xlabel('Latent');
+    title(['UMAP Band-wise R^2 (Test Set , k=' num2str(num_sig_components) ')']); grid on;
+    set(findall(fig3,'-property','FontSize'),'FontSize',16);
+    saveas(fig3, fullfile(method_dir, ['UMAP_Bandwise_R2' file_suffix '.png']));
+    
+    
+    %% Plot 5: Coherence Analysis (Chronux)
+    % Multitaper params
+    params_coh.Fs = fs_new; 
+    params_coh.tapers = [3 5]; 
+    params_coh.pad = 0;
+    params_coh.err = [0 0]; % No error bars for speed in heatmap
+    
+    movingwin = [1 0.05]; % 1s window, 50ms step
+    
+    fig4 = figure('Position',[50 50 1000 600]);
+    tiledlayout(2, ceil(param.N_F/2), 'TileSpacing', 'compact', 'Padding', 'compact');
+    sgtitle(['UMAP Coherence Analysis (Test Set, k=' num2str(num_sig_components) ')']);
+    
+    for i = 1:param.N_F
+        nexttile;
+        try
+            [C,~,~,~,~,t_coh,f_coh] = cohgramc(h_test(:, i), h_rec_test_final(:, i), movingwin, params_coh);
+            imagesc(t_coh, f_coh, C'); axis xy;
+            xlabel('Time (s)'); ylabel('Freq (Hz)');
+            caxis([0 1]); colorbar;
+        catch
+            text(0.5,0.5,'Chronux Toolbox missing or error','HorizontalAlignment','center');
+        end
+        title(['Latent ' num2str(i)]);
+    end
+    set(findall(fig4,'-property','FontSize'),'FontSize',16);
+    saveas(fig4, fullfile(method_dir, ['UMAP_Coherence' file_suffix '.png']));
+    
+    
+    %% Plot 6: Scatter Mean Band Amplitudes
+    Ht_amp = abs(Ht_avg(1:nHz, :)); Hr_amp = abs(Hr_avg(1:nHz, :));
+    Ht_amp = Ht_amp ./ max(Ht_amp(:)); Hr_amp = Hr_amp ./ max(Hr_amp(:));
+    
+    mean_true = zeros(nBands, param.N_F); mean_recon = zeros(nBands, param.N_F);
+    std_true = zeros(nBands, param.N_F); std_recon = zeros(nBands, param.N_F);
+    
+    for b = 1:nBands
+        idx = f_plot >= bands.(band_names{b})(1) & f_plot <= bands.(band_names{b})(2);
+        mean_true(b,:) = mean(Ht_amp(idx,:), 1); mean_recon(b,:) = mean(Hr_amp(idx,:), 1);
+        std_true(b,:) = std(Ht_amp(idx,:), 0, 1); std_recon(b,:) = std(Hr_amp(idx,:), 0, 1);
+    end
+    flat_true = mean_true(:); flat_recon = mean_recon(:);
+    band_lbls = repelem(band_names, param.N_F);
+    
+    fig5 = figure('Position',[50 50 1400 300]);
+    tiledlayout(1, nBands, 'TileSpacing', 'loose', 'Padding', 'compact');
+    sgtitle(['UMAP Band Mean FFT Amplitudes (k=' num2str(num_sig_components) ')']);
+    colors = lines(nBands); markers = {'o','s','d','h','^','hexagram','<','>'};
+    
+    for b = 1:nBands    
+        nexttile; hold on;
+        idx_b = strcmp(band_lbls, band_names{b});
+        x = flat_true(idx_b); y = flat_recon(idx_b);
+        
+        for m = 1:length(markers)
+            if m>numel(x), break; end
+            scatter(x(m), y(m), 70, 'filled', 'MarkerFaceColor', colors(b,:),'Marker', markers{m});
+            errorbar(x(m), y(m), std_true(b,m), std_recon(b,m), 'LineStyle', 'none', 'Color', colors(b,:));
+        end
+        plot([min(x) max(x)], [min(x) max(x)], 'Color', colors(b,:), 'LineWidth', 2);
+        R = corrcoef(x,y); text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', colors(b,:));
+        title(band_names{b}); grid on;
+    end
+    set(findall(fig5,'-property','FontSize'),'FontSize',16);
+    saveas(fig5, fullfile(method_dir, ['UMAP_Scatter_Mean' file_suffix '.png']));
+    
+    
+    %% Plot 7: Scatter Per-Trial
+    % Ht_tr = abs(Ht(1:nHz,:,:))./max(abs(Ht(:))); 
+    % Hr_tr = abs(Hr(1:nHz,:,:))./max(abs(Hr(:)));
+    % flat_tr_true = cell(nBands,1); flat_tr_recon = cell(nBands,1);
+    % 
+    % for b = 1:nBands
+    %     idx = f_plot >= bands.(band_names{b})(1) & f_plot <= bands.(band_names{b})(2);
+    %     tmp_t = squeeze(mean(Ht_tr(idx,:,:),1)); tmp_r = squeeze(mean(Hr_tr(idx,:,:),1));
+    %     flat_tr_true{b} = tmp_t(:); flat_tr_recon{b} = tmp_r(:);
+    % end
+    % 
+    % fig6 = figure('Position',[50 50 1200 300]);
+    % tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
+    % sgtitle(['UMAP Per-Trial Band Amplitudes (k=' num2str(num_sig_components) ')']);
+    % 
+    % for b = 1:nBands
+    %     nexttile; hold on;
+    %     x = flat_tr_true{b}; y = flat_tr_recon{b};
+    %     scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceAlpha', 0.3,...
+    %         'DisplayName', [sprintf('Z_{%s}', band_names{b})]);
+    %     plot([min(x) max(x)], [min(x) max(x)], 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
+    %     R = corrcoef(x, y); text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', 'k');
+    %     title(band_names{b}); grid on;
+    %     if b==1
+    %         xlabel('True Band Amp.')
+    %         ylabel('Recon. Band Amp.')
+    %     end
+    % 
+    %     legend('Location','southoutside','TextColor','k','Orientation','horizontal');
+    % end
+    % set(findall(fig6,'-property','FontSize'),'FontSize',16);
+    % saveas(fig6, fullfile(method_dir, ['UMAP_Scatter_Trials' file_suffix '.png']));
+    
+    plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, num_sig_components, "UMAP", method_dir);
 end
-set(findall(fig5,'-property','FontSize'),'FontSize',16);
-saveas(fig5, fullfile(method_dir, ['UMAP_Scatter_Mean' file_suffix '.png']));
-
-
-%% Plot 7: Scatter Per-Trial
-% Ht_tr = abs(Ht(1:nHz,:,:))./max(abs(Ht(:))); 
-% Hr_tr = abs(Hr(1:nHz,:,:))./max(abs(Hr(:)));
-% flat_tr_true = cell(nBands,1); flat_tr_recon = cell(nBands,1);
-% 
-% for b = 1:nBands
-%     idx = f_plot >= bands.(band_names{b})(1) & f_plot <= bands.(band_names{b})(2);
-%     tmp_t = squeeze(mean(Ht_tr(idx,:,:),1)); tmp_r = squeeze(mean(Hr_tr(idx,:,:),1));
-%     flat_tr_true{b} = tmp_t(:); flat_tr_recon{b} = tmp_r(:);
-% end
-% 
-% fig6 = figure('Position',[50 50 1200 300]);
-% tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-% sgtitle(['UMAP Per-Trial Band Amplitudes (k=' num2str(num_sig_components) ')']);
-% 
-% for b = 1:nBands
-%     nexttile; hold on;
-%     x = flat_tr_true{b}; y = flat_tr_recon{b};
-%     scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceAlpha', 0.3,...
-%         'DisplayName', [sprintf('Z_{%s}', band_names{b})]);
-%     plot([min(x) max(x)], [min(x) max(x)], 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
-%     R = corrcoef(x, y); text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', 'k');
-%     title(band_names{b}); grid on;
-%     if b==1
-%         xlabel('True Band Amp.')
-%         ylabel('Recon. Band Amp.')
-%     end
-% 
-%     legend('Location','southoutside','TextColor','k','Orientation','horizontal');
-% end
-% set(findall(fig6,'-property','FontSize'),'FontSize',16);
-% saveas(fig6, fullfile(method_dir, ['UMAP_Scatter_Trials' file_suffix '.png']));
-
-plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, num_sig_components, "UMAP", method_dir);
 %% Output Structure
 outUMAP = struct();
 outUMAP.umap_train = umap_train;
