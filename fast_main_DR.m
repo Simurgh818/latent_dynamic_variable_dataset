@@ -38,7 +38,7 @@ k_range    = 1:10; %
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA','dPCA','ICA','AE'}; % , 'UMAP',
+methods = {'PCA','dPCA','ICA','AE','UMAP'}; % , 
 
 EXP = struct();
 param = struct();
@@ -63,7 +63,7 @@ for c = 1:numel(conditions)
     % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
-    parfor d = 1:nDatasets
+    for d = 1:nDatasets
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         
         % --- 1. Load Data (Local to Worker) ---
@@ -179,7 +179,7 @@ for c = 1:numel(conditions)
                     case 'UMAP'
                         % Note: Java properties should ideally be set outside parfor, 
                         % but some workers might need it reset.
-                        n_neighbors = 100; min_dist = 0.3;
+                        n_neighbors = 10; min_dist = 0.1;
                         [current_R2, current_MSE, outUMAP] = runUMAPAnalysis( ...
                             n_neighbors, min_dist, eeg_train, eeg_test, local_param, ...
                             H_train, H_test, k, local_param.fs, local_results_dir);
@@ -254,7 +254,7 @@ for c = 1:numel(conditions)
                 title(sprintf('%s: Latent–Component Correlation', method));
                 colormap(parula); colorbar;
                 saveas(fig, fullfile(method_dir, sprintf('%s_CorrHeatmap_k%d.png', method, k)));
-                % close(fig);
+                close(fig);
             end
             
             % Generate Frequency Plots
