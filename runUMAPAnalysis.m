@@ -26,6 +26,7 @@ h_f_colors = lines(param.N_F);
 eeg_train = double(s_train)';     
 eeg_test  = double(s_test)';      
 
+rng(42,'twister');
 %% 4. Run UMAP (Train) & Transform (Test)
 disp(['Running UMAP (k=' num2str(num_sig_components) ') on Training Set...']);
 
