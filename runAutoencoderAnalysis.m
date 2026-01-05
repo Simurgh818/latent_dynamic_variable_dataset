@@ -274,7 +274,7 @@ if isempty(getCurrentTask())
     for fidx=1:param.N_F
         idx = 1:L/2+1;
         loglog(f_plot(idx), abs(Hr_avg_ae(idx,fidx)), 'Color',h_f_colors(fidx,:), ...
-            'DisplayName', [sprintf('\hat{Z}_{%s}(f)', num2str(param.f_peak(fidx)))]);
+            'DisplayName', ['\hat{Z}_{%s}(f)', num2str(param.f_peak(fidx))]);
         hold on;
     end
     xlabel('Frequency (Hz)'); ylabel('|Ẑ(f)|'); title('FFT Amplitude Reconstructed');
@@ -332,7 +332,7 @@ if isempty(getCurrentTask())
     %% Plot 6: Band R2
     fig6 = figure('Position',[50 50 1000 300]);
     bar(band_avg_R2_ae');
-    set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%d}',param.f_peak(i)), 1:param.N_F, 'UniformOutput', false));
+    set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}',num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
     ylim([-1 1]);
     legend(band_names, 'Location', 'southeastoutside');
     ylabel('Mean R^2'); xlabel('Latent Variable'); title(['Autoencoder Band-wise R^2 for k= ' num2str(bottleNeck)]);

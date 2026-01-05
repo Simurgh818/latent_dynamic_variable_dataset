@@ -1,11 +1,6 @@
 clc; clear;
+%% 
 % Simulated EEG set
-
-%% Setup Output Folder for PSD Plots
-output_folder = 'PSD_Output';
-if ~exist(output_folder, 'dir')
-    mkdir(output_folder);
-end
 
 % This ensures rand() and randn() produce the same sequence every time.
 rng(42,'twister');
@@ -54,17 +49,28 @@ if exist('H:\', 'dir')
     input_dir = ['C:' filesep 'Users' filesep 'sinad' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Shared Code'];
+    'Shared Code' filesep 'latent_dynamic_variable_dataset'];
+
+    output_dir = ['C:' filesep 'Users' filesep 'sinad' filesep ...
+    'OneDrive - Georgia Institute of Technology' filesep ...
+    'Dr. Sederberg MaTRIX Lab' filesep ...
+    'Shared Code' filesep 'simEEG'];
 
 elseif exist('G:\', 'dir')
     input_dir = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Shared Code'];
+    'Shared Code' filesep 'latent_dynamic_variable_dataset'];
+
+    output_dir = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
+    'OneDrive - Georgia Institute of Technology' filesep ...
+    'Dr. Sederberg MaTRIX Lab' filesep ...
+    'Shared Code' filesep 'simEEG'];
 else
     error('Unknown system: Cannot determine input and output paths.');
 end
-fullName = "latent_dynamic_variable_dataset/approx_eeg_locs.csv";
+
+fullName = 'approx_eeg_locs.csv';
 fullName_path = fullfile(input_dir,fullName);
 
 approxeeglocs = readtable(fullName_path, opts);
@@ -75,6 +81,14 @@ clear opts
 eeg_loc_x = approxeeglocs.x;
 eeg_loc_y = approxeeglocs.y;
 num_channels = length(eeg_loc_x);
+
+% Setup Output Folder for PSD Plots
+output_folder = 'PSD_Output';
+if ~exist(output_folder, 'dir')
+    output_folder = fullfile(input_dir,output_folder);
+    mkdir(output_folder);
+end
+
 %% get full component images 
 num_spatial_realizations = 10;
 
@@ -128,8 +142,9 @@ for i_spat = 1:num_spatial_realizations
     set(gca, 'YDir', 'normal')
     hold on
     scatter(eeg_loc_x, eeg_loc_y, 100, (spatial_comps(:, 5)), 'filled', 'MarkerEdgeColor', [0 0 0])
-    axis equal tight
+    % axis equal tight
     title('should match')
+
     nexttile
     imagesc(mesh_x(1, :), mesh_y(:, 1), all_comp_masks(:, :, 5))
     hold on
@@ -184,6 +199,7 @@ for i_spat = 1:num_spatial_realizations
     [pxx, f_psd] = pwelch(sim_eeg_vals', win_len, n_overlap, [], fs);
     
     % 3. Plot Data
+    figure();
     plot(f_psd, 10*log10(pxx), 'Color', [0.7 0.7 0.7]); % Plot all channels in light grey
     hold on;
     % Plot mean of channels in Blue to see average trend better
