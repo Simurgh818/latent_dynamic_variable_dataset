@@ -1,17 +1,29 @@
 clc; clear;
 % Simulated EEG set
 
+%% Setup Output Folder for PSD Plots
+output_folder = 'PSD_Output';
+if ~exist(output_folder, 'dir')
+    mkdir(output_folder);
+end
+
 % This ensures rand() and randn() produce the same sequence every time.
 rng(42,'twister');
 
 % freq_peak_latents = [2 2.4 8 20 21 32 40 40];
-% freq_peak_latents = [40 40 32 21 20 8 2.4 2];
-freq_peak_latents = [2 5 8 20 21 32 40 40];
+freq_peak_latents = [40 40 32 21 20 8 2.4 2];
+% freq_peak_latents = [2 5 8 20 21 32 40 40];
 
 num_latents = length(freq_peak_latents);
 zeta_latents = 0.15;
 T = 1000;     % Duration, in seconds
 dt = 0.005;   % time step, in seconds
+fs=1/dt;
+% 1 second window = fs samples (since fs is samples per second)
+win_len = 1 * fs;  
+% 50% overlap is standard for Welch
+n_overlap = round(win_len / 2);
+
 all_h_F = zeros(length(freq_peak_latents), T/dt);
 
 for i_fpl= 1:length(freq_peak_latents)
@@ -38,7 +50,24 @@ opts.ExtraColumnsRule = "ignore";
 opts.EmptyLineRule = "read";
 
 % Import the data
-approxeeglocs = readtable("C:/Users/sdabiri/OneDrive - Georgia Institute of Technology/Dr. Sederberg MaTRIX Lab/Shared Code/latent_dynamic_variable_dataset/approx_eeg_locs.csv", opts);
+if exist('H:\', 'dir')
+    input_dir = ['C:' filesep 'Users' filesep 'sinad' filesep ...
+    'OneDrive - Georgia Institute of Technology' filesep ...
+    'Dr. Sederberg MaTRIX Lab' filesep ...
+    'Shared Code'];
+
+elseif exist('G:\', 'dir')
+    input_dir = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
+    'OneDrive - Georgia Institute of Technology' filesep ...
+    'Dr. Sederberg MaTRIX Lab' filesep ...
+    'Shared Code'];
+else
+    error('Unknown system: Cannot determine input and output paths.');
+end
+fullName = "latent_dynamic_variable_dataset/approx_eeg_locs.csv";
+fullName_path = fullfile(input_dir,fullName);
+
+approxeeglocs = readtable(fullName_path, opts);
 
 % Clear temporary variables
 clear opts
@@ -151,6 +180,33 @@ for i_spat = 1:num_spatial_realizations
         "pos_src_locs", "neg_src_locs", "src_widths", "src_pks",...
         "select_comps", "spatial_comps", "gain_par", "bias_par")
     
+    % 2. Calculate PSD
+    [pxx, f_psd] = pwelch(sim_eeg_vals', win_len, n_overlap, [], fs);
+    
+    % 3. Plot Data
+    plot(f_psd, 10*log10(pxx), 'Color', [0.7 0.7 0.7]); % Plot all channels in light grey
+    hold on;
+    % Plot mean of channels in Blue to see average trend better
+    plot(f_psd, mean(10*log10(pxx), 2), 'b', 'LineWidth', 1.5); 
+    
+    % 4. Create and Plot 1/f Reference Line
+    f_valid = f_psd(f_psd > 0); % Exclude 0Hz
+    ref_1of = 1./f_valid;       % The 1/f shape
+    ref_1of_dB = 10*log10(ref_1of);
+    
+    % 5. Align 1/f line to the mean power of the data so it fits on plot
+    offset = mean(10*log10(pxx(2:end,:)), 'all') - mean(ref_1of_dB);
+    
+    plot(f_valid, ref_1of_dB + offset, 'k--', 'LineWidth', 3); % Thick Black Dashed Line
+    
+    title(sprintf('Welch PSD: Set 2 (Linear) - Spat %02d', i_spat));
+    xlabel('Frequency (Hz)');
+    ylabel('Power (dB/Hz)');
+    grid on;
+    xlim([0 100]); % Optional: Zoom in to relevant frequencies if needed
+    
+    saveas(gcf, fullfile(output_folder, sprintf('PSD_Set2_Spat%02d.png', i_spat)));
+
     % Set 3: nonlinear
     % select_comps = [1 2 4 7];
     % wx_vals = spatial_comps(:, select_comps)*all_h_F(select_comps, :);
@@ -195,6 +251,30 @@ for i_spat = 1:num_spatial_realizations
     save(sprintf('simEEG_set4_spat%02d_key.mat', i_spat), "test_sim_eeg_vals", "test_true_hF", ...
         "pos_src_locs", "neg_src_locs", "src_widths", "src_pks", ...
         "select_comps", "spatial_comps", "gain_par", "bias_par")
+    
+    figure('Name', sprintf('PSD Set 4 (Nonlinear) - Spat %d', i_spat));
+    
+    [pxx, f_psd] = pwelch(sim_eeg_vals', win_len, n_overlap, [], fs);
+    
+    plot(f_psd, 10*log10(pxx), 'Color', [0.7 0.7 0.7]);
+    hold on;
+    plot(f_psd, mean(10*log10(pxx), 2), 'b', 'LineWidth', 1.5);
+    
+    % Re-calculate reference (same as above, just ensuring scope)
+    f_valid = f_psd(f_psd > 0);
+    ref_1of = 1./f_valid;
+    ref_1of_dB = 10*log10(ref_1of);
+    offset = mean(10*log10(pxx(2:end,:)), 'all') - mean(ref_1of_dB);
+    
+    plot(f_valid, ref_1of_dB + offset, 'k--', 'LineWidth', 3);
+    
+    title(sprintf('Welch PSD: Set 4 (Nonlinear) - Spat %02d', i_spat));
+    xlabel('Frequency (Hz)');
+    ylabel('Power (dB/Hz)');
+    grid on;
+    xlim([0 100]); 
+    
+    saveas(gcf, fullfile(output_folder, sprintf('PSD_Set4_Spat%02d.png', i_spat)));
 
 end
 %% Parsimonious plots: just show the electrodes, color by component
