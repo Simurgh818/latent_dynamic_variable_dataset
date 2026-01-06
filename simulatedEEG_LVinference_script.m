@@ -90,7 +90,7 @@ if ~exist(output_folder, 'dir')
 end
 
 %% get full component images 
-num_spatial_realizations = 10;
+num_spatial_realizations = 1; % 10
 
 for i_spat = 1:num_spatial_realizations
 
@@ -199,7 +199,7 @@ for i_spat = 1:num_spatial_realizations
     [pxx, f_psd] = pwelch(sim_eeg_vals', win_len, n_overlap, [], fs);
     
     % 3. Plot Data
-    figure();
+    fig1 = figure();
     plot(f_psd, 10*log10(pxx), 'Color', [0.7 0.7 0.7]); % Plot all channels in light grey
     hold on;
     % Plot mean of channels in Blue to see average trend better
@@ -219,8 +219,8 @@ for i_spat = 1:num_spatial_realizations
     xlabel('Frequency (Hz)');
     ylabel('Power (dB/Hz)');
     grid on;
-    xlim([0 100]); % Optional: Zoom in to relevant frequencies if needed
-    
+    xlim([0 50]); % Optional: Zoom in to relevant frequencies if needed
+    set(findall(fig1,'-property','FontSize'),'FontSize',16);
     saveas(gcf, fullfile(output_folder, sprintf('PSD_Set2_Spat%02d.png', i_spat)));
 
     % Set 3: nonlinear
@@ -268,7 +268,7 @@ for i_spat = 1:num_spatial_realizations
         "pos_src_locs", "neg_src_locs", "src_widths", "src_pks", ...
         "select_comps", "spatial_comps", "gain_par", "bias_par")
     
-    figure('Name', sprintf('PSD Set 4 (Nonlinear) - Spat %d', i_spat));
+    fig2 = figure('Name', sprintf('PSD Set 4 (Nonlinear) - Spat %d', i_spat));
     
     [pxx, f_psd] = pwelch(sim_eeg_vals', win_len, n_overlap, [], fs);
     
@@ -288,8 +288,8 @@ for i_spat = 1:num_spatial_realizations
     xlabel('Frequency (Hz)');
     ylabel('Power (dB/Hz)');
     grid on;
-    xlim([0 100]); 
-    
+    xlim([0 50]); 
+    set(findall(fig2,'-property','FontSize'),'FontSize',16);
     saveas(gcf, fullfile(output_folder, sprintf('PSD_Set4_Spat%02d.png', i_spat)));
 
 end
