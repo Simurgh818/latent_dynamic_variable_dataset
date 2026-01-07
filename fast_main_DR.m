@@ -34,7 +34,7 @@ end
 
 conditions = { 'set4'};          %'set2', linear, nonlinear
 nDatasets  = 2; % 10
-k_range    = 1:10; %
+k_range    = 6:7; %
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
@@ -321,7 +321,7 @@ for c = 1:numel(conditions)
 end
 
 
-fig_cmp = figure;
+% fig_cmp = figure;
 % hold on;
 % for m = 1:numel(methods)
 %     method = methods{m};

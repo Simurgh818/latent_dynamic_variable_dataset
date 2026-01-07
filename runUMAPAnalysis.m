@@ -23,9 +23,15 @@ file_suffix = sprintf('_n%d_dist%.1f_k%d', n_neighbors, min_dist, num_sig_compon
 h_f_colors = lines(param.N_F);
 
 %% 3. Prepare Data (Transpose to Time x Neurons)
-eeg_train = double(s_train)';     
-eeg_test  = double(s_test)';      
+% eeg_train = double(s_train)';     
+% eeg_test  = double(s_test)'; 
 
+% ToDO: changing the shape to promote learning across time
+eeg_train = double([s_train(:, 1:end-1) ; s_train(:, 2:end)])';
+eeg_test = double([s_test(:, 1:end-1) ; s_test(:, 2:end)])';
+% fix h_test and h_train size 
+h_train = h_train(1:end-1,:);
+h_test = h_test(1:end-1,:);
 rng(42,'twister');
 %% 4. Run UMAP (Train) & Transform (Test)
 disp(['Running UMAP (k=' num2str(num_sig_components) ') on Training Set...']);
@@ -81,8 +87,6 @@ try
         ... % 'init', init_coords_test, ...
         'check_duplicates', false, ...       % FIX ADDED
         'plot_output', 'none');              % FIX ADDED
-
-
 catch
     warning('Could not project test data via template. Running UMAP independently on Test.');
     umap_test_raw = run_umap(eeg_test, ...
@@ -178,7 +182,29 @@ if isempty(getCurrentTask())
     set(findall(fig1,'-property','FontSize'),'FontSize',16);
     saveas(fig1, fullfile(method_dir, ['UMAP_Embedding' file_suffix '.png']));
     
+    %% Plot 1.1: UMAP Dim 1 vs. Dim 2 colored by Intensity of each latent variable
+    %  plot UMAP dim 1 vs. dim 2 for each latent variable 
+    n_latents = size(h_train, 2);
+    fig11 = figure('Position', [100, 100, 1400, 800]);
     
+    % Create a layout: one tile for each Latent Variable
+    t = tiledlayout(ceil(n_latents/4), 4, 'TileSpacing', 'compact', 'Padding', 'compact');
+    
+    for i = 1:n_latents
+        nexttile;
+        % We color by the i-th column of your h_f matrix
+        scatter(umap_train_raw(:,1), umap_train_raw(:,2), 15, h_train(:,i), 'filled');
+        r2= round(R2_test_curve(end,i),2);
+        title(['Latent Variable ' num2str(i), ', R^2= ' num2str(r2)]); % Or use a name like "Freq 12Hz"
+        xlabel('UMAP 1'); ylabel('UMAP 2');
+        colormap(turbo); 
+        colorbar; % Shows the scale of the latent value
+        clim([-4 4]); % Set the colorbar range from -4 to 4
+        axis square; grid on;
+    end
+    
+    title(t, 'UMAP colored by Intensity of each Latent Variable', 'FontSize', 16);
+    saveas(fig11, fullfile(method_dir, ['UMAP_Embedding_perLatentVariable' file_suffix '.png']));
     %% Plot 2: Time Domain Reconstruction (Test Set)
     % Zero-lag correlation
     Z_true = h_test; 

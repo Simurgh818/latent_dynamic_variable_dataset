@@ -56,6 +56,9 @@ if exist('H:\', 'dir')
     'Dr. Sederberg MaTRIX Lab' filesep ...
     'Shared Code' filesep 'simEEG'];
 
+    realEEG_path = ['H:\' filesep 'My Drive' filesep 'Data' ...
+        filesep 'New Data' filesep 'EEG epoched' filesep 'BLA'];
+
 elseif exist('G:\', 'dir')
     input_dir = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
@@ -66,6 +69,9 @@ elseif exist('G:\', 'dir')
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
     'Shared Code' filesep 'simEEG'];
+
+    realEEG_path = ['G:\' filesep 'My Drive' filesep 'Data' ...
+        filesep 'New Data' filesep 'EEG epoched' filesep 'BLA'];
 else
     error('Unknown system: Cannot determine input and output paths.');
 end
@@ -200,26 +206,29 @@ for i_spat = 1:num_spatial_realizations
     
     % 3. Plot Data
     fig1 = figure();
-    plot(f_psd, 10*log10(pxx), 'Color', [0.7 0.7 0.7]); % Plot all channels in light grey
+    loglog(f_psd, pxx, 'Color', [0.7 0.7 0.7],'HandleVisibility', 'off'); % Plot mean of channels in light grey
     hold on;
     % Plot mean of channels in Blue to see average trend better
-    plot(f_psd, mean(10*log10(pxx), 2), 'b', 'LineWidth', 1.5); 
+    loglog(f_psd, mean(pxx, 2), 'b', 'LineWidth', 1.5,'DisplayName','Mean channels power'); 
     
     % 4. Create and Plot 1/f Reference Line
     f_valid = f_psd(f_psd > 0); % Exclude 0Hz
     ref_1of = 1./f_valid;       % The 1/f shape
-    ref_1of_dB = 10*log10(ref_1of);
+    % ref_1of_dB = ref_1of;
     
     % 5. Align 1/f line to the mean power of the data so it fits on plot
-    offset = mean(10*log10(pxx(2:end,:)), 'all') - mean(ref_1of_dB);
+    avg_data_power = mean(pxx(2:end, :), 'all');
+    avg_ref_power = mean(ref_1of);
+    scaling_factor = avg_data_power / avg_ref_power;
     
-    plot(f_valid, ref_1of_dB + offset, 'k--', 'LineWidth', 3); % Thick Black Dashed Line
+    loglog(f_valid, ref_1of * scaling_factor, 'k--', 'LineWidth', 3,'DisplayName','1/f'); % Thick Black Dashed Line
     
     title(sprintf('Welch PSD: Set 2 (Linear) - Spat %02d', i_spat));
     xlabel('Frequency (Hz)');
-    ylabel('Power (dB/Hz)');
+    ylabel('Power (uV/Hz)');
     grid on;
-    xlim([0 50]); % Optional: Zoom in to relevant frequencies if needed
+    xlim([f_psd(2) 50]); % Optional: Zoom in to relevant frequencies if needed
+    legend('Location','northeast');
     set(findall(fig1,'-property','FontSize'),'FontSize',16);
     saveas(gcf, fullfile(output_folder, sprintf('PSD_Set2_Spat%02d.png', i_spat)));
 
@@ -272,27 +281,55 @@ for i_spat = 1:num_spatial_realizations
     
     [pxx, f_psd] = pwelch(sim_eeg_vals', win_len, n_overlap, [], fs);
     
-    plot(f_psd, 10*log10(pxx), 'Color', [0.7 0.7 0.7]);
+    loglog(f_psd, pxx, 'Color', [0.7 0.7 0.7], 'HandleVisibility', 'off'); 
     hold on;
-    plot(f_psd, mean(10*log10(pxx), 2), 'b', 'LineWidth', 1.5);
+    
+    % 2. Plot Mean Power
+    loglog(f_psd, mean(pxx, 2), 'b', 'LineWidth', 1.5, 'DisplayName', 'Mean Power');
     
     % Re-calculate reference (same as above, just ensuring scope)
     f_valid = f_psd(f_psd > 0);
     ref_1of = 1./f_valid;
-    ref_1of_dB = 10*log10(ref_1of);
-    offset = mean(10*log10(pxx(2:end,:)), 'all') - mean(ref_1of_dB);
+    % ref_1of_dB = 10*log10(ref_1of);
+    % offset = mean(10*log10(pxx(2:end,:)), 'all') - mean(ref_1of_dB);
     
-    plot(f_valid, ref_1of_dB + offset, 'k--', 'LineWidth', 3);
+    avg_data_power = mean(pxx(2:end, :), 'all');
+    avg_ref_power = mean(ref_1of);
+    scaling_factor = avg_data_power / avg_ref_power;
+    
+    % Plot reference multiplied by the scaling factor
+    loglog(f_valid, ref_1of * scaling_factor, 'k--', 'LineWidth', 3, 'DisplayName', '1/f Reference');
     
     title(sprintf('Welch PSD: Set 4 (Nonlinear) - Spat %02d', i_spat));
     xlabel('Frequency (Hz)');
-    ylabel('Power (dB/Hz)');
+    ylabel('Power (uV/Hz)');
     grid on;
-    xlim([0 50]); 
+    xlim([f_psd(2) 50]); 
+    legend('Location','northeast');
     set(findall(fig2,'-property','FontSize'),'FontSize',16);
     saveas(gcf, fullfile(output_folder, sprintf('PSD_Set4_Spat%02d.png', i_spat)));
 
 end
+%% Real EEG comparison
+
+EEG = eeg_emptyset();
+EEG.data   = double(s_eeg_ds);
+EEG.nbchan = size(EEG.data, 1);   % number of "channels" = neurons
+EEG.pnts   = size(EEG.data, 2);   % number of time points
+EEG.trials = 1;                   % continuous data
+EEG.srate  = fs;                 % arbitrary sample rate (adjust if needed)
+EEG.xmin   = 0;
+
+% Assign channel locations (example for 32-channel cap)
+% Load your real EEG dataset
+EEG_real = pop_loadset('filename', 'binepochs filtered ICArej BLAAvgBOS2.set', ...
+                       'filepath', 'G:\My Drive\Data\New Data\EEG epoched\BLA\');
+% Copy channel location info to your simulated EEG
+EEG.chanlocs = EEG_real.chanlocs;
+EEG.times = (0:EEG.pnts-1) / EEG.srate * 1000; % in milliseconds
+EEG = eeg_checkset(EEG);
+
+
 %% Parsimonious plots: just show the electrodes, color by component
 t_range = 1:500;
 makeMyFigure(20, 15);
