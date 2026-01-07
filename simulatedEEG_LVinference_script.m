@@ -321,15 +321,53 @@ EEG.srate  = fs;                 % arbitrary sample rate (adjust if needed)
 EEG.xmin   = 0;
 
 % Assign channel locations (example for 32-channel cap)
-% Load your real EEG dataset
+%% Load your real EEG dataset
+
 EEG_real = pop_loadset('filename', 'binepochs filtered ICArej BLAAvgBOS2.set', ...
-                       'filepath', 'G:\My Drive\Data\New Data\EEG epoched\BLA\');
+                       'filepath', realEEG_path);
+%% 
 % Copy channel location info to your simulated EEG
 EEG.chanlocs = EEG_real.chanlocs;
 EEG.times = (0:EEG.pnts-1) / EEG.srate * 1000; % in milliseconds
 EEG = eeg_checkset(EEG);
+epoch_trials = 1:2:EEG_real.trials;
+EEG.data = EEG_real.data(:,:,epoch_trials);
+eeg_vals = reshape(EEG.data,size(EEG.data,1),size(EEG.data,2)*size(EEG.data,3));
+ %% 
+ % 2. Calculate PSD
+ fs_real = EEG_real.srate;
+ win_len_rEEG = fs_real;
+ n_overlap_rEEG = win_len_rEEG/2;
+[pxx_rEEG, f_psd_rEEG] = pwelch(eeg_vals', win_len_rEEG, n_overlap_rEEG, [], fs_real);
 
 
+% 3. Plot Data
+fig1 = figure();
+% nexttile;
+loglog(f_psd_rEEG, pxx_rEEG, 'Color', [0.7 0.7 0.7],'HandleVisibility', 'off'); % Plot mean of channels in light grey
+hold on;
+% Plot mean of channels in Blue to see average trend better
+loglog(f_psd_rEEG, mean(pxx_rEEG, 2), 'b', 'LineWidth', 1.5,'DisplayName','Mean channels power'); 
+
+% 4. Create and Plot 1/f Reference Line
+f_valid_rEEG = f_psd_rEEG(f_psd_rEEG > 0); % Exclude 0Hz
+ref_1of_rEEG = 1./f_valid_rEEG;       % The 1/f shape
+% ref_1of_dB = ref_1of;
+
+% 5. Align 1/f line to the mean power of the data so it fits on plot
+avg_data_power_rEEG = mean(pxx_rEEG(2:end, :), 'all');
+avg_ref_power_rEEG = mean(ref_1of_rEEG);
+scaling_factor_rEEG = avg_data_power_rEEG / avg_ref_power_rEEG;
+
+loglog(f_valid_rEEG, ref_1of_rEEG * scaling_factor_rEEG, 'k--', 'LineWidth', 3,'DisplayName','1/f'); % Thick Black Dashed Line
+
+title(sprintf('Welch PSD: BLA Subject BOS2'));
+xlabel('Frequency (Hz)');
+ylabel('Power (uV/Hz)');
+grid on;
+xlim([f_psd_rEEG(2) 50]); % Optional: Zoom in to relevant frequencies if needed
+legend('Location','northeast');
+set(findall(fig1,'-property','FontSize'),'FontSize',16);
 %% Parsimonious plots: just show the electrodes, color by component
 t_range = 1:500;
 makeMyFigure(20, 15);

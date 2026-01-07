@@ -390,8 +390,8 @@ end
 
 
 % Save
-cmp_name = fullfile(local_results_dir, 'CrossMethod_Corr_vs_Frequency.png');
-saveas(fig_cmp, cmp_name);
+% cmp_name = fullfile(local_results_dir, 'CrossMethod_Corr_vs_Frequency.png');
+% saveas(fig_cmp, cmp_name);
 % close(fig_cmp);
 
 CORR_ALL = struct();
