@@ -179,7 +179,7 @@ for c = 1:numel(conditions)
                     case 'UMAP'
                         % Note: Java properties should ideally be set outside parfor, 
                         % but some workers might need it reset.
-                        n_neighbors = 10; min_dist = 0.1;
+                        n_neighbors = 199; min_dist = 0.1;
                         [current_R2, current_MSE, outUMAP] = runUMAPAnalysis( ...
                             n_neighbors, min_dist, eeg_train, eeg_test, local_param, ...
                             H_train, H_test, k, local_param.fs, local_results_dir);
