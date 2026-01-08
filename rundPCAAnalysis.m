@@ -52,7 +52,8 @@ MSE_dpca = zeros(num_sig_components, num_f);
 for idx = 1:num_sig_components
     for f = 1:num_f
         % lsqlin fit: Z_dpca_T(:,1:idx) -> h_f
-        w = lsqlin(Z_dpca_T(:,1:idx), h_f_normalized_ds(:,f));
+        % w = lsqlin(Z_dpca_T(:,1:idx), h_f_normalized_ds(:,f));
+        w = Z_dpca_T(:,1:idx)\ h_f_normalized_ds(:,f);
         % reconstruction
         h_f_recon_dpca(:,f) = Z_dpca_T(:,1:idx) * w;
         % normalize reconstructed latent

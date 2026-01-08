@@ -38,23 +38,48 @@ end
 
 % Run ICA with PCA reduction
 try
-    EEG = pop_runica(EEG,'extended', 1, 'pca', pca_dim, 'interrupt','off', 'verbose', 'off'); 
-catch
-    warning('Extended ICA failed or not found, trying "runica" default');
-    EEG = pop_runica(EEG, 'pca', pca_dim, 'interrupt','off', 'verbose', 'off'); 
+    % EEG = pop_runica(EEG,'extended', 1, 'pca', pca_dim, 'interrupt','off', 'verbose', 'off'); 
+    % FastICA expects (Channels x Time)
+    % 'lastEig': performs PCA reduction before ICA
+    % 'approach': 'symm' is generally faster and more robust than 'defl'
+    % 'g': 'tanh' is a good general purpose non-linearity
+    [icasig, A, W] = fastica(eeg_train, ...
+        'numOfIC', num_comps, ...
+        'lastEig', num_comps, ...
+        'verbose', 'off', ...
+        'displayMode', 'off', ...
+        'approach', 'symm', ...
+        'g', 'tanh');
+
+    % icasig is (Components x Time) -> Transpose to (Time x Comp)
+    icasig_train = icasig';
+
+    % Project Test Data
+    % FastICA mapping: Source = W * X
+    % We apply the same W to the test data
+    icasig_test = (W * eeg_test)'; % (Time x Comp)
+catch % ME
+    % warning('Extended ICA failed or not found, trying "runica" default');
+    % EEG = pop_runica(EEG, 'pca', pca_dim, 'interrupt','off', 'verbose', 'off'); 
+    fprintf('FastICA failed or not installed. Falling back to MATLAB "rica". Error: %s \n', ME.message);
+    % Error handling for FastICA failure
+    % Fallback: MATLAB Statistics Toolbox "rica"
+    Mdl = rica(eeg_train', num_comps); % rica expects (Time x Channels)
+    icasig_train = transform(Mdl, eeg_train');
+    icasig_test  = transform(Mdl, eeg_test');
 end
 
-% Get Activations (Time x Components)
-icasig_train = double(EEG.icaact)';   
-
-% Project Test Data
-if ~isempty(EEG.icaweights)
-    % Unmixing matrix * Sphere * Data
-    icasig_test = EEG.icaweights * EEG.icasphere * eeg_test;
-    icasig_test = real(icasig_test)';     % Time x Components
-else
-    icasig_test = zeros(size(eeg_test,2), pca_dim); 
-end
+% % Get Activations (Time x Components)
+% icasig_train = double(EEG.icaact)';   
+% 
+% % Project Test Data
+% if ~isempty(EEG.icaweights)
+%     % Unmixing matrix * Sphere * Data
+%     icasig_test = EEG.icaweights * EEG.icasphere * eeg_test;
+%     icasig_test = real(icasig_test)';     % Time x Components
+% else
+%     icasig_test = zeros(size(eeg_test,2), pca_dim); 
+% end
 
 % Mapping components to latents
 C = icasig_train;   % dPCA gives nComp x T → transpose to T x nComp
@@ -67,15 +92,25 @@ H = h_train(1:size(C,1), :);
 % We want to map the K independent components to the N_F latent fields.
 % Using ALL k components available to reconstruct the latent variables.
 
-% Learn weights W such that: ICs_train * W ≈ H_train
-W_ica = zeros(pca_dim, param.N_F);
-for f = 1:param.N_F
-    W_ica(:,f) = lsqlin(icasig_train, h_train(:,f), [], [], [], [], [], [], [], ...
-                 optimoptions('lsqlin','Display','off'));
-end
+% % Learn weights W such that: ICs_train * W ≈ H_train
+% W_ica = zeros(pca_dim, param.N_F);
+% for f = 1:param.N_F
+%     W_ica(:,f) = lsqlin(icasig_train, h_train(:,f), [], [], [], [], [], [], [], ...
+%                  optimoptions('lsqlin','Display','off'));
+% end
+% 
+% % Reconstruct Test Data: ICs_test * W
+% h_rec_test = icasig_test * W_ica;
 
-% Reconstruct Test Data: ICs_test * W
-h_rec_test = icasig_test * W_ica;
+% OLD WAY (Slow): lsqlin loop
+% NEW WAY (Fast): Matrix Left Division (\)
+% We solve: icasig_train * W_map = h_train
+% W_map = icasig_train \ h_train;
+
+W_map = icasig_train \ h_train;
+
+% Reconstruct Test Data
+h_rec_test = icasig_test * W_map;
 
 % Calculate Metrics
 R2_test_global = zeros(1, param.N_F); 
@@ -154,7 +189,7 @@ end
 % ============================================================
 if isempty(getCurrentTask())
 
-    %% Plot 1: Time Domain + Zero Lag Corr
+    % Plot 1: Time Domain + Zero Lag Corr
     fig1 = figure('Position',[50 50 1200 150*param.N_F]);
     tiledlayout(param.N_F, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
     sgtitle(['ICA (k=' num2str(num_comps) ') Latent variables Z(t) and $\hat{z}(t)$'], 'Interpreter','latex');

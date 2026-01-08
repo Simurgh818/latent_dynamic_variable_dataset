@@ -61,8 +61,8 @@ recon_R2_test  = zeros(1,param.N_F);
 
 for f = 1:param.N_F
     % Linear mapping from bottleneck -> latent variable
-    w = lsqlin(Z_train_c, H_train(:,f));
-    
+    % w = lsqlin(Z_train_c, H_train(:,f));
+    w = Z_train_c \ H_train(:,f);
     % Reconstruct
     H_recon_train(:,f) = Z_train_c * w;
     H_recon_test(:,f)  = Z_test_c * w;

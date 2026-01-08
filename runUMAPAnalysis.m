@@ -123,11 +123,11 @@ disp('Calculating Reconstruction Metrics...');
 % Solve W such that: UMAP_train * W = H_train using all current components
 % We use lsqlin or simple pinv. lsqlin is safer for regularization.
 
-W_k = zeros(umap_calc_components,param.N_F);
-for f = 1:param.N_F
-    W_k(:,f) = lsqlin(umap_test_raw, h_test(:,f));
-end
-
+% W_k = zeros(umap_calc_components,param.N_F);
+% for f = 1:param.N_F
+%     W_k(:,f) = lsqlin(umap_test_raw, h_test(:,f));
+% end
+W_k = umap_test_raw \ h_test;
 % 2. Apply Map to Test: UMAP_test * W -> H_rec_test
 h_rec_test_final = umap_test_raw * W_k;
 
@@ -218,8 +218,8 @@ if isempty(getCurrentTask())
     
     fig2 = figure('Position',[50 50 1200 150*param.N_F]);
     tiledlayout(param.N_F, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-    sgtitle(['UMAP (Test Set, k=' num2str(num_sig_components) ') Latent variables Z(t) and $\hat{Z}$(t)' ])
-    
+    sgtitle(sprintf('UMAP (Test Set, k=%d) Latent variables $Z(t)$ and $\\hat{Z}(t)$', ...
+            num_sig_components), 'Interpreter', 'latex')
     for f=1:param.N_F
         nexttile; hold on;
         set(gca, 'XColor', 'none', 'YColor', 'none'); box on
