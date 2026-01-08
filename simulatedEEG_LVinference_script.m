@@ -6,8 +6,8 @@ clc; clear;
 rng(42,'twister');
 
 % freq_peak_latents = [2 2.4 8 20 21 32 40 40];
-freq_peak_latents = [40 40 32 21 20 8 2.4 2];
-% freq_peak_latents = [2 5 8 20 21 32 40 40];
+% freq_peak_latents = [40 40 32 21 20 8 2.4 2];
+freq_peak_latents = [2 5 10 13 20 25 30 50];
 
 num_latents = length(freq_peak_latents);
 zeta_latents = 0.15;
@@ -96,7 +96,7 @@ if ~exist(output_folder, 'dir')
 end
 
 %% get full component images 
-num_spatial_realizations = 1; % 10
+num_spatial_realizations = 10; % 10
 
 for i_spat = 1:num_spatial_realizations
 
@@ -128,7 +128,8 @@ for i_spat = 1:num_spatial_realizations
         nexttile
         imagesc(comp_mask)
     end
-    save(sprintf('source_params%02d_key.mat', i_spat), 'src_pks', 'src_widths', 'eeg_loc_y', 'eeg_loc_x', ...
+    file_out_path = fullfile(output_dir,sprintf('source_params%02d_key.mat', i_spat));
+    save(file_out_path, 'src_pks', 'src_widths', 'eeg_loc_y', 'eeg_loc_x', ...
         'all_comp_masks', 'freq_peak_latents', 'zeta_latents')
     
     % now sample spatial filters at EEG locations
@@ -193,11 +194,13 @@ for i_spat = 1:num_spatial_realizations
     test_sim_eeg_vals = sim_eeg_vals(:, 150000:end);
     train_true_hF = all_h_F(:, train_t_range);
     test_true_hF = all_h_F(:, test_t_range);
+
+    file_out_path = fullfile(output_dir,sprintf('simEEG_set2_spat%02d.mat', i_spat));
+
+    save(file_out_path, "train_sim_eeg_vals", "train_true_hF", "test_sim_eeg_vals", "dt")
     
-    save(sprintf('simEEG_set2_spat%02d.mat', i_spat), "train_sim_eeg_vals", ...
-        "train_true_hF", "test_sim_eeg_vals", "dt")
-    
-    save(sprintf('simEEG_set2_spat%02d_key.mat', i_spat), "test_sim_eeg_vals", "test_true_hF", ...
+    file_out_path_key = fullfile(output_dir, sprintf('simEEG_set2_spat%02d_key.mat', i_spat)); 
+    save(file_out_path_key, "test_sim_eeg_vals", "test_true_hF", ...
         "pos_src_locs", "neg_src_locs", "src_widths", "src_pks",...
         "select_comps", "spatial_comps", "gain_par", "bias_par")
     
@@ -269,11 +272,12 @@ for i_spat = 1:num_spatial_realizations
     test_sim_eeg_vals = sim_eeg_vals(:, 150000:end);
     train_true_hF = all_h_F(:, train_t_range);
     test_true_hF = all_h_F(:, test_t_range);
-    
-    save(sprintf('simEEG_set4_spat%02d.mat', i_spat), "train_sim_eeg_vals", ...
+
+    file_out_path = fullfile(output_dir, sprintf('simEEG_set42_spat%02d.mat', i_spat)); 
+    save(file_out_path, "train_sim_eeg_vals", ...
         "train_true_hF", "test_sim_eeg_vals", "dt")
-    
-    save(sprintf('simEEG_set4_spat%02d_key.mat', i_spat), "test_sim_eeg_vals", "test_true_hF", ...
+    file_out_path_key = fullfile(output_dir, sprintf('simEEG_set4_spat%02d_key.mat', i_spat)); 
+    save(file_out_path_key, "test_sim_eeg_vals", "test_true_hF", ...
         "pos_src_locs", "neg_src_locs", "src_widths", "src_pks", ...
         "select_comps", "spatial_comps", "gain_par", "bias_par")
     
@@ -313,7 +317,6 @@ end
 %% Real EEG comparison
 
 EEG = eeg_emptyset();
-EEG.data   = double(s_eeg_ds);
 EEG.nbchan = size(EEG.data, 1);   % number of "channels" = neurons
 EEG.pnts   = size(EEG.data, 2);   % number of time points
 EEG.trials = 1;                   % continuous data

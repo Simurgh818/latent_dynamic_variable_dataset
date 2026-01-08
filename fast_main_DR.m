@@ -33,24 +33,24 @@ end
 %% Loop through experiments
 
 conditions = { 'set4'};          %'set2', linear, nonlinear
-nDatasets  = 1; % 10
-k_range    = 7:7; %
+nDatasets  = 2; % 10
+k_range    = 6:7; %
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'AE'}; % 'PCA','dPCA', 'ICA', 'UMAP',
+methods = {'PCA','dPCA', 'ICA', 'AE'}; % 'UMAP',
 
 EXP = struct();
 param = struct();
-param.f_peak = round([2 2.4 8 20 21 32 40 40], 1);
+param.f_peak = round([2 5 10 13 20 25 30 50], 1);
 
 f = param.f_peak(:);
 [f_sorted, f_sortIdx] = sort(f, 'ascend');
 
-% % Check if pool is open
-% if isempty(gcp('nocreate'))
-%     parpool;
-% end
+% Check if pool is open
+if isempty(gcp('nocreate'))
+    parpool;
+end
 
 %% Loop through experiments
 for c = 1:numel(conditions)
@@ -63,7 +63,7 @@ for c = 1:numel(conditions)
     % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
-    for d = 1:nDatasets
+    parfor d = 1:nDatasets
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         
         % --- 1. Load Data (Local to Worker) ---
