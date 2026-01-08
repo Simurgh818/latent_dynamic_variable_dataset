@@ -33,12 +33,12 @@ end
 %% Loop through experiments
 
 conditions = { 'set4'};          %'set2', linear, nonlinear
-nDatasets  = 2; % 10
-k_range    = 6:7; %
+nDatasets  = 5; % 10
+k_range    = 1:10; %
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA','dPCA', 'ICA', 'AE'}; % 'UMAP',
+methods = {'UMAP','PCA','dPCA', 'ICA', 'AE'}; % 
 
 EXP = struct();
 param = struct();
