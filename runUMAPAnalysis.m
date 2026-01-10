@@ -204,6 +204,7 @@ if isempty(getCurrentTask())
     end
     
     title(t, 'UMAP colored by Intensity of each Latent Variable', 'FontSize', 16);
+    set(findall(fig1,'-property','FontSize'),'FontSize',16);
     saveas(fig11, fullfile(method_dir, ['UMAP_Embedding_perLatentVariable' file_suffix '.png']));
     %% Plot 2: Time Domain Reconstruction (Test Set)
     % Zero-lag correlation

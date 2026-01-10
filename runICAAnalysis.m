@@ -58,7 +58,7 @@ try
     % FastICA mapping: Source = W * X
     % We apply the same W to the test data
     icasig_test = (W * eeg_test)'; % (Time x Comp)
-catch % ME
+catch ME
     % warning('Extended ICA failed or not found, trying "runica" default');
     % EEG = pop_runica(EEG, 'pca', pca_dim, 'interrupt','off', 'verbose', 'off'); 
     fprintf('FastICA failed or not installed. Falling back to MATLAB "rica". Error: %s \n', ME.message);

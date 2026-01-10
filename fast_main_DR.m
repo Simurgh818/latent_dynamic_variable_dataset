@@ -48,9 +48,9 @@ f = param.f_peak(:);
 [f_sorted, f_sortIdx] = sort(f, 'ascend');
 
 % Check if pool is open
-if isempty(gcp('nocreate'))
-    parpool;
-end
+% if isempty(gcp('nocreate'))
+%     parpool;
+% end
 
 %% Loop through experiments
 for c = 1:numel(conditions)
@@ -63,7 +63,7 @@ for c = 1:numel(conditions)
     % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
-    parfor d = 1:nDatasets
+    for d = 1:nDatasets
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         
         % --- 1. Load Data (Local to Worker) ---
