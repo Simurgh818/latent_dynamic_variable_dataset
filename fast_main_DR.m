@@ -47,10 +47,17 @@ param.f_peak = round([2 5 10 13 20 25 30 50], 1);
 f = param.f_peak(:);
 [f_sorted, f_sortIdx] = sort(f, 'ascend');
 
-% Check if pool is open
-% if isempty(gcp('nocreate'))
-%     parpool;
-% end
+% Best practice: Leave 1-2 cores free for the OS/Main Thread.
+% For a 7-core system, 5 workers is a safe, high-performance choice.
+target_workers = 5; 
+current_pool = gcp('nocreate');
+
+if isempty(current_pool)
+    parpool(target_workers);
+elseif current_pool.NumWorkers ~= target_workers
+    delete(current_pool);
+    parpool(target_workers);
+end
 
 %% Loop through experiments
 for c = 1:numel(conditions)
