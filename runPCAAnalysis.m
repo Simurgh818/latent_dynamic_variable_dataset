@@ -1,4 +1,4 @@
-function [R2_test, MSE_test, outPCA] = runPCAAnalysis(eeg_train, eeg_test, h_train, h_test, param, num_sig_components, fs_new, method_dir)
+function [R2_test, MSE_test, outPCA] = runPCAAnalysis(eeg_train, eeg_test, h_train, h_test, param, num_sig_components, method_dir)
 % runPCAAnalysis Performs PCA, reconstruction, and extensive performance analysis
 %
 % Inputs:
@@ -6,7 +6,6 @@ function [R2_test, MSE_test, outPCA] = runPCAAnalysis(eeg_train, eeg_test, h_tra
 %   h_train, h_test     : True latent fields (Time x F)
 %   param               : Structure with fields (e.g., .N_F, .f_peak)
 %   num_sig_components  : Number of components to use for detailed reconstruction plots
-%   fs_new              : Sampling frequency (Hz)
 %   results_dir         : Directory string to save results
 %
 % Outputs:
@@ -92,6 +91,7 @@ end
 %% 5. Frequency Analysis (FFT Calculation)
 N = size(h_train, 1);
 trial_dur = 1; 
+fs_new = param.fs;
 L = round(trial_dur * fs_new);
 nTrials = floor(N/L);
 f_freq = (0:L-1)*(fs_new/L);
@@ -141,38 +141,38 @@ end
 % ============================================================
 if isempty(getCurrentTask())
 
-    fig1 = figure('Position',[50 50 1200 150*size(h_train,2)]);
-    tiledlayout(size(h_train,2), 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-    sgtitle(['PCA (k=' num2str(num_sig_components) '): Latent variables Z(t) vs $\hat{z}$(t)'], 'Interpreter','latex');
-    
-    for f = 1:size(h_train,2)
-        nexttile; hold on;
-        set(gca, 'XColor', 'none', 'YColor', 'none'); box on;
-        plot(h_train(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :), 'DisplayName', [sprintf('Z_{%s}', num2str(param.f_peak(f))) ' (true)']);
-        plot(h_recon_final(:, f), 'LineStyle', '--','LineWidth',1,'Color', 'k', 'DisplayName', [sprintf('Z_{%s}', num2str(param.f_peak(f))) ' (recon)']);
-        ylabel('amplitude');
-        xlim([0 fs_new*2]); 
-        legend('Show','Location','eastoutside');
-        
-        rho = zeroLagCorr_pca(f);
-        text(0.02 * fs_new, 0.7 * max(h_train(:,f)), sprintf('\\rho(0)=%.2f', rho), ...
-            'FontSize', 12, 'FontWeight', 'bold', 'BackgroundColor', 'w', 'EdgeColor','k');
-        hold off;
-        
-    end
-    % scale bars (draw on last axis)
-    ax = gca;
-    hold(ax,'on');
-    x0 = 0;
-    y0 = min(ylim)+0.2;
-    line([x0 x0+param.fs], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-    text(x0+param.fs, y0-0.1, '1 sec', 'VerticalAlignment','top');
-    line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-    text(x0-5, y0+4, '2 a.u.', 'VerticalAlignment','bottom', ...
-        'HorizontalAlignment','right','Rotation',90);
-    set(findall(fig1,'-property','FontSize'),'FontSize',16);
-    saveas(fig1, fullfile(method_dir, ['PCA_Trace_Reconstruction' file_suffix '.png']));
-    
+    % fig1 = figure('Position',[50 50 1200 150*size(h_train,2)]);
+    % tiledlayout(size(h_train,2), 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+    % sgtitle(['PCA (k=' num2str(num_sig_components) '): Latent variables Z(t) vs $\hat{z}$(t)'], 'Interpreter','latex');
+    % 
+    % for f = 1:size(h_train,2)
+    %     nexttile; hold on;
+    %     set(gca, 'XColor', 'none', 'YColor', 'none'); box on;
+    %     plot(h_train(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :), 'DisplayName', [sprintf('Z_{%s}', num2str(param.f_peak(f))) ' (true)']);
+    %     plot(h_recon_final(:, f), 'LineStyle', '--','LineWidth',1,'Color', 'k', 'DisplayName', [sprintf('Z_{%s}', num2str(param.f_peak(f))) ' (recon)']);
+    %     ylabel('amplitude');
+    %     xlim([0 fs_new*2]); 
+    %     legend('Show','Location','eastoutside');
+    % 
+    %     rho = zeroLagCorr_pca(f);
+    %     text(0.02 * fs_new, 0.7 * max(h_train(:,f)), sprintf('\\rho(0)=%.2f', rho), ...
+    %         'FontSize', 12, 'FontWeight', 'bold', 'BackgroundColor', 'w', 'EdgeColor','k');
+    %     hold off;
+    % 
+    % end
+    % % scale bars (draw on last axis)
+    % ax = gca;
+    % hold(ax,'on');
+    % x0 = 0;
+    % y0 = min(ylim)+0.2;
+    % line([x0 x0+param.fs], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+    % text(x0+param.fs, y0-0.1, '1 sec', 'VerticalAlignment','top');
+    % line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+    % text(x0-5, y0+4, '2 a.u.', 'VerticalAlignment','bottom', ...
+    %     'HorizontalAlignment','right','Rotation',90);
+    % set(findall(fig1,'-property','FontSize'),'FontSize',16);
+    % saveas(fig1, fullfile(method_dir, ['PCA_Trace_Reconstruction' file_suffix '.png']));
+    plotTimeDomainReconstruction(h_test, h_recon_test, param, 'PCA', k, zeroLagCorr_pca, method_dir);
     
     %% Plot 2: PC Traces
     if num_sig_components <= param.N_F

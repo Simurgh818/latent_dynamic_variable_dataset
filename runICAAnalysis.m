@@ -190,41 +190,41 @@ end
 if isempty(getCurrentTask())
 
     % Plot 1: Time Domain + Zero Lag Corr
-    fig1 = figure('Position',[50 50 1200 150*param.N_F]);
-    tiledlayout(param.N_F, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-    sgtitle(['ICA (k=' num2str(num_comps) ') Latent variables Z(t) and $\hat{z}(t)$'], 'Interpreter','latex');
-    
-    for f=1:param.N_F
-        nexttile
-        hold on;
-        set(gca, 'XColor', 'none', 'YColor', 'none'); box on
-        % Plot True
-        plot(h_test(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :),'DisplayName', ['$Z_{' num2str(param.f_peak(f)) '}$ (t) ']);
-        % Plot Recon
-        plot(h_rec_test(:, f), 'LineStyle', '--','Color', 'k','DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$ (t) ']);
-        
-        ylabel('Amp');
-        xlim([0 param.fs*2]); % 2 seconds snapshot
-        legend('Show','Interpreter', 'latex', 'Location','eastoutside');
-        
-        rho = zeroLagCorr_ica(f);
-        text(0.02 * param.fs, 0.7 * max(abs(h_test(:,f))), ...
-            sprintf('\\rho(0)=%.2f', rho), ...
-            'FontSize', 12, 'FontWeight', 'bold',...
-            'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
-            'Margin', 3, 'EdgeColor','k');
-        hold off;
-    end
-    
-    % Scale bars on last tile
-    x0 = 0; y0 = min(ylim)+0.2;
-    line([x0 x0+(param.fs)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-    text(x0+param.fs, y0-0.1, '1 sec', 'VerticalAlignment','top');
-    line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-    text(x0-5, y0+7, '2 a.u.', 'VerticalAlignment','bottom','HorizontalAlignment','right','Rotation',90);
-    set(findall(gcf,'-property','FontSize'),'FontSize',16);
-    saveas(fig1, fullfile(method_dir, ['ICA_TimeDomain' file_suffix '.png']));
-    
+    % fig1 = figure('Position',[50 50 1200 150*param.N_F]);
+    % tiledlayout(param.N_F, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+    % sgtitle(['ICA (k=' num2str(num_comps) ') Latent variables Z(t) and $\hat{z}(t)$'], 'Interpreter','latex');
+    % 
+    % for f=1:param.N_F
+    %     nexttile
+    %     hold on;
+    %     set(gca, 'XColor', 'none', 'YColor', 'none'); box on
+    %     % Plot True
+    %     plot(h_test(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :),'DisplayName', ['$Z_{' num2str(param.f_peak(f)) '}$ (t) ']);
+    %     % Plot Recon
+    %     plot(h_rec_test(:, f), 'LineStyle', '--','Color', 'k','DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$ (t) ']);
+    % 
+    %     ylabel('Amp');
+    %     xlim([0 param.fs*2]); % 2 seconds snapshot
+    %     legend('Show','Interpreter', 'latex', 'Location','eastoutside');
+    % 
+    %     rho = zeroLagCorr_ica(f);
+    %     text(0.02 * param.fs, 0.7 * max(abs(h_test(:,f))), ...
+    %         sprintf('\\rho(0)=%.2f', rho), ...
+    %         'FontSize', 12, 'FontWeight', 'bold',...
+    %         'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
+    %         'Margin', 3, 'EdgeColor','k');
+    %     hold off;
+    % end
+    % 
+    % % Scale bars on last tile
+    % x0 = 0; y0 = min(ylim)+0.2;
+    % line([x0 x0+(param.fs)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+    % text(x0+param.fs, y0-0.1, '1 sec', 'VerticalAlignment','top');
+    % line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+    % text(x0-5, y0+7, '2 a.u.', 'VerticalAlignment','bottom','HorizontalAlignment','right','Rotation',90);
+    % set(findall(gcf,'-property','FontSize'),'FontSize',16);
+    % saveas(fig1, fullfile(method_dir, ['ICA_TimeDomain' file_suffix '.png']));
+    plotTimeDomainReconstruction(h_test, h_rec_test, param, 'ICA', num_comps, zeroLagCorr_ica, method_dir);
     
     % num_sig_components = sum(eig_vals > lambda_max);
     if num_comps <= param.N_F

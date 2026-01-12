@@ -33,12 +33,12 @@ end
 %% Loop through experiments
 
 conditions = { 'set4'};          %'set2', linear, nonlinear
-nDatasets  = 5; % 10
-k_range    = 1:10; %
+nDatasets  = 1; % 10
+k_range    = 7:7; %
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'UMAP','PCA','dPCA', 'ICA', 'AE'}; % 
+methods = {'PCA','ICA'}; % 'UMAP','dPCA',  'AE'
 
 EXP = struct();
 param = struct();
@@ -159,7 +159,7 @@ for c = 1:numel(conditions)
                 switch method
                     case 'PCA'
                         [R2_test, MSE_test, outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
-                            H_train, H_test, local_param, k, fs_new, method_dir);
+                            H_train, H_test, local_param, k, method_dir);
                         
                         % Extract Scalar Values immediately
                         current_R2  = mean(R2_test(ki,:), 'omitnan');
@@ -189,7 +189,7 @@ for c = 1:numel(conditions)
                         n_neighbors = 199; min_dist = 0.1;
                         [current_R2, current_MSE, outUMAP] = runUMAPAnalysis( ...
                             n_neighbors, min_dist, eeg_train, eeg_test, local_param, ...
-                            H_train, H_test, k, local_param.fs, local_results_dir);
+                            H_train, H_test, k, local_results_dir);
                         current_out = outUMAP;
                         if isfield(outUMAP, 'corr_UMAP'), current_corr_table = outUMAP.corr_UMAP; end
                         if isfield(outUMAP, 'R_full'),    current_R_matrix   = outUMAP.R_full;    end

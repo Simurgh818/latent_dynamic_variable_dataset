@@ -1,13 +1,12 @@
 function [R2_test_global, MSE_test_global, outUMAP] = runUMAPAnalysis( ...
         n_neighbors, min_dist, s_train, s_test, param, ...
-        h_train, h_test, num_sig_components, fs_new, results_dir)
+        h_train, h_test, num_sig_components, results_dir)
 % runUMAPAnalysis UMAP reduction + Linear Mapping + Detailed Plotting
 %
 % Inputs:
 %   s_train, s_test     : (Neurons x Time)
 %   h_train, h_test     : (Time x Latents)
 %   num_sig_components  : dimensionality of UMAP (n_components)
-%   fs_new              : Sampling rate
 %   results_dir         : Output directory
 
 
@@ -152,7 +151,7 @@ h_rec_test_norm = h_rec_test_final;
 for f = 1:param.N_F
    h_rec_test_norm(:,f) = h_rec_test_final(:,f) ./ std(h_rec_test_final(:,f)); 
 end
-
+fs_new = param.fs;
 %% ============================================================
 % PLOTTING SECTION (Using TEST Data)
 % ============================================================
