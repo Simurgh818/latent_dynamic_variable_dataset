@@ -9,7 +9,7 @@ if exist('H:\', 'dir')
     input_dir = ['C:' filesep 'Users' filesep 'sinad' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Shared Code' filesep 'simEEG'];
+    'Shared Code' filesep 'simEEG_Morrell'];
 
     baseFolder = ['C:' filesep 'Users' filesep 'sinad' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
@@ -20,7 +20,7 @@ elseif exist('G:\', 'dir')
     input_dir = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Shared Code' filesep 'simEEG'];
+    'Shared Code' filesep 'simEEG_Morrell'];
 
     baseFolder = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
@@ -32,13 +32,13 @@ end
 
 %% Loop through experiments
 
-conditions = { 'set4'};          %'set2', linear, nonlinear
+conditions = {'ou' };          %'set2', 'set4', linear, nonlinear
 nDatasets  = 1; % 10
-k_range    = 7:7; %
+k_range    = 1:10; %
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA','ICA'}; % 'UMAP','dPCA',  'AE'
+methods = {'PCA','dPCA', 'ICA',  'AE'}; % 'UMAP'
 
 EXP = struct();
 param = struct();
@@ -74,8 +74,10 @@ for c = 1:numel(conditions)
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         
         % --- 1. Load Data (Local to Worker) ---
-        if d < 10
+        if d < 10 && ~strcmp(cond, 'ou')
             eegFilename = sprintf('simEEG_%s_spat0%d', cond, d);
+        elseif d == 1 && strcmp(cond, 'ou')
+            eegFilename = sprintf('simEEG_Morrell_%s', cond);
         else
             eegFilename = sprintf('simEEG_%s_spat%d', cond, d);
         end
@@ -85,7 +87,7 @@ for c = 1:numel(conditions)
         
         % Extract local variables
         s_eeg_like      = loader.train_sim_eeg_vals;
-        s_eeg_like_test = loader.test_sim_eeg_vals;
+        % s_eeg_like_test = loader.test_sim_eeg_vals;
         h_f             = loader.train_true_hF';
         
         % Recalculate parameters locally
@@ -234,8 +236,10 @@ for c = 1:numel(conditions)
         EXP.(cond).dataset(d) = dataset_results{d};
         
         % Re-define paths for saving plots
-        if d < 10
+        if d < 10 && ~strcmp(cond, 'ou')
             eegFilename = sprintf('simEEG_%s_spat0%d', cond, d);
+        elseif d == 1 && strcmp(cond, 'ou')
+            eegFilename = sprintf('simEEG_Morrell_%s', cond);
         else
             eegFilename = sprintf('simEEG_%s_spat%d', cond, d);
         end

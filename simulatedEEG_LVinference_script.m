@@ -54,7 +54,7 @@ if exist('H:\', 'dir')
     output_dir = ['C:' filesep 'Users' filesep 'sinad' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Shared Code' filesep 'simEEG'];
+    'Shared Code' filesep 'simEEG' filesep 'diffDuration'];
 
     realEEG_path = ['H:\' filesep 'My Drive' filesep 'Data' ...
         filesep 'New Data' filesep 'EEG epoched' filesep 'BLA'];
@@ -68,7 +68,7 @@ elseif exist('G:\', 'dir')
     output_dir = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Shared Code' filesep 'simEEG'];
+    'Shared Code' filesep 'simEEG' filesep 'diffDuration'];
 
     realEEG_path = ['G:\' filesep 'My Drive' filesep 'Data' ...
         filesep 'New Data' filesep 'EEG epoched' filesep 'BLA'];
@@ -96,7 +96,7 @@ if ~exist(output_folder, 'dir')
 end
 
 %% get full component images 
-num_spatial_realizations = 10; % 10
+num_spatial_realizations = 1; % 10
 
 for i_spat = 1:num_spatial_realizations
 
@@ -128,7 +128,7 @@ for i_spat = 1:num_spatial_realizations
         nexttile
         imagesc(comp_mask)
     end
-    file_out_path = fullfile(output_dir,sprintf('source_params%02d_key.mat', i_spat));
+    file_out_path = fullfile(output_dir,sprintf('source_params%02d_dur%d_key.mat', i_spat,T));
     save(file_out_path, 'src_pks', 'src_widths', 'eeg_loc_y', 'eeg_loc_x', ...
         'all_comp_masks', 'freq_peak_latents', 'zeta_latents')
     
@@ -195,11 +195,11 @@ for i_spat = 1:num_spatial_realizations
     train_true_hF = all_h_F(:, train_t_range);
     test_true_hF = all_h_F(:, test_t_range);
 
-    file_out_path = fullfile(output_dir,sprintf('simEEG_set2_spat%02d.mat', i_spat));
+    file_out_path = fullfile(output_dir,sprintf('simEEG_set2_spat%02d_dur%d.mat', i_spat, T));
 
     save(file_out_path, "train_sim_eeg_vals", "train_true_hF", "test_sim_eeg_vals", "dt")
     
-    file_out_path_key = fullfile(output_dir, sprintf('simEEG_set2_spat%02d_key.mat', i_spat)); 
+    file_out_path_key = fullfile(output_dir, sprintf('simEEG_set2_spat%02d_dur%d_key.mat', i_spat, T)); 
     save(file_out_path_key, "test_sim_eeg_vals", "test_true_hF", ...
         "pos_src_locs", "neg_src_locs", "src_widths", "src_pks",...
         "select_comps", "spatial_comps", "gain_par", "bias_par")
@@ -233,7 +233,7 @@ for i_spat = 1:num_spatial_realizations
     xlim([f_psd(2) 50]); % Optional: Zoom in to relevant frequencies if needed
     legend('Location','northeast');
     set(findall(fig1,'-property','FontSize'),'FontSize',16);
-    saveas(gcf, fullfile(output_folder, sprintf('PSD_Set2_Spat%02d.png', i_spat)));
+    saveas(gcf, fullfile(output_folder, sprintf('PSD_Set2_Spat%02d_dur%d.png', i_spat,T)));
 
     % Set 3: nonlinear
     % select_comps = [1 2 4 7];
@@ -273,10 +273,10 @@ for i_spat = 1:num_spatial_realizations
     train_true_hF = all_h_F(:, train_t_range);
     test_true_hF = all_h_F(:, test_t_range);
 
-    file_out_path = fullfile(output_dir, sprintf('simEEG_set42_spat%02d.mat', i_spat)); 
+    file_out_path = fullfile(output_dir, sprintf('simEEG_set4_spat%02d_dur%d.mat', i_spat, T)); 
     save(file_out_path, "train_sim_eeg_vals", ...
         "train_true_hF", "test_sim_eeg_vals", "dt")
-    file_out_path_key = fullfile(output_dir, sprintf('simEEG_set4_spat%02d_key.mat', i_spat)); 
+    file_out_path_key = fullfile(output_dir, sprintf('simEEG_set4_spat%02d_dur%d_key.mat', i_spat, T)); 
     save(file_out_path_key, "test_sim_eeg_vals", "test_true_hF", ...
         "pos_src_locs", "neg_src_locs", "src_widths", "src_pks", ...
         "select_comps", "spatial_comps", "gain_par", "bias_par")
@@ -311,7 +311,7 @@ for i_spat = 1:num_spatial_realizations
     xlim([f_psd(2) 50]); 
     legend('Location','northeast');
     set(findall(fig2,'-property','FontSize'),'FontSize',16);
-    saveas(gcf, fullfile(output_folder, sprintf('PSD_Set4_Spat%02d.png', i_spat)));
+    saveas(gcf, fullfile(output_folder, sprintf('PSD_Set4_Spat%02d_dur%d.png', i_spat, T)));
 
 end
 %% Real EEG comparison
