@@ -11,7 +11,7 @@ freq_peak_latents = [2 5 10 13 20 25 30 50];
 
 num_latents = length(freq_peak_latents);
 zeta_latents = 0.15;
-T = 1000;     % Duration, in seconds
+T = 1;     % Duration, in seconds
 dt = 0.005;   % time step, in seconds
 fs=1/dt;
 % 1 second window = fs samples (since fs is samples per second)
@@ -187,11 +187,11 @@ for i_spat = 1:num_spatial_realizations
     gain_par = 0.2;
     bias_par = 0;
     sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
-    
-    train_t_range = 1:120000;
-    test_t_range = 150000:200000;
+    idx = 0.6* size(all_h_F,2);
+    train_t_range = 1:idx;
+    test_t_range = idx+1:size(all_h_F,2);
     train_sim_eeg_vals = sim_eeg_vals(:, train_t_range);
-    test_sim_eeg_vals = sim_eeg_vals(:, 150000:end);
+    test_sim_eeg_vals = sim_eeg_vals(:, idx+1:end);
     train_true_hF = all_h_F(:, train_t_range);
     test_true_hF = all_h_F(:, test_t_range);
 
@@ -266,10 +266,10 @@ for i_spat = 1:num_spatial_realizations
     bias_par = 1;
     sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
     
-    train_t_range = 1:120000;
-    test_t_range = 150000:200000;
+    train_t_range = 1:idx;
+    test_t_range = idx+1:size(all_h_F,2);
     train_sim_eeg_vals = sim_eeg_vals(:, train_t_range);
-    test_sim_eeg_vals = sim_eeg_vals(:, 150000:end);
+    test_sim_eeg_vals = sim_eeg_vals(:, idx+1:end);
     train_true_hF = all_h_F(:, train_t_range);
     test_true_hF = all_h_F(:, test_t_range);
 

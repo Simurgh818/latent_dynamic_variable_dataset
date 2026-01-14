@@ -1,4 +1,4 @@
-function [R2_test, MSE_test, outAE] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, bottleNeck, param, fs_new, results_dir)
+function [R2_test, MSE_test, outAE] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, bottleNeck, param,  results_dir)
 % runAutoencoderAnalysis Trains AE + Linear Mapping and generates diagnostic plots
 %
 % Inputs:
@@ -21,7 +21,7 @@ if ~exist(method_dir, 'dir')
 end
 file_suffix = sprintf('_k%d', bottleNeck);
 h_f_colors = lines(param.N_F); 
-
+fs_new = param.fs;
 %% 2. Train Autoencoder (Unsupervised)
 batch_size = 100; % 80
 

@@ -9,7 +9,7 @@ if exist('H:\', 'dir')
     input_dir = ['C:' filesep 'Users' filesep 'sinad' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Shared Code' filesep 'simEEG_Morrell'];
+    'Shared Code' filesep 'simEEG' filesep 'diffDuration'];
 
     baseFolder = ['C:' filesep 'Users' filesep 'sinad' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
@@ -20,7 +20,7 @@ elseif exist('G:\', 'dir')
     input_dir = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Shared Code' filesep 'simEEG_Morrell'];
+    'Shared Code' filesep 'simEEG' filesep 'diffDuration'];
 
     baseFolder = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
@@ -32,17 +32,18 @@ end
 
 %% Loop through experiments
 
-conditions = {'ou' };          %'set2', 'set4', linear, nonlinear
-nDatasets  = 1; % 10
-k_range    = 1:10; %
+conditions = {'set2', 'set4' }; %,'ou' linear, nonlinear
+nDatasets  = 7; % 10
+k_range    = 7:7; %
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA','dPCA', 'ICA',  'AE'}; % 'UMAP'
+methods = {'PCA','dPCA', 'ICA',  'AE', 'UMAP'}; % 
 
 EXP = struct();
 param = struct();
 param.f_peak = round([2 5 10 13 20 25 30 50], 1);
+param.duration = [1, 5, 10, 60, 120, 600, 1000];
 
 f = param.f_peak(:);
 [f_sorted, f_sortIdx] = sort(f, 'ascend');
@@ -75,7 +76,7 @@ for c = 1:numel(conditions)
         
         % --- 1. Load Data (Local to Worker) ---
         if d < 10 && ~strcmp(cond, 'ou')
-            eegFilename = sprintf('simEEG_%s_spat0%d', cond, d);
+            eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(d));
         elseif d == 1 && strcmp(cond, 'ou')
             eegFilename = sprintf('simEEG_Morrell_%s', cond);
         else
@@ -173,7 +174,7 @@ for c = 1:numel(conditions)
                         
                     case 'AE'
                         [current_R2, current_MSE, outAE] = runAutoencoderAnalysis(eeg_train, eeg_test,...
-                            H_train, H_test, k, local_param, fs_new, local_results_dir);
+                            H_train, H_test, k, local_param, local_results_dir);
                         current_out = outAE;
                         if isfield(outAE, 'corr_AE'), current_corr_table = outAE.corr_AE; end
                         if isfield(outAE, 'R_full'),  current_R_matrix   = outAE.R_full;  end
@@ -237,7 +238,7 @@ for c = 1:numel(conditions)
         
         % Re-define paths for saving plots
         if d < 10 && ~strcmp(cond, 'ou')
-            eegFilename = sprintf('simEEG_%s_spat0%d', cond, d);
+            eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(d));
         elseif d == 1 && strcmp(cond, 'ou')
             eegFilename = sprintf('simEEG_Morrell_%s', cond);
         else
