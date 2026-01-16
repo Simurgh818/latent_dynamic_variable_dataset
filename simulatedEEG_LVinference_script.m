@@ -264,6 +264,8 @@ for i_spat = 1:num_spatial_realizations
     % small gain, bias 0 : approximately linear
     gain_par = 2;
     bias_par = 1;
+    % TODO: multiply the tanh function with a factor to increase power,
+    % first tune the w and b and then decide the multiply to factors. 
     sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
     
     train_t_range = 1:idx;

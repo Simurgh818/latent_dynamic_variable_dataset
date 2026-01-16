@@ -9,7 +9,7 @@ if exist('H:\', 'dir')
     input_dir = ['C:' filesep 'Users' filesep 'sinad' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Shared Code' filesep 'simEEG' filesep 'diffDuration'];
+    'Shared Code' filesep 'simEEG']; %  filesep 'diffDuration'
 
     baseFolder = ['C:' filesep 'Users' filesep 'sinad' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
@@ -20,7 +20,7 @@ elseif exist('G:\', 'dir')
     input_dir = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Shared Code' filesep 'simEEG' filesep 'diffDuration'];
+    'Shared Code' filesep 'simEEG']; %  filesep 'diffDuration'
 
     baseFolder = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
@@ -32,13 +32,13 @@ end
 
 %% Loop through experiments
 
-conditions = {'set2', 'set4' }; %,'ou' linear, nonlinear
-nDatasets  = 7; % 10
-k_range    = 7:7; %
+conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
+nDatasets  = 5; % 10
+k_range    = 1:10; %
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA','dPCA', 'ICA',  'AE', 'UMAP'}; % 
+methods = {'dPCA', 'ICA', 'UMAP', 'AE'}; % 'PCA',
 
 EXP = struct();
 param = struct();
@@ -50,15 +50,15 @@ f = param.f_peak(:);
 
 % Best practice: Leave 1-2 cores free for the OS/Main Thread.
 % For a 7-core system, 5 workers is a safe, high-performance choice.
-target_workers = 5; 
-current_pool = gcp('nocreate');
-
-if isempty(current_pool)
-    parpool(target_workers);
-elseif current_pool.NumWorkers ~= target_workers
-    delete(current_pool);
-    parpool(target_workers);
-end
+% target_workers = 5; 
+% current_pool = gcp('nocreate');
+% 
+% if isempty(current_pool)
+%     parpool(target_workers);
+% elseif current_pool.NumWorkers ~= target_workers
+%     delete(current_pool);
+%     parpool(target_workers);
+% end
 
 %% Loop through experiments
 for c = 1:numel(conditions)
@@ -75,8 +75,10 @@ for c = 1:numel(conditions)
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         
         % --- 1. Load Data (Local to Worker) ---
-        if d < 10 && ~strcmp(cond, 'ou')
+        if d < 10 && ~strcmp(cond, 'ou') && ~strcmp(cond,'set4')
             eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(d));
+        elseif d<10
+            eegFilename = sprintf('simEEG_%s_spat0%d', cond, d);
         elseif d == 1 && strcmp(cond, 'ou')
             eegFilename = sprintf('simEEG_Morrell_%s', cond);
         else
@@ -189,7 +191,7 @@ for c = 1:numel(conditions)
                     case 'UMAP'
                         % Note: Java properties should ideally be set outside parfor, 
                         % but some workers might need it reset.
-                        n_neighbors = 199; min_dist = 0.1;
+                        n_neighbors = 3; min_dist = 0.99;
                         [current_R2, current_MSE, outUMAP] = runUMAPAnalysis( ...
                             n_neighbors, min_dist, eeg_train, eeg_test, local_param, ...
                             H_train, H_test, k, local_results_dir);
@@ -237,8 +239,10 @@ for c = 1:numel(conditions)
         EXP.(cond).dataset(d) = dataset_results{d};
         
         % Re-define paths for saving plots
-        if d < 10 && ~strcmp(cond, 'ou')
+        if d < 10 && ~strcmp(cond, 'ou') && ~strcmp(cond,'set4')
             eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(d));
+        elseif d<10
+            eegFilename = sprintf('simEEG_%s_spat0%d', cond, d);
         elseif d == 1 && strcmp(cond, 'ou')
             eegFilename = sprintf('simEEG_Morrell_%s', cond);
         else
@@ -371,7 +375,7 @@ for c = 1:numel(conditions)
     for ki = 1:nK
         k = k_range(ki);
 
-        fig1 = figure; hold on;
+        fig0 = figure; hold on;
         colors = lines(numel(methods));
 
         for m = 1:numel(methods)
@@ -396,6 +400,8 @@ for c = 1:numel(conditions)
         grid on;
         legend('Location','eastoutside');
         set(gca, 'FontSize', 16);
+        corr_figure_name = fullfile(local_results_dir, sprintf('Latent–Component Corr %s k_%d.png', cond, k));
+        saveas(fig0, corr_figure_name);
     end
 end
 
