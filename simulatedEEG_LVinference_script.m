@@ -10,8 +10,8 @@ rng(42,'twister');
 freq_peak_latents = [2 5 10 13 20 25 30 50];
 
 num_latents = length(freq_peak_latents);
-zeta_latents = 0.15;
-T = 1;     % Duration, in seconds
+zeta_latents = 0.5; % Increased from 0.15 to 0.5 for less sharp peaks
+T = 1000;     % Duration, in seconds
 dt = 0.005;   % time step, in seconds
 fs=1/dt;
 % 1 second window = fs samples (since fs is samples per second)
@@ -54,7 +54,7 @@ if exist('H:\', 'dir')
     output_dir = ['C:' filesep 'Users' filesep 'sinad' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Shared Code' filesep 'simEEG' filesep 'diffDuration'];
+    'Shared Code' filesep 'simEEG']; % filesep 'diffDuration'
 
     realEEG_path = ['H:\' filesep 'My Drive' filesep 'Data' ...
         filesep 'New Data' filesep 'EEG epoched' filesep 'BLA'];
@@ -68,7 +68,7 @@ elseif exist('G:\', 'dir')
     output_dir = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Shared Code' filesep 'simEEG' filesep 'diffDuration'];
+    'Shared Code' filesep 'simEEG']; % filesep 'diffDuration'
 
     realEEG_path = ['G:\' filesep 'My Drive' filesep 'Data' ...
         filesep 'New Data' filesep 'EEG epoched' filesep 'BLA'];
@@ -187,6 +187,20 @@ for i_spat = 1:num_spatial_realizations
     gain_par = 0.2;
     bias_par = 0;
     sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
+
+    % 1. Create Pink Noise (1/f background)
+    % Pinknoise is standard in Signal Processing Toolbox (R2016b+)
+    % Dimensions: time x channels (so we transpose to match eeg)
+    pink_bg = pinknoise(size(sim_eeg_vals, 2), num_channels)'; 
+    
+    % 2. Add Pink Noise to Signal
+    % 0.5 is a weighting factor to ensure it blends well with the oscillations
+    sim_eeg_vals = sim_eeg_vals + 2.0 * pink_bg; 
+    
+    % 3. Multiply by 10 (Scales Amplitude)
+    % This will increase PSD Power by 100x (matching 10^-1 to 10^1 jump)
+    sim_eeg_vals = sim_eeg_vals * 10;  
+
     idx = 0.6* size(all_h_F,2);
     train_t_range = 1:idx;
     test_t_range = idx+1:size(all_h_F,2);
@@ -202,7 +216,7 @@ for i_spat = 1:num_spatial_realizations
     file_out_path_key = fullfile(output_dir, sprintf('simEEG_set2_spat%02d_dur%d_key.mat', i_spat, T)); 
     save(file_out_path_key, "test_sim_eeg_vals", "test_true_hF", ...
         "pos_src_locs", "neg_src_locs", "src_widths", "src_pks",...
-        "select_comps", "spatial_comps", "gain_par", "bias_par")
+        "select_comps", "spatial_comps", "gain_par", "bias_par");
     
     % 2. Calculate PSD
     [pxx, f_psd] = pwelch(sim_eeg_vals', win_len, n_overlap, [], fs);
@@ -231,6 +245,7 @@ for i_spat = 1:num_spatial_realizations
     ylabel('Power (uV/Hz)');
     grid on;
     xlim([f_psd(2) 50]); % Optional: Zoom in to relevant frequencies if needed
+    xticks([1, 4, 8, 10, 13, 20, 30, 50]) 
     legend('Location','northeast');
     set(findall(fig1,'-property','FontSize'),'FontSize',16);
     saveas(gcf, fullfile(output_folder, sprintf('PSD_Set2_Spat%02d_dur%d.png', i_spat,T)));
@@ -268,6 +283,17 @@ for i_spat = 1:num_spatial_realizations
     % first tune the w and b and then decide the multiply to factors. 
     sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
     
+    % 1. Add pink noise
+    pink_bg = pinknoise(size(sim_eeg_vals, 2), num_channels)'; 
+    
+    % 2. Add Pink Noise to Signal
+    % 0.5 is a weighting factor to ensure it blends well with the oscillations
+    sim_eeg_vals = sim_eeg_vals + 2.0 * pink_bg; 
+    
+    % 3. Multiply by 10 (Scales Amplitude)
+    % This will increase PSD Power by 100x (matching 10^-1 to 10^1 jump)
+    sim_eeg_vals = sim_eeg_vals * 10;  
+
     train_t_range = 1:idx;
     test_t_range = idx+1:size(all_h_F,2);
     train_sim_eeg_vals = sim_eeg_vals(:, train_t_range);
@@ -281,7 +307,7 @@ for i_spat = 1:num_spatial_realizations
     file_out_path_key = fullfile(output_dir, sprintf('simEEG_set4_spat%02d_dur%d_key.mat', i_spat, T)); 
     save(file_out_path_key, "test_sim_eeg_vals", "test_true_hF", ...
         "pos_src_locs", "neg_src_locs", "src_widths", "src_pks", ...
-        "select_comps", "spatial_comps", "gain_par", "bias_par")
+        "select_comps", "spatial_comps", "gain_par", "bias_par");
     
     fig2 = figure('Name', sprintf('PSD Set 4 (Nonlinear) - Spat %d', i_spat));
     
@@ -311,6 +337,7 @@ for i_spat = 1:num_spatial_realizations
     ylabel('Power (uV/Hz)');
     grid on;
     xlim([f_psd(2) 50]); 
+    xticks([1, 4, 8, 10, 13, 20, 30, 50]) 
     legend('Location','northeast');
     set(findall(fig2,'-property','FontSize'),'FontSize',16);
     saveas(gcf, fullfile(output_folder, sprintf('PSD_Set4_Spat%02d_dur%d.png', i_spat, T)));
@@ -371,6 +398,7 @@ xlabel('Frequency (Hz)');
 ylabel('Power (uV/Hz)');
 grid on;
 xlim([f_psd_rEEG(2) 50]); % Optional: Zoom in to relevant frequencies if needed
+xticks([1, 4, 8, 10, 13, 20, 30, 50]) 
 legend('Location','northeast');
 set(findall(fig1,'-property','FontSize'),'FontSize',16);
 %% Parsimonious plots: just show the electrodes, color by component
