@@ -8,9 +8,13 @@ rng(42,'twister');
 % freq_peak_latents = [2 2.4 8 20 21 32 40 40];
 % freq_peak_latents = [40 40 32 21 20 8 2.4 2];
 freq_peak_latents = [2 5 10 13 20 25 30 50];
+param.N_F = 8; % 5 , Number of latent fields hₘ(t)
+param.tau_F = [1, 0.4, 0.2, 0.15, 0.1, 0.08, 0.05, 0.03]; % 0.001, 0.01, 0.1, 0.5, 1,  Time constants (in seconds) for each OU field
+param.dt = 0.005; % 1e-3
+param.T = 1000; % Total simulation time (in seconds), min duration at 1000 sec
 
-num_latents = length(freq_peak_latents);
-zeta_latents = 0.5; % Increased from 0.15 to 0.5 for less sharp peaks
+num_latents = length(freq_peak_latents) + param.N_F;
+zeta_latents = [0.1 0.3 0.1 0.25 0.2 0.4 0.45 0.5]; % Increased from 0.15 to 0.5 for less sharp peaks [0.15 0.2 0.25 0.4 0.5 0.4 0.3 0.15];
 T = 1000;     % Duration, in seconds
 dt = 0.005;   % time step, in seconds
 fs=1/dt;
@@ -19,15 +23,39 @@ win_len = 1 * fs;
 % 50% overlap is standard for Welch
 n_overlap = round(win_len / 2);
 
-all_h_F = zeros(length(freq_peak_latents), T/dt);
+%% 
+all_h_F = zeros(num_latents, T/dt);
 
 for i_fpl= 1:length(freq_peak_latents)
-    h_F = generateSDHO(freq_peak_latents(i_fpl), zeta_latents, dt, T);
+    h_F = generateSDHO(freq_peak_latents(i_fpl), zeta_latents(i_fpl), dt, T);
     all_h_F(i_fpl, :) = h_F;
 end
+
+% Ornstein-Uhlenbeck latent processes
+for i_f = 1:param.N_F
+    all_h_F(length(freq_peak_latents)+i_f, :) = generateOUProcess(param.tau_F(i_f), param.dt, param.T)';
+end
+
 % normalize temporal latents (unit variance)
 all_h_F = all_h_F ./ std(all_h_F, [], 2);
 
+%% Plot latent variables
+figure('Position',[100 100 1000 900]);
+hold on;
+num_latent = size(all_h_F,1);
+offset_lat = 5 * std(all_h_F(:));  % vertical spacing
+t = 0:dt:T-dt; % Time vector
+for i = 1:num_latent
+    plot(t, all_h_F(i,:) + (num_latent - i)*offset_lat);
+end
+hold off;
+xlim([0 7]);
+ylim([-offset_lat, num_latent*offset_lat]);
+xlabel('Time (s)');
+ylabel('Latents (stacked)');
+yticks((0:num_latent-1)*offset_lat);
+yticklabels(arrayfun(@(c) sprintf('z%d', num_latent - c + 1), 1:num_latent, 'UniformOutput', false));
+title('Latent Variables (stacked)');
 %% Set up the Import Options and import the data
 % Load EEG electrode locations
 opts = delimitedTextImportOptions("NumVariables", 2);
@@ -96,7 +124,7 @@ if ~exist(output_folder, 'dir')
 end
 
 %% get full component images 
-num_spatial_realizations = 1; % 10
+num_spatial_realizations = 10; % 10
 
 for i_spat = 1:num_spatial_realizations
 
@@ -107,30 +135,30 @@ for i_spat = 1:num_spatial_realizations
     src_widths = 0.5 + 0.05*randn(num_latents, 2);
     src_pks = 1 + 0.1*rand(num_latents, 2);
     
-    figure()
-    plot(eeg_loc_x, eeg_loc_y, 'ko')
-    hold on
-    % Replace line 53 with:
-    plot(pos_src_locs(:, 1), pos_src_locs(:, 2), 'r*')
-    hold on
-    plot(neg_src_locs(:, 1), neg_src_locs(:, 2), 'b*') % Plot negative sources in blue
-    legend('EEG Locs', 'Pos Sources', 'Neg Sources')
+    % figure()
+    % plot(eeg_loc_x, eeg_loc_y, 'ko')
+    % hold on
+    % % Replace line 53 with:
+    % plot(pos_src_locs(:, 1), pos_src_locs(:, 2), 'r*')
+    % hold on
+    % plot(neg_src_locs(:, 1), neg_src_locs(:, 2), 'b*') % Plot negative sources in blue
+    % legend('EEG Locs', 'Pos Sources', 'Neg Sources')
     
     % Continuous spatial masks
     [mesh_x, mesh_y] = meshgrid(-.8:0.05:0.8);
     all_comp_masks = repmat(mesh_x, [1 1 num_latents]);
-    figure()
-    for i_fpl = 1:num_latents
-        comp_mask = spatial_mask_fun(pos_src_locs(i_fpl, :), neg_src_locs(i_fpl, :), ...
-            src_widths(i_fpl, :), src_pks(i_fpl,:), mesh_x, mesh_y);
-        all_comp_masks(:, :, i_fpl) = comp_mask;
-        
-        nexttile
-        imagesc(comp_mask)
-    end
-    file_out_path = fullfile(output_dir,sprintf('source_params%02d_dur%d_key.mat', i_spat,T));
-    save(file_out_path, 'src_pks', 'src_widths', 'eeg_loc_y', 'eeg_loc_x', ...
-        'all_comp_masks', 'freq_peak_latents', 'zeta_latents')
+    % figure()
+    % for i_fpl = 1:num_latents
+    %     comp_mask = spatial_mask_fun(pos_src_locs(i_fpl, :), neg_src_locs(i_fpl, :), ...
+    %         src_widths(i_fpl, :), src_pks(i_fpl,:), mesh_x, mesh_y);
+    %     all_comp_masks(:, :, i_fpl) = comp_mask;
+    % 
+    %     nexttile
+    %     imagesc(comp_mask)
+    % end
+    % file_out_path = fullfile(output_dir,sprintf('source_params%02d_dur%d_key.mat', i_spat,T));
+    % save(file_out_path, 'src_pks', 'src_widths', 'eeg_loc_y', 'eeg_loc_x', ...
+    %     'all_comp_masks', 'freq_peak_latents', 'zeta_latents')
     
     % now sample spatial filters at EEG locations
     
@@ -143,20 +171,20 @@ for i_spat = 1:num_spatial_realizations
     
     % check that it worked
     
-    figure()
-    nexttile
-    imagesc(mesh_x(1, :), mesh_y(:, 1), all_comp_masks(:, :, 5))
-    set(gca, 'YDir', 'normal')
-    hold on
-    scatter(eeg_loc_x, eeg_loc_y, 100, (spatial_comps(:, 5)), 'filled', 'MarkerEdgeColor', [0 0 0])
-    % axis equal tight
-    title('should match')
-
-    nexttile
-    imagesc(mesh_x(1, :), mesh_y(:, 1), all_comp_masks(:, :, 5))
-    hold on
-    scatter(eeg_loc_x, eeg_loc_y, 100, (spatial_comps(:, 3)), 'filled', 'MarkerEdgeColor', [0 0 0])
-    title('shouldn''t match')
+    % figure()
+    % nexttile
+    % imagesc(mesh_x(1, :), mesh_y(:, 1), all_comp_masks(:, :, 5))
+    % set(gca, 'YDir', 'normal')
+    % hold on
+    % scatter(eeg_loc_x, eeg_loc_y, 100, (spatial_comps(:, 5)), 'filled', 'MarkerEdgeColor', [0 0 0])
+    % % axis equal tight
+    % title('should match')
+    % 
+    % nexttile
+    % imagesc(mesh_x(1, :), mesh_y(:, 1), all_comp_masks(:, :, 5))
+    % hold on
+    % scatter(eeg_loc_x, eeg_loc_y, 100, (spatial_comps(:, 3)), 'filled', 'MarkerEdgeColor', [0 0 0])
+    % title('shouldn''t match')
     %  Great, now use tanh + spatial filter to generate EEG
     % select_comps = [1 2 4 7];
     % wx_vals = spatial_comps(:, select_comps)*all_h_F(select_comps, :);
@@ -180,7 +208,7 @@ for i_spat = 1:num_spatial_realizations
     %     "select_comps", "spatial_comps", "gain_par", "bias_par")
     
     % set 2: still linear, more components
-    select_comps = 1:8;
+    select_comps = 1:num_latents;
     wx_vals = spatial_comps(:, select_comps)*all_h_F(select_comps, :);
     
     % small gain, bias 0 : approximately linear
@@ -199,7 +227,7 @@ for i_spat = 1:num_spatial_realizations
     
     % 3. Multiply by 10 (Scales Amplitude)
     % This will increase PSD Power by 100x (matching 10^-1 to 10^1 jump)
-    sim_eeg_vals = sim_eeg_vals * 10;  
+    sim_eeg_vals = sim_eeg_vals * 50;  
 
     idx = 0.6* size(all_h_F,2);
     train_t_range = 1:idx;
@@ -282,7 +310,7 @@ for i_spat = 1:num_spatial_realizations
     % TODO: multiply the tanh function with a factor to increase power,
     % first tune the w and b and then decide the multiply to factors. 
     sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
-    
+
     % 1. Add pink noise
     pink_bg = pinknoise(size(sim_eeg_vals, 2), num_channels)'; 
     
