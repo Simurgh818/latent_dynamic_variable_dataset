@@ -7,14 +7,14 @@ rng(42,'twister');
 
 % freq_peak_latents = [2 2.4 8 20 21 32 40 40];
 % freq_peak_latents = [40 40 32 21 20 8 2.4 2];
-freq_peak_latents = [2 5 10 13 20 25 30 50];
-param.N_F = 8; % 5 , Number of latent fields hₘ(t)
-param.tau_F = [1, 0.4, 0.2, 0.15, 0.1, 0.08, 0.05, 0.03]; % 0.001, 0.01, 0.1, 0.5, 1,  Time constants (in seconds) for each OU field
+param.f_peak = [1 4 8 12 30];
+param.N_F = 5; % 8 , Number of latent fields hₘ(t)
+param.tau_F = [1, 0.25, 0.125, 0.083, 0.033]; % 1, 0.4, 0.2, 0.15, 0.1, 0.08, 0.05, 0.03 ; 0.001, 0.01, 0.1, 0.5, 1,  Time constants (in seconds) for each OU field
 param.dt = 0.005; % 1e-3
 param.T = 1000; % Total simulation time (in seconds), min duration at 1000 sec
 
-num_latents = length(freq_peak_latents) + param.N_F;
-zeta_latents = [0.1 0.3 0.1 0.25 0.2 0.4 0.45 0.5]; % Increased from 0.15 to 0.5 for less sharp peaks [0.15 0.2 0.25 0.4 0.5 0.4 0.3 0.15];
+num_latents = length(param.tau_F);
+zeta_latents = [0.1 0.3 0.1 0.25 0.2 ]; %0.4 0.45 0.5 Increased from 0.15 to 0.5 for less sharp peaks [0.15 0.2 0.25 0.4 0.5 0.4 0.3 0.15];
 T = 1000;     % Duration, in seconds
 dt = 0.005;   % time step, in seconds
 fs=1/dt;
@@ -22,20 +22,33 @@ fs=1/dt;
 win_len = 1 * fs;  
 % 50% overlap is standard for Welch
 n_overlap = round(win_len / 2);
-
 %% 
 all_h_F = zeros(num_latents, T/dt);
 
-for i_fpl= 1:length(freq_peak_latents)
-    h_F = generateSDHO(freq_peak_latents(i_fpl), zeta_latents(i_fpl), dt, T);
-    all_h_F(i_fpl, :) = h_F;
-end
-
+% for i_fpl= 1:length(freq_peak_latents)
+%     h_F = generateSDHO(freq_peak_latents(i_fpl), zeta_latents(i_fpl), dt, T);
+%     all_h_F(i_fpl, :) = h_F;
+% end
+% 
 % Ornstein-Uhlenbeck latent processes
 for i_f = 1:param.N_F
-    all_h_F(length(freq_peak_latents)+i_f, :) = generateOUProcess(param.tau_F(i_f), param.dt, param.T)';
+    all_h_F(i_f, :) = generateOUProcess(param.tau_F(i_f), param.dt, param.T)'; % length(freq_peak_latents)+
 end
-
+% for i = 1:num_latents
+%     % 1. Generate Oscillatory Component (SDHO)
+%     h_sdho = generateSDHO(freq_peak_latents(i), zeta_latents(i), dt, T);
+%     h_sdho = h_sdho / std(h_sdho); % Normalize to unit variance
+% 
+%     % 2. Generate Aperiodic Component (OU)
+%     h_ou = generateOUProcess(param.tau_F(i), dt, T);
+%     h_ou = h_ou / std(h_ou);       % Normalize to unit variance
+% 
+%     % 3. Combine them
+%     % You can tune the ratio here. 1:1 is a good starting point.
+%     % If you want dominant oscillations: h_sdho + 0.5*h_ou
+%     % If you want dominant 1/f:        0.5*h_sdho + h_ou
+%     all_h_F(i, :) = h_sdho + h_ou; 
+% end
 % normalize temporal latents (unit variance)
 all_h_F = all_h_F ./ std(all_h_F, [], 2);
 
@@ -124,7 +137,7 @@ if ~exist(output_folder, 'dir')
 end
 
 %% get full component images 
-num_spatial_realizations = 10; % 10
+num_spatial_realizations = 1; % 10
 
 for i_spat = 1:num_spatial_realizations
 
@@ -147,18 +160,18 @@ for i_spat = 1:num_spatial_realizations
     % Continuous spatial masks
     [mesh_x, mesh_y] = meshgrid(-.8:0.05:0.8);
     all_comp_masks = repmat(mesh_x, [1 1 num_latents]);
-    % figure()
-    % for i_fpl = 1:num_latents
-    %     comp_mask = spatial_mask_fun(pos_src_locs(i_fpl, :), neg_src_locs(i_fpl, :), ...
-    %         src_widths(i_fpl, :), src_pks(i_fpl,:), mesh_x, mesh_y);
-    %     all_comp_masks(:, :, i_fpl) = comp_mask;
-    % 
-    %     nexttile
-    %     imagesc(comp_mask)
-    % end
-    % file_out_path = fullfile(output_dir,sprintf('source_params%02d_dur%d_key.mat', i_spat,T));
-    % save(file_out_path, 'src_pks', 'src_widths', 'eeg_loc_y', 'eeg_loc_x', ...
-    %     'all_comp_masks', 'freq_peak_latents', 'zeta_latents')
+    figure()
+    for i_fpl = 1:num_latents
+        comp_mask = spatial_mask_fun(pos_src_locs(i_fpl, :), neg_src_locs(i_fpl, :), ...
+            src_widths(i_fpl, :), src_pks(i_fpl,:), mesh_x, mesh_y);
+        all_comp_masks(:, :, i_fpl) = comp_mask;
+
+        nexttile
+        imagesc(comp_mask)
+    end
+    file_out_path = fullfile(output_dir,sprintf('source_params%02d_dur%d_key.mat', i_spat,T));
+    save(file_out_path, 'src_pks', 'src_widths', 'eeg_loc_y', 'eeg_loc_x', ...
+        'all_comp_masks', 'param', 'zeta_latents')
     
     % now sample spatial filters at EEG locations
     
@@ -239,7 +252,7 @@ for i_spat = 1:num_spatial_realizations
 
     file_out_path = fullfile(output_dir,sprintf('simEEG_set2_spat%02d_dur%d.mat', i_spat, T));
 
-    save(file_out_path, "train_sim_eeg_vals", "train_true_hF", "test_sim_eeg_vals", "dt")
+    save(file_out_path, "train_sim_eeg_vals", "train_true_hF", "test_sim_eeg_vals", "dt","param")
     
     file_out_path_key = fullfile(output_dir, sprintf('simEEG_set2_spat%02d_dur%d_key.mat', i_spat, T)); 
     save(file_out_path_key, "test_sim_eeg_vals", "test_true_hF", ...
@@ -301,7 +314,7 @@ for i_spat = 1:num_spatial_realizations
     %     "select_comps", "spatial_comps", "gain_par", "bias_par")
     
     % Set 4: nonlinear, all components
-    select_comps = 1:8;
+    select_comps = 1:num_latents;
     wx_vals = spatial_comps(:, select_comps)*all_h_F(select_comps, :);
     
     % small gain, bias 0 : approximately linear
@@ -331,7 +344,7 @@ for i_spat = 1:num_spatial_realizations
 
     file_out_path = fullfile(output_dir, sprintf('simEEG_set4_spat%02d_dur%d.mat', i_spat, T)); 
     save(file_out_path, "train_sim_eeg_vals", ...
-        "train_true_hF", "test_sim_eeg_vals", "dt")
+        "train_true_hF", "test_sim_eeg_vals", "dt","param")
     file_out_path_key = fullfile(output_dir, sprintf('simEEG_set4_spat%02d_dur%d_key.mat', i_spat, T)); 
     save(file_out_path_key, "test_sim_eeg_vals", "test_true_hF", ...
         "pos_src_locs", "neg_src_locs", "src_widths", "src_pks", ...
@@ -447,7 +460,7 @@ for i_comp = 1:size(spatial_comps, 2)
     axis tight
     set(gca, 'color', 'none', 'box', 'off')
     ylabel(['h_' num2str(i_comp) '(t)'], 'Interpreter','tex')
-    title(['f_{peak} = ' num2str(freq_peak_latents(i_comp), '%1.2f') ' Hz'], 'Interpreter','tex' )
+    title(['f_{peak} = ' num2str(param.f_peak(i_comp), '%1.2f') ' Hz'], 'Interpreter','tex' )
 end
 
 exportgraphics(gcf, 'layout1_fig.pdf')

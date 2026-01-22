@@ -1,5 +1,5 @@
 %% MAIN SCRIPT FOR DIMENSIONALITY REDUCTION BENCHMARK
-clear; clc; close all;
+clear; clc; % close all;
 
 %% ----------------------------------------------------------
 % 1. Load & Prepare Data
@@ -33,26 +33,26 @@ end
 %% Loop through experiments
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 5; % 10
-k_range    = 1:10; %
+nDatasets  = 1; % 5 10
+k_range    = 6:7; % 18
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'dPCA', 'ICA', 'UMAP', 'AE'}; % 'PCA',
+methods = {'PCA'}; % 'dPCA','ICA', 'AE', 'UMAP'
 
 EXP = struct();
 param = struct();
-param.f_peak = round([2 5 10 13 20 25 30 50], 1);
-param.duration = [1, 5, 10, 60, 120, 600, 1000];
+% param.f_peak = round([1 4 8 12 30], 1);%2 5 10 13 20 25 30 50
+param.duration = [1000];% 1, 5, 10, 60, 120, 600, 
 
-f = param.f_peak(:);
-[f_sorted, f_sortIdx] = sort(f, 'ascend');
+% f = param.f_peak(:);
+% [f_sorted, f_sortIdx] = sort(f, 'ascend');
 
 % Best practice: Leave 1-2 cores free for the OS/Main Thread.
 % For a 7-core system, 5 workers is a safe, high-performance choice.
 % target_workers = 5; 
 % current_pool = gcp('nocreate');
-% 
+
 % if isempty(current_pool)
 %     parpool(target_workers);
 % elseif current_pool.NumWorkers ~= target_workers
@@ -76,13 +76,13 @@ for c = 1:numel(conditions)
         
         % --- 1. Load Data (Local to Worker) ---
         if d < 10 && ~strcmp(cond, 'ou') && ~strcmp(cond,'set4')
-            eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(d));
+            eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(1));
         elseif d<10
-            eegFilename = sprintf('simEEG_%s_spat0%d', cond, d);
+            eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(1));
         elseif d == 1 && strcmp(cond, 'ou')
             eegFilename = sprintf('simEEG_Morrell_%s', cond);
         else
-            eegFilename = sprintf('simEEG_%s_spat%d', cond, d);
+            eegFilename = sprintf('simEEG_%s_spat%d_dur%d', cond, d, param.duration(1));
         end
         
         % Load file
@@ -94,8 +94,8 @@ for c = 1:numel(conditions)
         h_f             = loader.train_true_hF';
         
         % Recalculate parameters locally
-        local_param = param; % Create a local copy of param
-        local_param.N_F = size(loader.train_true_hF, 1);
+        local_param = loader.param; % Create a local copy of param
+        
         fs_orig         = 1 / loader.dt;
         
         % Determine results directory for this dataset
@@ -240,13 +240,13 @@ for c = 1:numel(conditions)
         
         % Re-define paths for saving plots
         if d < 10 && ~strcmp(cond, 'ou') && ~strcmp(cond,'set4')
-            eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(d));
+            eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, local_param.T(1));
         elseif d<10
-            eegFilename = sprintf('simEEG_%s_spat0%d', cond, d);
+            eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, local_param.T(1));
         elseif d == 1 && strcmp(cond, 'ou')
             eegFilename = sprintf('simEEG_Morrell_%s', cond);
         else
-            eegFilename = sprintf('simEEG_%s_spat%d', cond, d);
+            eegFilename = sprintf('simEEG_%s_spat%d_dur%d', cond, d, local_param.T(1));
         end
         subfolderName = ['results_' eegFilename];
         local_results_dir = fullfile(baseFolder, subfolderName);
@@ -318,7 +318,7 @@ for c = 1:numel(conditions)
 
         for ki = 1:nK
             % Collect corr tables from all datasets
-            corr_mat = nan(nDatasets, size(param.f_peak,2));
+            corr_mat = nan(nDatasets, size(local_param.f_peak,2));
 
             for d = 1:nDatasets
                 tbl = EXP.(cond).dataset(d).(method).CORR{ki};
@@ -384,10 +384,10 @@ for c = 1:numel(conditions)
             mu = CORR_STATS.(cond).(method)(ki).mean;
             sd = CORR_STATS.(cond).(method)(ki).std;
 
-            mu_sorted = mu(f_sortIdx);
-            sd_sorted = sd(f_sortIdx);
+            % mu_sorted = mu(f_sortIdx);
+            % sd_sorted = sd(f_sortIdx);
 
-            errorbar(f_sorted, mu_sorted, sd_sorted, '-o', ...
+            errorbar(local_param.f_peak, mu, sd, '-o', ...
                 'LineWidth',1.8, ...
                 'Color',colors(m,:), ...
                 'DisplayName',method);

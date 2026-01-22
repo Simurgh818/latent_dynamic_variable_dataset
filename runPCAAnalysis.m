@@ -342,7 +342,7 @@ if isempty(getCurrentTask())
     sgtitle(['True vs Reconstructed Band Mean FFT Amplitudes (per latent) (k=' num2str(num_sig_components) ')']);
     
     colors = lines(nBands);
-    markers = {'o','s','d','h','^','hexagram','<','>'};
+    markers = {'o','s','d','h','^'}; %,'hexagram','<','>'
     hold on;
     
     for b = 1:nBands    
@@ -374,7 +374,7 @@ if isempty(getCurrentTask())
         title([band_names{b} ' band'])
         grid on;
     end
-    nLatents = length(markers);
+    nLatents = length(param.f_peak);
     proxy_handles = gobjects(nLatents + 1,1); 
     for m = 1:nLatents
         proxy_handles(m) = scatter(nan, nan, 70, 'Marker', markers{m}, ...
