@@ -7,14 +7,14 @@ rng(42,'twister');
 
 % freq_peak_latents = [2 2.4 8 20 21 32 40 40];
 % freq_peak_latents = [40 40 32 21 20 8 2.4 2];
-param.f_peak = [1 4 8 12 30];
-param.N_F = 5; % 8 , Number of latent fields hₘ(t)
-param.tau_F = [1, 0.25, 0.125, 0.083, 0.033]; % 1, 0.4, 0.2, 0.15, 0.1, 0.08, 0.05, 0.03 ; 0.001, 0.01, 0.1, 0.5, 1,  Time constants (in seconds) for each OU field
+param.f_peak = [1 4 8 12 30 50];
+param.N_F = 6; % 8 , Number of latent fields hₘ(t)
+param.tau_F = [1, 0.25, 0.125, 0.083, 0.033 0.02]; % 1, 0.4, 0.2, 0.15, 0.1, 0.08, 0.05, 0.03 ; 0.001, 0.01, 0.1, 0.5, 1,  Time constants (in seconds) for each OU field
 param.dt = 0.005; % 1e-3
 param.T = 1000; % Total simulation time (in seconds), min duration at 1000 sec
 
 num_latents = length(param.tau_F);
-zeta_latents = [0.1 0.3 0.1 0.25 0.2 ]; %0.4 0.45 0.5 Increased from 0.15 to 0.5 for less sharp peaks [0.15 0.2 0.25 0.4 0.5 0.4 0.3 0.15];
+zeta_latents = [0.1 0.3 0.1 0.25 0.2 0.4]; %0.4 0.45 0.5 Increased from 0.15 to 0.5 for less sharp peaks [0.15 0.2 0.25 0.4 0.5 0.4 0.3 0.15];
 T = 1000;     % Duration, in seconds
 dt = 0.005;   % time step, in seconds
 fs=1/dt;
@@ -31,24 +31,24 @@ all_h_F = zeros(num_latents, T/dt);
 % end
 % 
 % Ornstein-Uhlenbeck latent processes
-for i_f = 1:param.N_F
-    all_h_F(i_f, :) = generateOUProcess(param.tau_F(i_f), param.dt, param.T)'; % length(freq_peak_latents)+
-end
-% for i = 1:num_latents
-%     % 1. Generate Oscillatory Component (SDHO)
-%     h_sdho = generateSDHO(freq_peak_latents(i), zeta_latents(i), dt, T);
-%     h_sdho = h_sdho / std(h_sdho); % Normalize to unit variance
-% 
-%     % 2. Generate Aperiodic Component (OU)
-%     h_ou = generateOUProcess(param.tau_F(i), dt, T);
-%     h_ou = h_ou / std(h_ou);       % Normalize to unit variance
-% 
-%     % 3. Combine them
-%     % You can tune the ratio here. 1:1 is a good starting point.
-%     % If you want dominant oscillations: h_sdho + 0.5*h_ou
-%     % If you want dominant 1/f:        0.5*h_sdho + h_ou
-%     all_h_F(i, :) = h_sdho + h_ou; 
+% for i_f = 1:param.N_F
+%     all_h_F(i_f, :) = generateOUProcess(param.tau_F(i_f), param.dt, param.T)'; % length(freq_peak_latents)+
 % end
+for i = 1:num_latents
+    % 1. Generate Oscillatory Component (SDHO)
+    h_sdho = generateSDHO(param.f_peak(i), zeta_latents(i), dt, T);
+    h_sdho = h_sdho / std(h_sdho); % Normalize to unit variance
+
+    % 2. Generate Aperiodic Component (OU)
+    h_ou = generateOUProcess(param.tau_F(i), dt, T);
+    h_ou = h_ou / std(h_ou);       % Normalize to unit variance
+
+    % 3. Combine them
+    % You can tune the ratio here. 1:1 is a good starting point.
+    % If you want dominant oscillations: h_sdho + 0.5*h_ou
+    % If you want dominant 1/f:        0.5*h_sdho + h_ou
+    all_h_F(i, :) = h_sdho + h_ou; 
+end
 % normalize temporal latents (unit variance)
 all_h_F = all_h_F ./ std(all_h_F, [], 2);
 
@@ -137,7 +137,7 @@ if ~exist(output_folder, 'dir')
 end
 
 %% get full component images 
-num_spatial_realizations = 1; % 10
+num_spatial_realizations = 10; % 10
 
 for i_spat = 1:num_spatial_realizations
 
@@ -333,7 +333,7 @@ for i_spat = 1:num_spatial_realizations
     
     % 3. Multiply by 10 (Scales Amplitude)
     % This will increase PSD Power by 100x (matching 10^-1 to 10^1 jump)
-    sim_eeg_vals = sim_eeg_vals * 10;  
+    sim_eeg_vals = sim_eeg_vals * 50;  
 
     train_t_range = 1:idx;
     test_t_range = idx+1:size(all_h_F,2);

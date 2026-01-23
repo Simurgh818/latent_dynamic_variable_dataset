@@ -340,7 +340,7 @@ if isempty(getCurrentTask())
     sgtitle(['True vs Reconstructed Band Mean FFT Amplitudes (per latent) (k=' num2str(num_sig_components) ')']);
     
     colors = lines(nBands);
-    markers = {'o','s','d','h','^','hexagram','<','>'};
+    markers = {'o','s','d','h','^','hexagram'}; %,'hexagram','<','>'
     hold on;
     
     for b = 1:nBands    

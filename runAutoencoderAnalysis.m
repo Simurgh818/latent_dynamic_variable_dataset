@@ -369,7 +369,7 @@ if isempty(getCurrentTask())
     tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
     sgtitle(['AE: True vs Reconstructed Band Mean FFT Amplitudes for k= ' num2str(bottleNeck)]);
     colors = lines(nBands);
-    markers = {'o','s','d','h','^','hexagram','<','>'};
+    markers = {'o','s','d','h','^','hexagram'}; %,'hexagram','<','>'
     
     for b = 1:nBands    
         nexttile;   

@@ -294,7 +294,7 @@ if isempty(getCurrentTask())
     tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
     sgtitle(['ICA True vs Reconstructed Band Mean FFT Amplitudes, (k=' num2str(num_comps) ')']);
     colors = lines(nBands);
-    markers = {'o','s','d','h','^','hexagram','<','>'};
+    markers = {'o','s','d','h','^','hexagram'}; %,'hexagram','<','>'
     
     for b = 1:nBands    
         nexttile; hold on; 
