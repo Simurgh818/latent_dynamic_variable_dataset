@@ -9,15 +9,23 @@ rng(42,'twister');
 % freq_peak_latents = [40 40 32 21 20 8 2.4 2];
 param.f_peak = [1 4 8 12 30 50];
 param.N_F = 6; % 8 , Number of latent fields hₘ(t)
-param.tau_F = [1, 0.25, 0.125, 0.083, 0.033 0.02]; % 1, 0.4, 0.2, 0.15, 0.1, 0.08, 0.05, 0.03 ; 0.001, 0.01, 0.1, 0.5, 1,  Time constants (in seconds) for each OU field
-param.dt = 0.005; % 1e-3
+param.dt = 0.002; % 5e-3 for 200 Hz fs, 2e-3 for 500 Hz fs
+% f_c = 1/(2*pi*tau_f) , fs > 2 *fc, even better fs > 4 *fc, for fs=500,
+% fc=125
+% fc=
+% -> tau_F = 1/(2*pi*f_c). 
+% param.tau_F = [1, 0.25, 0.125, 0.083, 0.033, 0.02]; % 0.001, 0.01, 0.1, 0.5, 1,  Time constants (in seconds) for each OU field
+fs=1/param.dt;
+fc = fs/4;
+% param.tau_F = repmat(1/(2*pi*fc), 1, param.N_F);
+param.tau_F = [1, 0.85, 0.75, 0.5, 0.25, 0.125] ;
 param.T = 1000; % Total simulation time (in seconds), min duration at 1000 sec
 
 num_latents = length(param.tau_F);
 zeta_latents = [0.1 0.3 0.1 0.25 0.2 0.4]; %0.4 0.45 0.5 Increased from 0.15 to 0.5 for less sharp peaks [0.15 0.2 0.25 0.4 0.5 0.4 0.3 0.15];
 T = 1000;     % Duration, in seconds
-dt = 0.005;   % time step, in seconds
-fs=1/dt;
+dt = param.dt;   % time step, in seconds
+
 % 1 second window = fs samples (since fs is samples per second)
 win_len = 1 * fs;  
 % 50% overlap is standard for Welch
@@ -240,7 +248,7 @@ for i_spat = 1:num_spatial_realizations
     
     % 3. Multiply by 10 (Scales Amplitude)
     % This will increase PSD Power by 100x (matching 10^-1 to 10^1 jump)
-    sim_eeg_vals = sim_eeg_vals * 50;  
+    sim_eeg_vals = sim_eeg_vals * 20; % 50 before  
 
     idx = 0.6* size(all_h_F,2);
     train_t_range = 1:idx;
@@ -333,7 +341,17 @@ for i_spat = 1:num_spatial_realizations
     
     % 3. Multiply by 10 (Scales Amplitude)
     % This will increase PSD Power by 100x (matching 10^-1 to 10^1 jump)
-    sim_eeg_vals = sim_eeg_vals * 50;  
+    sim_eeg_vals = sim_eeg_vals * 20; % 50 before 
+
+    fig1_5 = figure();
+    T_subject = 3.5;
+    time_ms_eeg = linspace(0,T_subject,T_subject * fs); % time in milliseconds
+    plot(time_ms_eeg, sim_eeg_vals(18,1:size(time_ms_eeg,2),1), 'b');
+    xlim([0 3.5]);
+    xlabel('Time (sec)');
+    ylabel('Channel 18 (uV)');
+    title('Zoom-in view for Channel 18 for Synthetic EEG');
+
 
     train_t_range = 1:idx;
     test_t_range = idx+1:size(all_h_F,2);
@@ -446,16 +464,16 @@ set(findall(fig1,'-property','FontSize'),'FontSize',16);
 t_range = 1:500;
 makeMyFigure(20, 15);
 
-tiledlayout(4, 6)
+tiledlayout(3, 6, 'TileSpacing', 'compact', 'Padding', 'compact');
 for i_comp = 1:size(spatial_comps, 2)
-    nexttile
+    nexttile([1 1]);
     scatter(eeg_loc_x, eeg_loc_y, 30, spatial_comps(:, i_comp), 'filled')
     title(['s_{i' num2str(i_comp) '}'], 'interpreter','tex')
     axis tight
     axis equal
     set(gca, 'box', 'off', 'color', 'none', 'xtick', [], 'ytick', [])
 % set(gca, 'visible', 'off')
-    nexttile([1 2])
+    nexttile([1 2]);
     plot(dt*t_range, test_true_hF(i_comp, t_range), 'k')
     axis tight
     set(gca, 'color', 'none', 'box', 'off')
