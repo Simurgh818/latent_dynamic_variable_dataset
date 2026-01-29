@@ -9,7 +9,7 @@ function plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, k, me
     nLatents = size(Ht,2);
 
     % 2. Safety Check: Markers
-    markers = {'o','s','d','h','^','hexagram','<','>'};
+    markers = {'o','s','d','h','^'}; %,'hexagram','<','>'
     
     % If we have more latents than markers, just cycle them to prevent crash
     if nLatents > numel(markers)
@@ -58,6 +58,26 @@ function plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, k, me
                 'MarkerEdgeAlpha', 0.8, ...
                 'DisplayName', latent_name);
         end
+        % 1. Flatten matrices to vectors for correlation and limits
+        x_flat = X(:);
+        y_flat = Y(:);
+        
+       % 2. We look at both X and Y to find the absolute lowest and highest numbers
+        g_min = min([x_flat; y_flat]); 
+        g_max = max([x_flat; y_flat]);
+        
+        % 3. Plot y=x line
+        % Notice we use g_min for BOTH x and y arguments, same for g_max
+        plot([g_min g_max], [g_min g_max], 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
+
+        % 4. Calculate Correlation on flattened data
+        R = corrcoef(x_flat, y_flat); 
+        r_sq = R(1,2)^2;
+        
+        % 5. Add Text
+        text(mean(x_flat), mean(y_flat), sprintf('R^2=%.2f', r_sq), ...
+             'Color', 'k', 'FontSize', 12, 'FontWeight', 'bold');
+
         title([band_names{b} ' band']);
         if b == 1, xlabel('True Band Amp.'); ylabel('Recon. Band Amp.'); end
         axis tight; grid on; axis equal;

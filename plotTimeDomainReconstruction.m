@@ -62,7 +62,7 @@ function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, zer
         
         ylabel('Amp');
         % Limit to 2 seconds or full length, whichever is shorter
-        max_time = min(size(h_true,1), param.fs * 2);
+        max_time = min(size(h_true,1), param.fs);
         xlim([0 max_time]); 
         
         legend('Show', 'Interpreter', 'latex', 'Location', 'eastoutside');
@@ -88,8 +88,8 @@ function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, zer
     y0 = min(ylim) + 0.2;
     
     % X-bar (1 sec)
-    line([x0 x0+param.fs], [y0 y0], 'Color', 'k', 'LineWidth', 2, 'HandleVisibility', 'off');
-    text(x0+param.fs, y0-0.1, '1 sec', 'VerticalAlignment', 'top');
+    line([x0 x0+param.fs/2], [y0 y0], 'Color', 'k', 'LineWidth', 2, 'HandleVisibility', 'off');
+    text(x0+param.fs/2, y0-0.1, '500 msec', 'VerticalAlignment', 'top');
     
     % Y-bar (2 units)
     line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2, 'HandleVisibility', 'off');

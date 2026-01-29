@@ -84,70 +84,71 @@ end
 h_f_colors = lines(num_f);
 
 %%% -------------------- Plot reconstructed latent signals --------------------
-if isempty(getCurrentTask())
+if isempty(getCurrentTask()) && num_sig_components >4
 
-    fig1 = figure('Position',[50 50 1200 150*num_f]);
-    tiledlayout(num_f, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-    sgtitle(['Latent variables Z(t) and dPCA $\hat{z}$(t) reconstruction. (k=' ...
-        num2str(num_sig_components) ')'], 'Interpreter','latex')
-    
-    for f=1:num_f
-        nexttile;
-        hold on;
-        set(gca, 'XColor', 'none', 'YColor', 'none');
-        box on
-        plot(h_f_normalized_ds(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :), ...
-            'DisplayName', ['Z_{' num2str(param.f_peak(f)) '} (true)']);
-        plot(h_f_recon_dpca(:, f), 'LineStyle', '--','LineWidth',1,'Color', 'k', ...
-            'DisplayName', ['Z_{' num2str(param.f_peak(f)) '} (recon)']);
-        ylabel('amplitude')
-        xlim([0 param.fs*2]);
-        legend('Show','Location','eastoutside');
-        rho = zeroLagCorr_dpca(f);
-        text(0.02 * param.fs, 0.05 * max(h_f_normalized_ds(:,f)), ...
-            sprintf('\\rho(0)=%.2f', rho), ...
-            'FontSize', 12, 'FontWeight', 'bold', ...
-            'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
-            'Margin', 3, 'EdgeColor','k');
-        hold off;
-    end
-    % scale bars (draw on last axis)
-    ax = gca;
-    hold(ax,'on');
-    x0 = 0;
-    y0 = min(ylim)+0.2;
-    line([x0 x0+param.fs], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-    text(x0+param.fs, y0-0.1, '1 sec', 'VerticalAlignment','top');
-    line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-    text(x0-5, y0+4, '2 a.u.', 'VerticalAlignment','bottom', ...
-        'HorizontalAlignment','right','Rotation',90);
-    set(findall(fig1,'-property','FontSize'),'FontSize',16);
-    saveas(fig1, fullfile(results_dir,['dPCA_TimeDomain_Reconstruction_' file_suffix '.png'])); 
-    
+    % fig1 = figure('Position',[50 50 1200 150*num_f]);
+    % tiledlayout(num_f, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+    % sgtitle(['Latent variables Z(t) and dPCA $\hat{z}$(t) reconstruction. (k=' ...
+    %     num2str(num_sig_components) ')'], 'Interpreter','latex')
+    % 
+    % for f=1:num_f
+    %     nexttile;
+    %     hold on;
+    %     set(gca, 'XColor', 'none', 'YColor', 'none');
+    %     box on
+    %     plot(h_f_normalized_ds(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :), ...
+    %         'DisplayName', ['Z_{' num2str(param.f_peak(f)) '} (true)']);
+    %     plot(h_f_recon_dpca(:, f), 'LineStyle', '--','LineWidth',1,'Color', 'k', ...
+    %         'DisplayName', ['Z_{' num2str(param.f_peak(f)) '} (recon)']);
+    %     ylabel('amplitude')
+    %     xlim([0 param.fs*2]);
+    %     legend('Show','Location','eastoutside');
+    %     rho = zeroLagCorr_dpca(f);
+    %     text(0.02 * param.fs, 0.05 * max(h_f_normalized_ds(:,f)), ...
+    %         sprintf('\\rho(0)=%.2f', rho), ...
+    %         'FontSize', 12, 'FontWeight', 'bold', ...
+    %         'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
+    %         'Margin', 3, 'EdgeColor','k');
+    %     hold off;
+    % end
+    % % scale bars (draw on last axis)
+    % ax = gca;
+    % hold(ax,'on');
+    % x0 = 0;
+    % y0 = min(ylim)+0.2;
+    % line([x0 x0+param.fs], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+    % text(x0+param.fs, y0-0.1, '1 sec', 'VerticalAlignment','top');
+    % line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+    % text(x0-5, y0+4, '2 a.u.', 'VerticalAlignment','bottom', ...
+    %     'HorizontalAlignment','right','Rotation',90);
+    % set(findall(fig1,'-property','FontSize'),'FontSize',16);
+    % saveas(fig1, fullfile(results_dir,['dPCA_TimeDomain_Reconstruction_' file_suffix '.png'])); 
+    plotTimeDomainReconstruction(h_f_normalized_ds, h_f_recon_dpca, param, 'dPCA', num_sig_components, zeroLagCorr_dpca, results_dir);
+
     %%% ---------------------- Plot Z_dpca component traces ------------------------
-    if num_sig_components <= param.N_F
-        num_comps_plot = num_sig_components;
-    else
-        num_comps_plot = param.N_F;
-    end
-    
-    fig2 = figure('Position',[50 50 1000 (num_comps_plot*250)/2]);
-    tiledlayout(num_comps_plot, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-    pc_colors = lines(num_comps_plot);
-    sgtitle(['PC Traces (k=' num2str(num_sig_components) ')'])
-    
-    for pc = 1:num_comps_plot
-        nexttile;
-        plot(Z_dpca(pc,:), 'LineStyle', '-', 'Color', pc_colors(pc,:), ...
-            'DisplayName', ['PC(t) ' num2str(pc)]);
-        xlabel('Time bins')
-        ylabel('PC amplitude')
-        xlim([0 1000]);
-        legend('show');
-    end
-    set(findall(fig2,'-property','FontSize'),'FontSize',12);
-    saveas(fig2, fullfile(results_dir,['dPCA_Component_Traces_' file_suffix '.png'])); 
-    
+    % if num_sig_components <= param.N_F
+    %     num_comps_plot = num_sig_components;
+    % else
+    %     num_comps_plot = param.N_F;
+    % end
+    % 
+    % fig2 = figure('Position',[50 50 1000 (num_comps_plot*250)/2]);
+    % tiledlayout(num_comps_plot, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+    % pc_colors = lines(num_comps_plot);
+    % sgtitle(['PC Traces (k=' num2str(num_sig_components) ')'])
+    % 
+    % for pc = 1:num_comps_plot
+    %     nexttile;
+    %     plot(Z_dpca(pc,:), 'LineStyle', '-', 'Color', pc_colors(pc,:), ...
+    %         'DisplayName', ['PC(t) ' num2str(pc)]);
+    %     xlabel('Time bins')
+    %     ylabel('PC amplitude')
+    %     xlim([0 1000]);
+    %     legend('show');
+    % end
+    % set(findall(fig2,'-property','FontSize'),'FontSize',12);
+    % saveas(fig2, fullfile(results_dir,['dPCA_Component_Traces_' file_suffix '.png'])); 
+    plotCTraces(num_sig_components, param, Z_dpca', results_dir, file_suffix);
     %%% -------------------- Explained variance figure -----------------------------
     fig3 = figure('Position',[50 50 800 600]);
     tiledlayout(2, 1, 'Padding', 'compact');

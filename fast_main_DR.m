@@ -33,12 +33,12 @@ end
 %% Loop through experiments
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 10; % 5 10
-k_range    = 1:10; % 18
+nDatasets  = 1; % 5 10
+k_range    = 5:5; % 10
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA', 'dPCA','AE', 'ICA'}; %  'UMAP'
+methods = { 'AE' }; %'PCA','dPCA',, 'ICA' 'UMAP'
 
 EXP = struct();
 param = struct();
@@ -50,15 +50,15 @@ param.duration = [1000];% 1, 5, 10, 60, 120, 600,
 
 % Best practice: Leave 1-2 cores free for the OS/Main Thread.
 % For a 7-core system, 5 workers is a safe, high-performance choice.
-target_workers = 5; 
-current_pool = gcp('nocreate');
-
-if isempty(current_pool)
-    parpool(target_workers);
-elseif current_pool.NumWorkers ~= target_workers
-    delete(current_pool);
-    parpool(target_workers);
-end
+% target_workers = 5; 
+% current_pool = gcp('nocreate');
+% 
+% if isempty(current_pool)
+%     parpool(target_workers);
+% elseif current_pool.NumWorkers ~= target_workers
+%     delete(current_pool);
+%     parpool(target_workers);
+% end
 
 %% Loop through experiments
 for c = 1:numel(conditions)
@@ -71,7 +71,7 @@ for c = 1:numel(conditions)
     % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
-    parfor d = 1:nDatasets
+    for d = 1:nDatasets
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         
         % --- 1. Load Data (Local to Worker) ---

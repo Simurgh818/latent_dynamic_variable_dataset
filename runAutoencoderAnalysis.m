@@ -109,7 +109,7 @@ end
 % ============================================================
 % PLOTTING SECTION
 % ============================================================
-if isempty(getCurrentTask())
+if isempty(getCurrentTask()) && bottleNeck>4
 
     % %% Plot 1: Mapping Correlation Bar Chart
     % fig1 = figure('Position',[50 50 400 250]);
@@ -133,7 +133,7 @@ if isempty(getCurrentTask())
     %     grid on;
     % end
     % saveas(fig2, fullfile(method_dir, ['AE_Simple_Traces' file_suffix '.png']));
-    
+    plotCTraces(bottleNeck, param, H_recon_test, method_dir, file_suffix);
     %% Plot 3: Detailed Reconstruction (Train & Test Split)
     fig3 = figure('Name','True vs. AE Latents', 'Position', [100, 100, 1200, 110*param.N_F]);
     tiledlayout(param.N_F, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
@@ -149,7 +149,7 @@ if isempty(getCurrentTask())
         set(gca, 'XColor', 'none', 'YColor', 'none'); box on
         plot(H_train(1:vis_len_train, f), '-',  'Color', h_f_colors(f,:), 'LineWidth', 1.5,'DisplayName', ['$Z_{' num2str(param.f_peak(f)) '}$']); 
         plot(H_recon_train(1:vis_len_train, f), '--', 'Color', 'k', 'LineWidth', 1.5,'DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$']);
-        xlim([0 fs_new*2]);
+        xlim([0 fs_new]);
         if f==1, title('Training Set'); end
         legend('location', 'southeastoutside', 'Interpreter', 'latex');
         rho_train = zeroLagCorr_train(f);
@@ -165,8 +165,8 @@ if isempty(getCurrentTask())
             y0 = min(ylim)+0.2; % bottom of scale bar (y)
             
             % time bar (horizontal)
-            line([x0 x0+(fs_new)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-            text(x0+fs_new, y0-0.1, '1 sec', 'VerticalAlignment','top');
+            line([x0 x0+(fs_new/2)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+            text(x0+fs_new/2, y0-0.1, '500 msec', 'VerticalAlignment','top');
             
             % amplitude bar (vertical)
             line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
@@ -179,7 +179,7 @@ if isempty(getCurrentTask())
         set(gca, 'XColor', 'none', 'YColor', 'none'); box on
         plot(H_test(1:vis_len_test, f), '-',  'Color', h_f_colors(f,:), 'LineWidth', 1.5, 'DisplayName',[' $Z_{' num2str(param.f_peak(f)) '}$']);  
         plot(H_recon_test(1:vis_len_test, f), '--', 'Color', 'k', 'LineWidth', 1.5, 'DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$']);
-        xlim([0 fs_new*2]);
+        xlim([0 fs_new]);
             rho_test = zeroLagCorr_test(f);
         text(0.02 * fs_new, 0.05 * max(H_test(:,f)), ...
         sprintf('\\rho(0)=%.2f', rho_test), ...
@@ -194,8 +194,8 @@ if isempty(getCurrentTask())
             y0 = min(ylim)+0.2; % bottom of scale bar (y)
             
             % time bar (horizontal)
-            line([x0 x0+(fs_new)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-            text(x0+fs_new, y0-0.1, '1 sec', 'VerticalAlignment','top');
+            line([x0 x0+(fs_new/2)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
+            text(x0+fs_new/2, y0-0.1, '500 msec', 'VerticalAlignment','top');
             
             % amplitude bar (vertical)
             line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');

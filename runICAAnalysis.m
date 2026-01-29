@@ -187,7 +187,7 @@ end
 %% ============================================================
 % PLOTTING SECTION
 % ============================================================
-if isempty(getCurrentTask())
+if isempty(getCurrentTask()) && num_comps>4
 
     % Plot 1: Time Domain + Zero Lag Corr
     % fig1 = figure('Position',[50 50 1200 150*param.N_F]);
@@ -227,26 +227,27 @@ if isempty(getCurrentTask())
     plotTimeDomainReconstruction(h_test, h_rec_test, param, 'ICA', num_comps, zeroLagCorr_ica, method_dir);
     
     % num_sig_components = sum(eig_vals > lambda_max);
-    if num_comps <= param.N_F
-        num_comps_plot = num_comps;
-    else
-        num_comps_plot = param.N_F;
-    end
-    fig1_2 = figure('Position',[50 50 1200 (num_comps_plot*150)]);
-    tiledlayout(num_comps_plot, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-    pc_colors = lines(num_comps_plot);
-    sgtitle('IC Traces');
-    
-    for ic=1:num_comps_plot
-        nexttile;
-        plot(h_rec_test(:,ic)', 'LineStyle', '-', 'Color', pc_colors(ic,:),'DisplayName', ['IC(t) ' num2str(ic)]);
-        xlabel('Time bins')
-        ylabel('IC amp.')
-        xlim([0 1000]);
-        legend('show');
-    end
-    set(findall(gcf,'-property','FontSize'),'FontSize',16);
-    saveas(fig1_2, fullfile(method_dir, ['IC_traces' file_suffix '.png']));
+    % if num_comps <= param.N_F
+    %     num_comps_plot = num_comps;
+    % else
+    %     num_comps_plot = param.N_F;
+    % end
+    % fig1_2 = figure('Position',[50 50 1200 (num_comps_plot*150)]);
+    % tiledlayout(num_comps_plot, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+    % pc_colors = lines(num_comps_plot);
+    % sgtitle('IC Traces');
+    % 
+    % for ic=1:num_comps_plot
+    %     nexttile;
+    %     plot(h_rec_test(:,ic)', 'LineStyle', '-', 'Color', pc_colors(ic,:),'DisplayName', ['IC(t) ' num2str(ic)]);
+    %     xlabel('Time bins')
+    %     ylabel('IC amp.')
+    %     xlim([0 1000]);
+    %     legend('show');
+    % end
+    % set(findall(gcf,'-property','FontSize'),'FontSize',16);
+    % saveas(fig1_2, fullfile(method_dir, ['IC_traces' file_suffix '.png']));
+    plotCTraces(num_comps, param, h_rec_test, method_dir, file_suffix);
     %% Plot 2: Band-wise R2 Bar Chart
     fig2 = figure('Position',[50 50 1000 300]);
     tiledlayout(1, 1, 'TileSpacing', 'compact', 'Padding', 'compact');

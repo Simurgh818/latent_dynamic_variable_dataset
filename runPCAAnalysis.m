@@ -122,7 +122,7 @@ Hr_avg = mean(Hr, 3);
 R2_avg = mean(R2_trials, 3);
 
 % Band Definitions
-bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 13], 'beta', [13 30], 'gamma', [30 50]);
+bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 12], 'beta', [13 30], 'gamma', [30 50]);
 band_names = fieldnames(bands);
 nBands = numel(band_names);
 band_avg_R2 = zeros(nBands, param.N_F);
@@ -139,7 +139,7 @@ end
 % ============================================================
 % PLOTTING SECTION
 % ============================================================
-if isempty(getCurrentTask())
+if isempty(getCurrentTask()) && num_sig_components>4
 
     % fig1 = figure('Position',[50 50 1200 150*size(h_train,2)]);
     % tiledlayout(size(h_train,2), 1, 'TileSpacing', 'compact', 'Padding', 'compact');
@@ -175,26 +175,25 @@ if isempty(getCurrentTask())
     plotTimeDomainReconstruction(h_test, h_recon_test, param, 'PCA', k, zeroLagCorr_pca, method_dir);
     
     %% Plot 2: PC Traces
-    if num_sig_components <= param.N_F
-        num_comps_plot = num_sig_components;
-    else
-        num_comps_plot = param.N_F;
-    end
-    
-    fig2 = figure('Position',[50 50 1000 (num_comps_plot*250)/2]);
-    tiledlayout(num_comps_plot, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-    pc_colors = lines(num_comps_plot);
-    sgtitle(['PC Traces (k=' num2str(num_sig_components) ')']);
-    for pc=1:num_comps_plot
-        nexttile;
-        plot(score(:,pc), 'LineStyle', '-', 'Color', pc_colors(pc,:),'DisplayName', ['PC(t) ' num2str(pc)]);
-        xlabel('Time bins'); ylabel('PC Amp.');
-        xlim([0 1000]);
-        legend('show');
-    end
-    set(findall(fig2,'-property','FontSize'),'FontSize',16);
-    saveas(fig2, fullfile(method_dir, ['PCA_PC_Traces' file_suffix '.png']));
-    
+    % if num_sig_components <= param.N_F
+    %     num_comps_plot = num_sig_components;
+    % else
+    %     num_comps_plot = param.N_F;
+    % end
+    % 
+    % fig2 = figure('Position',[50 50 1000 (num_comps_plot*250)/2]);
+    % tiledlayout(num_comps_plot, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+    % sgtitle(['PC Traces (k=' num2str(num_sig_components) ')']);
+    % for pc=1:num_comps_plot
+    %     nexttile;
+    %     plot(score(:,pc), 'LineStyle', '-', 'Color', 'k','DisplayName', ['PC(t) ' num2str(pc)]);
+    %     xlabel('Time bins'); ylabel('PC Amp.');
+    %     xlim([0 param.fs * 2]);
+    %     legend('show');
+    % end
+    % set(findall(fig2,'-property','FontSize'),'FontSize',16);
+    % saveas(fig2, fullfile(method_dir, ['PCA_PC_Traces' file_suffix '.png']));
+    plotCTraces(num_sig_components, param, score, method_dir, file_suffix);
     
     %% Plot 3: Metrics (Main Performance)
     fig3 = figure('Position',[50 50 800 600]);

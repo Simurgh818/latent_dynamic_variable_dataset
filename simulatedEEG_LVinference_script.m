@@ -7,7 +7,7 @@ rng(42,'twister');
 
 % freq_peak_latents = [2 2.4 8 20 21 32 40 40];
 % freq_peak_latents = [40 40 32 21 20 8 2.4 2];
-param.f_peak = [1 4 8 12 30 50];
+param.f_peak = [2 6 10 18 24 50];
 param.N_F = 6; % 8 , Number of latent fields hₘ(t)
 param.dt = 0.002; % 5e-3 for 200 Hz fs, 2e-3 for 500 Hz fs
 % f_c = 1/(2*pi*tau_f) , fs > 2 *fc, even better fs > 4 *fc, for fs=500,
