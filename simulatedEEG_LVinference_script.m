@@ -106,7 +106,7 @@ if exist('H:\', 'dir')
     'Shared Code' filesep 'simEEG']; % filesep 'diffDuration'
 
     realEEG_path = ['H:\' filesep 'My Drive' filesep 'Data' ...
-        filesep 'New Data' filesep 'EEG epoched' filesep 'BLA'];
+        filesep 'New Data' filesep 'EEG epoched' filesep 'BLT'];
 
 elseif exist('G:\', 'dir')
     input_dir = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
@@ -120,7 +120,7 @@ elseif exist('G:\', 'dir')
     'Shared Code' filesep 'simEEG']; % filesep 'diffDuration'
 
     realEEG_path = ['G:\' filesep 'My Drive' filesep 'Data' ...
-        filesep 'New Data' filesep 'EEG epoched' filesep 'BLA'];
+        filesep 'New Data' filesep 'EEG epoched' filesep 'BLT'];
 else
     error('Unknown system: Cannot determine input and output paths.');
 end
@@ -145,7 +145,7 @@ if ~exist(output_folder, 'dir')
 end
 
 %% get full component images 
-num_spatial_realizations = 10; % 10
+num_spatial_realizations = 1; % 10
 
 for i_spat = 1:num_spatial_realizations
 
@@ -414,7 +414,7 @@ EEG.xmin   = 0;
 % Assign channel locations (example for 32-channel cap)
 %% Load your real EEG dataset
 
-EEG_real = pop_loadset('filename', 'binepochs filtered ICArej BLAAvgBOS2.set', ...
+EEG_real = pop_loadset('filename', 'binepochs filtered ICArej BLTAvgBOS2.set', ...
                        'filepath', realEEG_path);
 %% 
 % Copy channel location info to your simulated EEG
@@ -452,7 +452,7 @@ scaling_factor_rEEG = avg_data_power_rEEG / avg_ref_power_rEEG;
 
 loglog(f_valid_rEEG, ref_1of_rEEG * scaling_factor_rEEG, 'k--', 'LineWidth', 3,'DisplayName','1/f'); % Thick Black Dashed Line
 
-title(sprintf('Welch PSD: BLA Subject BOS2'));
+title(sprintf('Welch PSD: BLT Subject BOS2'));
 xlabel('Frequency (Hz)');
 ylabel('Power (uV/Hz)');
 grid on;

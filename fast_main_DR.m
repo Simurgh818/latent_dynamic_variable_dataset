@@ -33,12 +33,12 @@ end
 %% Loop through experiments
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 10; % 5 10
+nDatasets  = 1; % 5 10
 k_range    = 1:8; % 10
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA','dPCA','AE', 'ICA'}; % 'UMAP'
+methods = {'dPCA'}; % 'PCA', ,'AE', 'ICA' 'UMAP'
 
 EXP = struct();
 param = struct();
@@ -50,15 +50,15 @@ param.duration = [1000];% 1, 5, 10, 60, 120, 600,
 
 % Best practice: Leave 1-2 cores free for the OS/Main Thread.
 % For a 7-core system, 5 workers is a safe, high-performance choice.
-target_workers = 5; 
-current_pool = gcp('nocreate');
-
-if isempty(current_pool)
-    parpool(target_workers);
-elseif current_pool.NumWorkers ~= target_workers
-    delete(current_pool);
-    parpool(target_workers);
-end
+% target_workers = 5; 
+% current_pool = gcp('nocreate');
+% 
+% if isempty(current_pool)
+%     parpool(target_workers);
+% elseif current_pool.NumWorkers ~= target_workers
+%     delete(current_pool);
+%     parpool(target_workers);
+% end
 
 %% Loop through experiments
 for c = 1:numel(conditions)
@@ -71,7 +71,7 @@ for c = 1:numel(conditions)
     % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
-    parfor d = 1:nDatasets
+    for d = 1:nDatasets
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         
         % --- 1. Load Data (Local to Worker) ---
@@ -202,7 +202,7 @@ for c = 1:numel(conditions)
 
                     case 'dPCA'
                         [R2_test, MSE_test, outDPCA] = rundPCAAnalysis( ...
-                            s_eeg_ds, h_f_normalized_ds, local_param, k, method_dir);
+                            eeg_train, H_train, local_param, k, method_dir);
                         current_R2  = mean(R2_test(ki,:), 'omitnan');
                         current_MSE = mean(MSE_test(ki,:), 'omitnan');
         
@@ -519,7 +519,7 @@ results.summary.threshold = threshold;
 
 % Save file -------------------------------------------------------------
 outFile = fullfile(local_results_dir, "Component_latentVariable_Corr.mat");
-save(outFile, '-struct', 'results', 'summary')
+save(outFile, '-struct', 'results', 'summary') % -struct
 %% ----------------------------------------------------------
 % 4. Plot R^2 and MSE vs # components
 % ----------------------------------------------------------
