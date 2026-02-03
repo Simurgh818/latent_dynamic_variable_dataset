@@ -73,7 +73,8 @@ for c = 1:numel(conditions)
     % ---------------------------------------------------------------------
     for d = 1:nDatasets
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
-        
+        data = struct();
+
         % --- 1. Load Data (Local to Worker) ---
         if d < 10 && ~strcmp(cond, 'ou') && ~strcmp(cond,'set4')
             eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(1));
@@ -84,7 +85,8 @@ for c = 1:numel(conditions)
         else
             eegFilename = sprintf('simEEG_%s_spat%d_dur%d', cond, d, param.duration(1));
         end
-        
+        dataset_name = eegFilename;
+
         % Load file
         loader = load(fullfile(input_dir, [eegFilename '.mat']));
         
@@ -97,7 +99,7 @@ for c = 1:numel(conditions)
         local_param = loader.param; % Create a local copy of param
 
         fs_orig         = 1 / loader.dt;
-        
+        data.fs_orig = fs_orig;
         % Determine results directory for this dataset
         subfolderName = ['results_' eegFilename];
         local_results_dir = fullfile(baseFolder, subfolderName);
@@ -106,19 +108,19 @@ for c = 1:numel(conditions)
         end
 
         % --- 2. Pre-processing (Vectorized) ---
-        if fs_orig <= 500
-            fs_new = fs_orig;
+        if data.fs_orig <= 500
+            data.fs_new = data.fs_orig;
         else
-            fs_new = 500;
+            data.fs_new = 500;
         end
-        local_param.fs = fs_new;
-
+        local_param.fs = data.fs_new;
+        
         % Vectorized Resampling (Fast)
         % Transpose to (Time x Ch) for resample, then transpose back
-        s_eeg_ds = resample(double(s_eeg_like)', fs_new, fs_orig)';
+        s_eeg_ds = resample(double(s_eeg_like)', data.fs_new, data.fs_orig)';
         
         % Resample latent fields
-        h_f_ds_temp = resample(double(h_f), fs_new, fs_orig);
+        h_f_ds_temp = resample(double(h_f), data.fs_new, data.fs_orig);
         h_f_ds = h_f_ds_temp(1:size(s_eeg_ds, 2),:); % Ensure length match
         
         % Normalize
@@ -135,6 +137,16 @@ for c = 1:numel(conditions)
         H_train = h_f_norm_orig(1:idx_split, :);
         H_test  = h_f_norm_orig(idx_split+1:end, :);
 
+        % Raw (train/test, original fs)
+        data.eeg_train = eeg_train;
+        data.eeg_test  = eeg_test;
+        data.H_train   = H_train;
+        data.H_test    = H_test;
+        
+        % Downsampled continuous (for dPCA or others)
+        data.eeg_ds = s_eeg_ds;                  % channels x time
+        data.H_ds   = h_f_normalized_ds;          % time x latentDim
+        
         % --- 3. Method Loop ---
         % Initialize local result structure for this dataset
         dataset_res = struct();
@@ -154,75 +166,16 @@ for c = 1:numel(conditions)
             for ki = 1:nK
                 k = k_range(ki);
                 
-                % Initialize generic temporary variables
-                current_R2  = NaN;
-                current_MSE = NaN;
-                current_out = struct();
-                current_corr_table = table(); % default empty
-                current_R_matrix   = [];
+                [current_R2, current_MSE, current_out, ...
+                 current_corr_table, current_R_matrix] = runDimRedMethod( ...
+                    method, data, local_param, k, ki, dataset_name, method_dir,...
+                    local_results_dir);
                 
-                % Run Analysis
-                switch method
-                    case 'PCA'
-                        [R2_test, MSE_test, outPCA] = runPCAAnalysis(eeg_train, eeg_test,...
-                            H_train, H_test, local_param, k, method_dir);
-                        
-                        % Extract Scalar Values immediately
-                        current_R2  = mean(R2_test(ki,:), 'omitnan');
-                        current_MSE = mean(MSE_test(ki,:), 'omitnan');
-
-                        current_out = outPCA;
-                        if isfield(outPCA, 'corr_PCA'), current_corr_table = outPCA.corr_PCA; end
-                        if isfield(outPCA, 'R_full'),   current_R_matrix   = outPCA.R_full;   end
-                        
-                    case 'AE'
-                        [current_R2, current_MSE, outAE] = runAutoencoderAnalysis(eeg_train, eeg_test,...
-                            H_train, H_test, k, local_param, local_results_dir);
-                        current_out = outAE;
-                        if isfield(outAE, 'corr_AE'), current_corr_table = outAE.corr_AE; end
-                        if isfield(outAE, 'R_full'),  current_R_matrix   = outAE.R_full;  end
-
-                    case 'ICA'
-                        [current_R2, current_MSE, outICA] = runICAAnalysis(eeg_train, eeg_test, ...
-                             H_train, H_test, k, local_param, method_dir);
-                        current_out = outICA;
-                        if isfield(outICA, 'corr_ICA'), current_corr_table = outICA.corr_ICA; end
-                        if isfield(outICA, 'R_full'),   current_R_matrix   = outICA.R_full;   end
-
-                    case 'UMAP'
-                        % Note: Java properties should ideally be set outside parfor, 
-                        % but some workers might need it reset.
-                        n_neighbors = 3; min_dist = 0.99;
-                        [current_R2, current_MSE, outUMAP] = runUMAPAnalysis( ...
-                            n_neighbors, min_dist, eeg_train, eeg_test, local_param, ...
-                            H_train, H_test, k, local_results_dir);
-                        current_out = outUMAP;
-                        if isfield(outUMAP, 'corr_UMAP'), current_corr_table = outUMAP.corr_UMAP; end
-                        if isfield(outUMAP, 'R_full'),    current_R_matrix   = outUMAP.R_full;    end
-
-                    case 'dPCA'
-                        [R2_test, MSE_test, outDPCA] = rundPCAAnalysis( ...
-                            eeg_train, H_train, local_param, k, method_dir);
-                        current_R2  = mean(R2_test(ki,:), 'omitnan');
-                        current_MSE = mean(MSE_test(ki,:), 'omitnan');
-        
-                        current_out = outDPCA;
-                        if isfield(outDPCA, 'corr_dPCA'), current_corr_table = outDPCA.corr_dPCA; end
-                        if isfield(outDPCA, 'R_full'),    current_R_matrix   = outDPCA.R_full;    end
-                end
                 
                 % --- Store Data (No Plotting) ---
                 dataset_res.(method).R2(ki)  = current_R2;
-                dataset_res.(method).MSE(ki) = current_MSE;
-                
-                % Process Correlation Table Metadata
-                if ~isempty(current_corr_table)
-                    current_corr_table.method  = repmat(string(method), height(current_corr_table), 1);
-                    current_corr_table.dataset = repmat(d, height(current_corr_table), 1);
-                    current_corr_table.k       = repmat(k, height(current_corr_table), 1);
-                end
-                
-                dataset_res.(method).CORR{ki}       = current_corr_table;
+                dataset_res.(method).MSE(ki) = current_MSE;                             
+                dataset_res.(method).CORR{ki} = current_corr_table;
                 dataset_res.(method).R_matrices{ki} = current_R_matrix;
             end
         end

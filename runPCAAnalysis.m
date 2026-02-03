@@ -228,7 +228,7 @@ if isempty(getCurrentTask()) && num_sig_components>4
     for fidx=1:size(h_train,2)
         idx = 1:L/2+1;
         loglog(f_plot(idx), abs(Ht_avg(idx,fidx)),'Color',h_f_colors(fidx,:), ...
-            'DisplayName', [sprintf('Z_{%s}(f)', num2str(param.f_peak(fidx)))]);
+            'DisplayName', ['Z_{%s}(f)', num2str(param.f_peak(fidx))]);
         hold on;
     end
     xlabel('Frequency (Hz)'); ylabel('|Z(f)|'); title('FFT Amplitude Original');
@@ -239,7 +239,7 @@ if isempty(getCurrentTask()) && num_sig_components>4
     for fidx=1:size(h_train,2)
         idx = 1:L/2+1;
         loglog(f_plot(idx), abs(Hr_avg(idx,fidx)), 'Color',h_f_colors(fidx,:), ...
-            'DisplayName', [sprintf('\\hat{Z}_{%s}(f)', num2str(param.f_peak(fidx)))]);
+            'DisplayName', ['\\hat{Z}_{%s}(f)', num2str(param.f_peak(fidx))]);
         hold on;
     end
     xlabel('Frequency (Hz)'); ylabel('|Ẑ(f)|'); title('FFT Amplitude Reconstructed');
