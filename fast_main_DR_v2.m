@@ -38,15 +38,21 @@ k_range    = 1:8; % 10
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA','dPCA','AE', 'ICA'}; % 'UMAP'
+methods = {'PCA', 'dPCA', 'AE', 'ICA'}; %  'UMAP' 
 
 EXP = struct();
 param = struct();
 % param.f_peak = round([1 4 8 12 30], 1);%2 5 10 13 20 25 30 50
 param.duration = [1000];% 1, 5, 10, 60, 120, 600, 
 
-% f = param.f_peak(:);
-% [f_sorted, f_sortIdx] = sort(f, 'ascend');
+RESULTS = struct();
+
+RESULTS.meta = struct();
+RESULTS.meta.created = datetime;
+RESULTS.meta.description = "Dimensionality reduction benchmark";
+
+RESULTS.entries = [];   % this will grow
+
 
 % Best practice: Leave 1-2 cores free for the OS/Main Thread.
 % For a 7-core system, 5 workers is a safe, high-performance choice.
@@ -165,18 +171,18 @@ for c = 1:numel(conditions)
             
             for ki = 1:nK
                 k = k_range(ki);
-                
-                [current_R2, current_MSE, current_out, ...
-                 current_corr_table, current_R_matrix] = runDimRedMethod( ...
-                    method, data, local_param, k, ki, dataset_name, method_dir,...
+
+                entry = runDimRedMethod( ...
+                    method, data, local_param, k, ki, cond, dataset_name, method_dir,...
                     local_results_dir);
                 
                 
                 % --- Store Data (No Plotting) ---
-                dataset_res.(method).R2(ki)  = current_R2;
-                dataset_res.(method).MSE(ki) = current_MSE;                             
-                dataset_res.(method).CORR{ki} = current_corr_table;
-                dataset_res.(method).R_matrices{ki} = current_R_matrix;
+                dataset_res.(method).R2(ki)  = entry.stats.R2;
+                dataset_res.(method).MSE(ki) = entry.stats.MSE;                             
+                dataset_res.(method).CORR{ki} = entry.corr;
+                dataset_res.(method).R_matrices{ki} = entry.R_matrix;
+                RESULTS.entries = [RESULTS.entries; entry];
             end
         end
         
@@ -297,38 +303,6 @@ for c = 1:numel(conditions)
 end
 
 
-% fig_cmp = figure;
-% hold on;
-% for m = 1:numel(methods)
-%     method = methods{m};
-% 
-%     % Filter rows for this method
-%     tbl_m = all_corr_tables(strcmp(all_corr_tables.method, method), :);
-% 
-%     if isempty(tbl_m)
-%         continue
-%     end
-% 
-%     % Defensive alignment: ensure one row per latent
-%     % Assumes h_f column is 1..N_F
-%     c = nan(numel(f),1);
-%     c(tbl_m.h_f) = tbl_m.corr_value;
-% 
-%     % Sort correlations to match frequency order
-%     c_sorted = c(f_sortIdx);
-% 
-%     % Plot
-%     plot(f_sorted, c_sorted, '-o', ...
-%         'LineWidth', 1.8, ...
-%         'DisplayName', method);
-% end
-% xticks(unique(f_sorted));
-% xlabel('Peak Frequencies (Hz)');
-% ylabel('Correlation Value');
-% title('Latent–Component Correlation Across Methods');
-% ylim([0 1]);          % keep honest comparisons
-% grid on;
-% legend('Location','eastoutside');
 for c = 1:numel(conditions)
     cond = conditions{c};
 
@@ -366,98 +340,109 @@ for c = 1:numel(conditions)
 end
 
 
-
-% Save
-% cmp_name = fullfile(local_results_dir, 'CrossMethod_Corr_vs_Frequency.png');
-% saveas(fig_cmp, cmp_name);
-% close(fig_cmp);
-
-CORR_ALL = struct();
-
-for c = 1:numel(conditions)
-    cond = conditions{c};
-
-    CORR_ALL.(cond).dataset = struct();  % force struct array
-
-    for d = 1:nDatasets
-        CORR_ALL.(cond).dataset(d).tbl = table();
-    end
-end
-
-CANON_VARS = {
-    'corr_value', ...
-    'h_f', ...
-    'component', ...
-    'method', ...
-    'dataset', ...
-    'k'
-};
-
-
-for c = 1:numel(conditions)
-    cond = conditions{c};
-
-    for d = 1:nDatasets
-        tbl_d = table();
-
-        for m = 1:numel(methods)
-            method = methods{m};
-
-            for ki = 1:nK
-                corr = EXP.(cond).dataset(d).(method).CORR{ki};
-
-                if isempty(corr)
-                    continue
-                end
-
-                % --- Enforce canonical schema -----------------------------------------
-                if isempty(tbl_d)
-                    % First non-empty table defines the template
-                    tbl_d = corr(:, intersect(CANON_VARS, corr.Properties.VariableNames));
-                else
-                    % Add missing variables to corr
-                    missing = setdiff(tbl_d.Properties.VariableNames, corr.Properties.VariableNames);
-                    for v = missing
-                        corr.(v{1}) = nan(height(corr),1);
-                    end
-                
-                    % Add missing variables to tbl_d (rare but safe)
-                    missing = setdiff(corr.Properties.VariableNames, tbl_d.Properties.VariableNames);
-                    for v = missing
-                        tbl_d.(v{1}) = nan(height(tbl_d),1);
-                    end
-                
-                    % Reorder corr to match tbl_d
-                    corr = corr(:, tbl_d.Properties.VariableNames);
-                
-                    % Concatenate
-                    tbl_d = [tbl_d; corr];
-                end
-
-            end
-        end
-
-        CORR_ALL.(cond).dataset(d).tbl = tbl_d;
-
-    end
-end
-
-
+% CORR_ALL = struct();
+% 
+% for c = 1:numel(conditions)
+%     cond = conditions{c};
+% 
+%     CORR_ALL.(cond).dataset = struct();  % force struct array
+% 
+%     for d = 1:nDatasets
+%         CORR_ALL.(cond).dataset(d).tbl = table();
+%     end
+% end
+% 
+% CANON_VARS = {
+%     'corr_value', ...
+%     'h_f', ...
+%     'component', ...
+%     'method', ...
+%     'dataset', ...
+%     'k'
+% };
+% 
+% 
+% for c = 1:numel(conditions)
+%     cond = conditions{c};
+% 
+%     for d = 1:nDatasets
+%         tbl_d = table();
+% 
+%         for m = 1:numel(methods)
+%             method = methods{m};
+% 
+%             for ki = 1:nK
+%                 corr = EXP.(cond).dataset(d).(method).CORR{ki};
+% 
+%                 if isempty(corr)
+%                     continue
+%                 end
+% 
+%                 % --- Enforce canonical schema -----------------------------------------
+%                 if isempty(tbl_d)
+%                     % First non-empty table defines the template
+%                     tbl_d = corr(:, intersect(CANON_VARS, corr.Properties.VariableNames));
+%                 else
+%                     % Add missing variables to corr
+%                     missing = setdiff(tbl_d.Properties.VariableNames, corr.Properties.VariableNames);
+%                     for v = missing
+%                         corr.(v{1}) = nan(height(corr),1);
+%                     end
+% 
+%                     % Add missing variables to tbl_d (rare but safe)
+%                     missing = setdiff(corr.Properties.VariableNames, tbl_d.Properties.VariableNames);
+%                     for v = missing
+%                         tbl_d.(v{1}) = nan(height(tbl_d),1);
+%                     end
+% 
+%                     % Reorder corr to match tbl_d
+%                     corr = corr(:, tbl_d.Properties.VariableNames);
+% 
+%                     % Concatenate
+%                     tbl_d = [tbl_d; corr];
+%                 end
+% 
+%             end
+%         end
+% 
+%         CORR_ALL.(cond).dataset(d).tbl = tbl_d;
+% 
+%     end
+% end
+% 
+% 
+% all_corr_tables = table();
+% 
+% for c = 1:numel(conditions)
+%     cond = conditions{c};
+% 
+%     for d = 1:nDatasets
+%         tbl = CORR_ALL.(cond).dataset(d).tbl;
+% 
+%         if isempty(tbl), continue; end
+% 
+%         tbl.condition = repmat(string(cond), height(tbl), 1);
+%         all_corr_tables = [all_corr_tables; tbl];
+%     end
+% end
 all_corr_tables = table();
 
-for c = 1:numel(conditions)
-    cond = conditions{c};
+for e = 1:numel(RESULTS.entries)
+    corr = RESULTS.entries(e).corr;
 
-    for d = 1:nDatasets
-        tbl = CORR_ALL.(cond).dataset(d).tbl;
-
-        if isempty(tbl), continue; end
-
-        tbl.condition = repmat(string(cond), height(tbl), 1);
-        all_corr_tables = [all_corr_tables; tbl];
+    if isempty(corr) || ~istable(corr)
+        continue
     end
-end
 
+    % Attach metadata (now trivial)
+    corr.condition = repmat(RESULTS.entries(e).condition, height(corr), 1);
+    corr.dataset   = repmat(RESULTS.entries(e).dataset,   height(corr), 1);
+    corr.method    = repmat(RESULTS.entries(e).method,    height(corr), 1);
+    corr.k         = repmat(RESULTS.entries(e).k,         height(corr), 1);
+    corr.ki        = repmat(RESULTS.entries(e).ki,        height(corr), 1);
+
+    all_corr_tables = [all_corr_tables; corr];
+end
 
 summary = groupsummary(all_corr_tables, 'method', 'mean', 'corr_value');
 summary_min = groupsummary(all_corr_tables, 'method', 'min', 'corr_value');
@@ -471,8 +456,10 @@ results.summary.good_counts = good_counts;
 results.summary.threshold = threshold;
 
 % Save file -------------------------------------------------------------
-outFile = fullfile(local_results_dir, "Component_latentVariable_Corr.mat");
-save(outFile, '-struct', 'results', 'summary') % -struct
+save(fullfile(local_results_dir, "RESULTS.mat"), "RESULTS", "-v7.3");
+save(fullfile(local_results_dir, "Component_latentVariable_Corr.mat"), ...
+     "all_corr_tables", "results");
+
 %% ----------------------------------------------------------
 % 4. Plot R^2 and MSE vs # components
 % ----------------------------------------------------------
@@ -481,16 +468,6 @@ tiledlayout(2,1);
 
 % R2
 nexttile;
-% hold on;
-% for m = 1:numel(methods)
-%     plot(component_range, results.(methods{m}).R2, 'LineWidth', 2);
-% end
-% xlabel('Number of Components');
-% ylim([0 1]);
-% ylabel('R^2');
-% title('R^2 vs Dimensionality');
-% legend(methods, 'Location','eastoutside');
-% grid on;
 for c = 1:numel(conditions)
     cond = conditions{c};
 
@@ -520,16 +497,6 @@ end
 
 % MSE
 nexttile;
-% hold on;
-% for m = 1:numel(methods)
-%     plot(component_range, results.(methods{m}).MSE, 'LineWidth', 2);
-% end
-% xlabel('Number of Components');
-% ylim([0 1]);
-% ylabel('MSE');
-% title('MSE vs Dimensionality');
-% legend(methods, 'Location','eastoutside');
-% grid on;
 for c = 1:numel(conditions)
     cond = conditions{c};
 

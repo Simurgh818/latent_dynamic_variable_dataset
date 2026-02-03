@@ -261,7 +261,7 @@ if isempty(getCurrentTask()) && num_sig_components >4
     nexttile;
     for fidx=1:nF
         loglog(f_plot, abs(Ht_avg(1:nHz,fidx)), 'Color', h_f_colors(fidx,:), ...
-            'DisplayName', ['Z_{%s}(f)', num2str(param.f_peak(fidx))]);
+            'DisplayName', [sprintf("Z_{%s}(f)", num2str(param.f_peak(fidx)))]);
         hold on;
     end
     xlabel('Frequency (Hz)'); ylabel('|Z(f)|');
@@ -273,7 +273,7 @@ if isempty(getCurrentTask()) && num_sig_components >4
     nexttile;
     for fidx=1:nF
         loglog(f_plot, abs(Hr_avg(1:nHz,fidx)), 'Color', h_f_colors(fidx,:), ...
-            'DisplayName', ['\\hat{Z}_{%s}(f)', num2str(param.f_peak(fidx))]);
+            'DisplayName', [sprintf("\\hat{Z}_{%s}(f)", num2str(param.f_peak(fidx)))]);
         hold on;
     end
     xlabel('Frequency (Hz)'); ylabel('|Ẑ(f)|');

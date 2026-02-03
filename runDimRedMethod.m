@@ -1,5 +1,5 @@
-function [R2, MSE, out, corr_table, R_matrix] = runDimRedMethod( ...
-    method, data, local_param, k, ki, dataset_name, ...
+function entry = runDimRedMethod( ...
+    method, data, local_param, k, ki, condition, dataset_name, ...
     method_dir, local_results_dir)
 
 % Initialize generic temporary variables
@@ -65,4 +65,20 @@ if istable(corr_table) && ~isempty(corr_table)
     corr_table.dataset = repmat(string(dataset_name), height(corr_table), 1);
     corr_table.k       = repmat(k, height(corr_table), 1);
 end
+
+entry = struct();
+entry.condition = string(condition);
+entry.dataset = string(dataset_name);
+entry.method  = string(method);
+entry.k       = k;
+entry.ki      = ki;
+
+entry.stats = struct();
+entry.stats.R2  = R2;
+entry.stats.MSE = MSE;
+
+entry.corr = corr_table;
+entry.R_matrix = R_matrix;
+entry.out  = out;
+
 end

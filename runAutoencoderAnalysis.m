@@ -264,7 +264,7 @@ if isempty(getCurrentTask()) && bottleNeck>4
     for fidx=1:param.N_F
         idx = 1:L/2+1;
         loglog(f_plot(idx), abs(Ht_avg_ae(idx,fidx)),'Color',h_f_colors(fidx,:), ...
-            'DisplayName', ['Z_{%s}(f)', num2str(param.f_peak(fidx))]);
+            'DisplayName', [sprintf("Z_{%s}(f)", num2str(param.f_peak(fidx)))]);
         hold on;
     end
     xlabel('Frequency (Hz)'); ylabel('|Z(f)|'); title('FFT Amplitude Original');
@@ -274,7 +274,7 @@ if isempty(getCurrentTask()) && bottleNeck>4
     for fidx=1:param.N_F
         idx = 1:L/2+1;
         loglog(f_plot(idx), abs(Hr_avg_ae(idx,fidx)), 'Color',h_f_colors(fidx,:), ...
-            'DisplayName', ['\\hat{Z}_{%s}(f)', num2str(param.f_peak(fidx))]);
+            'DisplayName', [sprintf("\\hat{Z}_{%s}(f)", num2str(param.f_peak(fidx)))]);
         hold on;
     end
     xlabel('Frequency (Hz)'); ylabel('|Ẑ(f)|'); title('FFT Amplitude Reconstructed');
