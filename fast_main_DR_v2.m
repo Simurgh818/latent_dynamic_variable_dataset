@@ -194,15 +194,20 @@ for c = 1:numel(conditions)
 
     end % End Parfor
 
-    if ~isempty(dataset_results{1}.analysis)
-        param.f_peak = dataset_results{1}.analysis.f_peak;
-    end
-
     % ---------------------------------------------------------------------
     % POST-PROCESSING & PLOTTING (Serial)
     % ---------------------------------------------------------------------
     % Unpack results back into EXP structure and Generate Plots
     for d = 1:nDatasets
+        % Recover f_peak safely from any completed dataset
+        if ~isempty(dataset_results{d}) && ...
+            isfield(dataset_results{d}, 'analysis') && ...
+            isfield(dataset_results{d}.analysis, 'f_peak')
+            
+            param.f_peak = dataset_results{d}.analysis.f_peak;
+            break
+        end
+
         EXP.(cond).dataset(d) = dataset_results{d};
         
         % Re-define paths for saving plots
@@ -225,7 +230,7 @@ for c = 1:numel(conditions)
             % Generate Heatmaps (now safe in serial)
             for ki = 1:nK
                 k = k_range(ki);
-                R = EXP.(cond).dataset(d).(method).R_matrices{ki};
+                R = EXP.(cond).dataset(d).analysis.(method).R_matrices{ki};
                 
                 if isempty(R), continue; end
                 
@@ -262,8 +267,8 @@ for c = 1:numel(conditions)
         MSE_all = nan(nDatasets, nK);
 
         for d = 1:nDatasets
-            R2_all(d,:)  = EXP.(cond).dataset(d).(method).R2;
-            MSE_all(d,:) = EXP.(cond).dataset(d).(method).MSE;
+            R2_all(d,:)  = EXP.(cond).dataset(d).analysis.(method).R2;
+            MSE_all(d,:) = EXP.(cond).dataset(d).analysis.(method).MSE;
         end
 
         STATS.(cond).(method).R2.mean  = mean(R2_all,1,'omitnan');
@@ -293,7 +298,7 @@ for c = 1:numel(conditions)
             corr_mat = nan(nDatasets, size(param.f_peak,2));
 
             for d = 1:nDatasets
-                tbl = EXP.(cond).dataset(d).(method).CORR{ki};
+                tbl = EXP.(cond).dataset(d).analysis.(method).CORR{ki};
 
                 if isempty(tbl)
                     continue
