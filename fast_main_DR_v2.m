@@ -33,7 +33,7 @@ end
 %% Loop through experiments
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 1; % 5 10
+nDatasets  = 10; % 5 10
 k_range    = 1:8; % 10
 nK         = numel(k_range);
 
@@ -56,15 +56,15 @@ RESULTS.entries = [];   % this will grow
 
 % Best practice: Leave 1-2 cores free for the OS/Main Thread.
 % For a 7-core system, 5 workers is a safe, high-performance choice.
-% target_workers = 5; 
-% current_pool = gcp('nocreate');
-% 
-% if isempty(current_pool)
-%     parpool(target_workers);
-% elseif current_pool.NumWorkers ~= target_workers
-%     delete(current_pool);
-%     parpool(target_workers);
-% end
+target_workers = 5; 
+current_pool = gcp('nocreate');
+
+if isempty(current_pool)
+    parpool(target_workers);
+elseif current_pool.NumWorkers ~= target_workers
+    delete(current_pool);
+    parpool(target_workers);
+end
 
 %% Loop through experiments
 for c = 1:numel(conditions)
@@ -77,7 +77,7 @@ for c = 1:numel(conditions)
     % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
-    for d = 1:nDatasets
+    parfor d = 1:nDatasets
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         data = struct();
 
@@ -171,6 +171,7 @@ for c = 1:numel(conditions)
             
             for ki = 1:nK
                 k = k_range(ki);
+                local_entries = [];   % <-- LOCAL to this worker
 
                 entry = runDimRedMethod( ...
                     method, data, local_param, k, ki, cond, dataset_name, method_dir,...
@@ -182,17 +183,19 @@ for c = 1:numel(conditions)
                 dataset_res.(method).MSE(ki) = entry.stats.MSE;                             
                 dataset_res.(method).CORR{ki} = entry.corr;
                 dataset_res.(method).R_matrices{ki} = entry.R_matrix;
-                RESULTS.entries = [RESULTS.entries; entry];
+                local_entries = [local_entries; entry];
+
             end
         end
         
         % Save results for this dataset into the cell array
-        dataset_results{d} = dataset_res;
-        
+        dataset_results{d}.analysis = dataset_res;
+        dataset_results{d}.entries = local_entries;
+
     end % End Parfor
 
-    if ~isempty(dataset_results{1})
-        param.f_peak = dataset_results{1}.f_peak;
+    if ~isempty(dataset_results{1}.analysis)
+        param.f_peak = dataset_results{1}.analysis.f_peak;
     end
 
     % ---------------------------------------------------------------------
@@ -239,6 +242,9 @@ for c = 1:numel(conditions)
             
             % Generate Frequency Plots
             % (Insert your frequency plotting code here using EXP data)
+        end
+        if isfield(dataset_results{d}, 'entries')
+            RESULTS.entries = [RESULTS.entries; dataset_results{d}.entries];
         end
     end
 end
