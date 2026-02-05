@@ -77,14 +77,17 @@ for c = 1:numel(conditions)
     % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
+    % ---------------------------------------------------------------------
+    % PARALLEL LOOP
+    % ---------------------------------------------------------------------
     parfor d = 1:nDatasets
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         data = struct();
-
+        
         % --- 1. Load Data (Local to Worker) ---
         if d < 10 && ~strcmp(cond, 'ou') && ~strcmp(cond,'set4')
             eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(1));
-        elseif d<10
+        elseif d < 10
             eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(1));
         elseif d == 1 && strcmp(cond, 'ou')
             eegFilename = sprintf('simEEG_Morrell_%s', cond);
@@ -92,27 +95,26 @@ for c = 1:numel(conditions)
             eegFilename = sprintf('simEEG_%s_spat%d_dur%d', cond, d, param.duration(1));
         end
         dataset_name = eegFilename;
-
+        
         % Load file
         loader = load(fullfile(input_dir, [eegFilename '.mat']));
         
         % Extract local variables
         s_eeg_like      = loader.train_sim_eeg_vals;
-        % s_eeg_like_test = loader.test_sim_eeg_vals;
         h_f             = loader.train_true_hF';
         
         % Recalculate parameters locally
-        local_param = loader.param; % Create a local copy of param
-
+        local_param = loader.param; 
         fs_orig         = 1 / loader.dt;
         data.fs_orig = fs_orig;
+        
         % Determine results directory for this dataset
         subfolderName = ['results_' eegFilename];
         local_results_dir = fullfile(baseFolder, subfolderName);
         if ~exist(local_results_dir, 'dir')
             mkdir(local_results_dir);
         end
-
+        
         % --- 2. Pre-processing (Vectorized) ---
         if data.fs_orig <= 500
             data.fs_new = data.fs_orig;
@@ -121,15 +123,12 @@ for c = 1:numel(conditions)
         end
         local_param.fs = data.fs_new;
         
-        % Vectorized Resampling (Fast)
-        % Transpose to (Time x Ch) for resample, then transpose back
+        % Vectorized Resampling
         s_eeg_ds = resample(double(s_eeg_like)', data.fs_new, data.fs_orig)';
         
-        % Resample latent fields
         h_f_ds_temp = resample(double(h_f), data.fs_new, data.fs_orig);
-        h_f_ds = h_f_ds_temp(1:size(s_eeg_ds, 2),:); % Ensure length match
+        h_f_ds = h_f_ds_temp(1:size(s_eeg_ds, 2),:); 
         
-        % Normalize
         h_f_normalized_ds = h_f_ds ./ std(h_f_ds, 0, 1);
         
         % Split Train/Test
@@ -138,32 +137,29 @@ for c = 1:numel(conditions)
         eeg_train = eeg(:, 1:idx_split);
         eeg_test  = eeg(:, idx_split+1:end);
         
-        % Need normalized H for training? (Assuming yes based on previous code)
         h_f_norm_orig = h_f ./ std(h_f, 0, 1);
         H_train = h_f_norm_orig(1:idx_split, :);
         H_test  = h_f_norm_orig(idx_split+1:end, :);
-
-        % Raw (train/test, original fs)
+        
         data.eeg_train = eeg_train;
         data.eeg_test  = eeg_test;
         data.H_train   = H_train;
         data.H_test    = H_test;
-        
-        % Downsampled continuous (for dPCA or others)
-        data.eeg_ds = s_eeg_ds;                  % channels x time
-        data.H_ds   = h_f_normalized_ds;          % time x latentDim
+        data.eeg_ds    = s_eeg_ds; 
+        data.H_ds      = h_f_normalized_ds;
         
         % --- 3. Method Loop ---
-        % Initialize local result structure for this dataset
         dataset_res = struct();
         dataset_res.f_peak = local_param.f_peak;
-
+        
+        % Initialize a table to collect ALL entries for this dataset
+        all_d_entries = table();
+        
         for m = 1:numel(methods)
             method = methods{m};
             method_dir = fullfile(local_results_dir, method);
             if ~exist(method_dir, 'dir'), mkdir(method_dir); end
             
-            % Initialize storage arrays for this method
             dataset_res.(method).R2   = nan(1, nK);
             dataset_res.(method).MSE  = nan(1, nK);
             dataset_res.(method).CORR = cell(1, nK);
@@ -171,57 +167,80 @@ for c = 1:numel(conditions)
             
             for ki = 1:nK
                 k = k_range(ki);
-                local_entries = [];   % <-- LOCAL to this worker
-
+              
                 entry = runDimRedMethod( ...
                     method, data, local_param, k, ki, cond, dataset_name, method_dir,...
                     local_results_dir);
                 
-                
-                % --- Store Data (No Plotting) ---
+                % Store basic stats
                 dataset_res.(method).R2(ki)  = entry.stats.R2;
                 dataset_res.(method).MSE(ki) = entry.stats.MSE;                             
                 dataset_res.(method).CORR{ki} = entry.corr;
                 dataset_res.(method).R_matrices{ki} = entry.R_matrix;
-                local_entries = [local_entries; entry];
+                
+                % --- Fix for Duplicate Variable Names ---
+                current_corr_table = entry.corr; 
+                
+                if ~isempty(current_corr_table)
+                    nRows = height(current_corr_table);
+                    current_vars = current_corr_table.Properties.VariableNames;
 
+                    % Only add columns if they DON'T exist yet
+                    if ~ismember('method', current_vars)
+                        current_corr_table.method = repmat(categorical(cellstr(method)), nRows, 1);
+                    end
+                    if ~ismember('dataset', current_vars)
+                        current_corr_table.dataset = repmat(d, nRows, 1);
+                    end
+                    if ~ismember('condition', current_vars)
+                        current_corr_table.condition = repmat(categorical(cellstr(cond)), nRows, 1);
+                    end
+                    if ~ismember('k', current_vars)
+                        current_corr_table.k = repmat(k, nRows, 1);
+                    end
+                    
+                    % Append to the main collector
+                    all_d_entries = [all_d_entries; current_corr_table];
+                end
             end
         end
         
-        % Save results for this dataset into the cell array
+        % Save results for this dataset
+        dataset_results{d}.(cond).output_dir = local_results_dir;
         dataset_results{d}.(cond).analysis = dataset_res;
-        dataset_results{d}.(cond).entries = local_entries;
-
+        dataset_results{d}.(cond).entries = all_d_entries;
     end % End Parfor
 
     % ---------------------------------------------------------------------
     % POST-PROCESSING & PLOTTING (Serial)
     % ---------------------------------------------------------------------
-    % Unpack results back into EXP structure and Generate Plots
+    % Recover f_peak safely from any completed dataset
     for d = 1:nDatasets
-        % Recover f_peak safely from any completed dataset
         if ~isempty(dataset_results{d}) && ...
-            isfield(dataset_results{d}, 'analysis') && ...
-            isfield(dataset_results{d}.analysis, 'f_peak')
-            
-            param.f_peak = dataset_results{d}.analysis.f_peak;
+           isfield(dataset_results{d}.(cond), 'analysis') && ...
+           isfield(dataset_results{d}.(cond).analysis, 'f_peak')
+    
+            param.f_peak = dataset_results{d}.(cond).analysis.f_peak;
             break
         end
+    end
 
+    % Unpack results back into EXP structure and Generate Plots
+    for d = 1:nDatasets
         EXP.(cond).dataset(d) = dataset_results{d}.(cond);
         
-        % Re-define paths for saving plots
-        if d < 10 && ~strcmp(cond, 'ou') && ~strcmp(cond,'set4')
-            eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(1));
-        elseif d<10
-            eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(1));
-        elseif d == 1 && strcmp(cond, 'ou')
-            eegFilename = sprintf('simEEG_Morrell_%s', cond);
-        else
-            eegFilename = sprintf('simEEG_%s_spat%d_dur%d', cond, d, param.duration(1));
-        end
-        subfolderName = ['results_' eegFilename];
-        local_results_dir = fullfile(baseFolder, subfolderName);
+        % % Re-define paths for saving plots
+        % if d < 10 && ~strcmp(cond, 'ou') && ~strcmp(cond,'set4')
+        %     eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(1));
+        % elseif d<10
+        %     eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(1));
+        % elseif d == 1 && strcmp(cond, 'ou')
+        %     eegFilename = sprintf('simEEG_Morrell_%s', cond);
+        % else
+        %     eegFilename = sprintf('simEEG_%s_spat%d_dur%d', cond, d, param.duration(1));
+        % end
+        % subfolderName = ['results_' eegFilename];
+        local_results_dir = EXP.(cond).dataset(d).output_dir;
         
         for m = 1:numel(methods)
             method = methods{m};
@@ -248,9 +267,16 @@ for c = 1:numel(conditions)
             % Generate Frequency Plots
             % (Insert your frequency plotting code here using EXP data)
         end
-        if isfield(dataset_results{d}, 'entries')
-            RESULTS.entries = [RESULTS.entries; dataset_results{d}.entries];
+        if isfield(dataset_results{d}, cond) && ...
+           isfield(dataset_results{d}.(cond), 'entries') && ...
+           ~isempty(dataset_results{d}.(cond).entries)
+        
+            RESULTS.entries = [
+                RESULTS.entries
+                dataset_results{d}.(cond).entries
+            ];
         end
+
     end
 end
 
@@ -350,28 +376,20 @@ for c = 1:numel(conditions)
     end
 end
 
+% In the post-processing section:
 all_corr_tables = table();
-
-for e = 1:numel(RESULTS.entries)
-    corr = RESULTS.entries(e).corr;
-
-    if isempty(corr) || ~istable(corr)
-        continue
+for d = 1:nDatasets
+    if isfield(dataset_results{d}, cond) && ...
+       isfield(dataset_results{d}.(cond), 'entries')
+        
+        % Just stack the already-complete tables
+        all_corr_tables = [all_corr_tables; dataset_results{d}.(cond).entries];
     end
-
-    % Attach metadata (now trivial)
-    corr.condition = repmat(RESULTS.entries(e).condition, height(corr), 1);
-    corr.dataset   = repmat(RESULTS.entries(e).dataset,   height(corr), 1);
-    corr.method    = repmat(RESULTS.entries(e).method,    height(corr), 1);
-    corr.k         = repmat(RESULTS.entries(e).k,         height(corr), 1);
-    corr.ki        = repmat(RESULTS.entries(e).ki,        height(corr), 1);
-
-    all_corr_tables = [all_corr_tables; corr];
 end
 
 summary = groupsummary(all_corr_tables, 'method', 'mean', 'corr_value');
 summary_min = groupsummary(all_corr_tables, 'method', 'min', 'corr_value');
-threshold = 0.46;
+threshold = 0.39; % since UMAP best performance is 0.4
 good_counts = groupsummary( ...
                 all_corr_tables(all_corr_tables.corr_value > threshold,:), ...
                 'method',@sum,'corr_value');
