@@ -189,8 +189,8 @@ for c = 1:numel(conditions)
         end
         
         % Save results for this dataset into the cell array
-        dataset_results{d}.analysis = dataset_res;
-        dataset_results{d}.entries = local_entries;
+        dataset_results{d}.(cond).analysis = dataset_res;
+        dataset_results{d}.(cond).entries = local_entries;
 
     end % End Parfor
 
@@ -208,7 +208,7 @@ for c = 1:numel(conditions)
             break
         end
 
-        EXP.(cond).dataset(d) = dataset_results{d};
+        EXP.(cond).dataset(d) = dataset_results{d}.(cond);
         
         % Re-define paths for saving plots
         if d < 10 && ~strcmp(cond, 'ou') && ~strcmp(cond,'set4')
