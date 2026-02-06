@@ -33,12 +33,12 @@ end
 %% Loop through experiments
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 10; % 5 10
-k_range    = 1:8; % 10
+nDatasets  = 1; % 10
+k_range    = 1:5; %5 8
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA', 'dPCA', 'AE', 'ICA'}; %  'UMAP' 
+methods = {'PCA'}; % , 'dPCA', 'AE', 'ICA' 'UMAP' 
 
 EXP = struct();
 param = struct();
@@ -74,9 +74,6 @@ for c = 1:numel(conditions)
     % Preallocate temporary storage for parallel workers
     dataset_results = cell(1, nDatasets);
 
-    % ---------------------------------------------------------------------
-    % PARALLEL LOOP
-    % ---------------------------------------------------------------------
     % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
@@ -204,7 +201,21 @@ for c = 1:numel(conditions)
                 end
             end
         end
+
+        % Pack variables into a structure to save cleanly
+        ds_out = struct();
+        ds_out.analysis = dataset_res;
+        ds_out.entries  = all_d_entries;
+        ds_out.param    = local_param;
+        ds_out.dataset  = d;
+        ds_out.cond     = cond;
         
+        % Create filename (e.g., "Results_simEEG_set4_spat01.mat")
+        ds_filename = fullfile(local_results_dir, sprintf('Results_%s.mat', dataset_name));
+        
+        % Call helper function to save (avoids parfor transparency error)
+        parsave_struct(ds_filename, ds_out);
+
         % Save results for this dataset
         dataset_results{d}.(cond).output_dir = local_results_dir;
         dataset_results{d}.(cond).analysis = dataset_res;
@@ -229,17 +240,6 @@ for c = 1:numel(conditions)
     for d = 1:nDatasets
         EXP.(cond).dataset(d) = dataset_results{d}.(cond);
         
-        % % Re-define paths for saving plots
-        % if d < 10 && ~strcmp(cond, 'ou') && ~strcmp(cond,'set4')
-        %     eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(1));
-        % elseif d<10
-        %     eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(1));
-        % elseif d == 1 && strcmp(cond, 'ou')
-        %     eegFilename = sprintf('simEEG_Morrell_%s', cond);
-        % else
-        %     eegFilename = sprintf('simEEG_%s_spat%d_dur%d', cond, d, param.duration(1));
-        % end
-        % subfolderName = ['results_' eegFilename];
         local_results_dir = EXP.(cond).dataset(d).output_dir;
         
         for m = 1:numel(methods)
@@ -468,7 +468,11 @@ end
 
 set(findall(gcf,'-property','FontSize'),'FontSize',16)
 summary_trace_name = fullfile(local_results_dir, 'Main_Summary_Trace.png');
-% summary_metrics_name = fullfile(results_dir, 'Main_Summary_Metrics.png');
-
 saveas(fig1, summary_trace_name);
-% saveas(fig3, summary_metrics_name);
+%% ---------------------------------------------------------------------
+%  HELPER FUNCTIONS
+% ---------------------------------------------------------------------
+function parsave_struct(fname, s)
+    % Helper to save a structure inside parfor
+    save(fname, '-struct', 's');
+end
