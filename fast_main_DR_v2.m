@@ -196,6 +196,8 @@ for c = 1:numel(conditions)
                         current_corr_table.k = repmat(k, nRows, 1);
                     end
                     
+                    % RESULTS.entries = [RESULTS.entries; entry];
+
                     % Append to the main collector
                     all_d_entries = [all_d_entries; current_corr_table];
                 end
@@ -222,6 +224,8 @@ for c = 1:numel(conditions)
         dataset_results{d}.(cond).entries = all_d_entries;
     end % End Parfor
 
+    RESULTS.data = struct();
+
     % ---------------------------------------------------------------------
     % POST-PROCESSING & PLOTTING (Serial)
     % ---------------------------------------------------------------------
@@ -239,9 +243,15 @@ for c = 1:numel(conditions)
     % Unpack results back into EXP structure and Generate Plots
     for d = 1:nDatasets
         EXP.(cond).dataset(d) = dataset_results{d}.(cond);
-        
         local_results_dir = EXP.(cond).dataset(d).output_dir;
         
+        % --- REVERSION: Store hierarchically instead of one big table ---
+        % This organizes everything as RESULTS.data.set4.dataset_1, etc.
+        ds_field = sprintf('dataset_%d', d);
+        RESULTS.data.(cond).(ds_field).analysis = dataset_results{d}.(cond).analysis;
+        RESULTS.data.(cond).(ds_field).entries  = dataset_results{d}.(cond).entries;
+        RESULTS.data.(cond).(ds_field).path     = dataset_results{d}.(cond).output_dir;
+
         for m = 1:numel(methods)
             method = methods{m};
             method_dir = fullfile(local_results_dir, method);
@@ -267,16 +277,7 @@ for c = 1:numel(conditions)
             % Generate Frequency Plots
             % (Insert your frequency plotting code here using EXP data)
         end
-        if isfield(dataset_results{d}, cond) && ...
-           isfield(dataset_results{d}.(cond), 'entries') && ...
-           ~isempty(dataset_results{d}.(cond).entries)
         
-            RESULTS.entries = [
-                RESULTS.entries
-                dataset_results{d}.(cond).entries
-            ];
-        end
-
     end
 end
 
@@ -305,12 +306,6 @@ for c = 1:numel(conditions)
     end
 end
 
-
-% all_corr_tables = [outPCA.corr_PCA;
-%                    outDPCA.corr_dPCA;
-%                    outICA.corr_ICA;
-%                    outUMAP.corr_UMAP;
-%                    outAE.corr_AE];
 CORR_STATS = struct();
 
 for c = 1:numel(conditions)
@@ -354,9 +349,6 @@ for c = 1:numel(conditions)
 
             mu = CORR_STATS.(cond).(method)(ki).mean;
             sd = CORR_STATS.(cond).(method)(ki).std;
-
-            % mu_sorted = mu(f_sortIdx);
-            % sd_sorted = sd(f_sortIdx);
 
             errorbar(param.f_peak, mu, sd, '-o', ...
                 'LineWidth',1.8, ...
@@ -429,6 +421,7 @@ for c = 1:numel(conditions)
     end
 
     xlabel('Number of Components');
+    xticks(linspace(min(k_range), max(k_range), nK));
     ylabel('R^2');
     ylim([0 1]);
     title(sprintf('R^2 vs k (%s)', cond));
@@ -458,6 +451,7 @@ for c = 1:numel(conditions)
     end
 
     xlabel('Number of Components');
+    xticks(linspace(min(k_range), max(k_range), nK));
     ylabel('MSE^2');
     ylim([0 1]);
     title(sprintf('MSE^2 vs k (%s)', cond));

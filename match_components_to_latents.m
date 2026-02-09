@@ -5,7 +5,7 @@ function [corr_table, R] = match_components_to_latents(C, H, method_name)
     % --- z-score in time ---
     Cz = zscore(C);
     Hz = zscore(H);
-
+% TODO: limit the correlation calculation up to number of k 
     % --- correlation: latents x components ---
     R = corr(Hz, Cz);   % size: N_F x K
 
