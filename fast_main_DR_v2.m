@@ -38,7 +38,7 @@ k_range    = 1:5; %5 8
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA', 'dPCA', 'AE', 'ICA', 'UMAP'}; % , 'dPCA', 'AE', 'ICA' 'UMAP' 
+methods = {'PCA'}; % , 'dPCA', 'AE', 'ICA' ,'UMAP' 
 
 EXP = struct();
 param = struct();
@@ -74,7 +74,7 @@ for c = 1:numel(conditions)
     % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
-    parfor d = 1:nDatasets
+    for d = 1:nDatasets
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         data = struct();
         
