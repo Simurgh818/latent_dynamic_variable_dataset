@@ -51,7 +51,7 @@ Z_test_c  = Z_test_c(1:minLenTest,:);
 H_test    = H_test(1:minLenTest,:);
 
 % Matching components to latents
-[corr_AE, R_AE] = match_components_to_latents(Z_train_c, H_train, 'AE');
+[corr_AE, R_AE] = match_components_to_latents(Z_train_c, H_train, 'AE',bottleNeck);
 
 %% 3. Linear Mapping via lsqlin
 H_recon_train = zeros(size(H_train));

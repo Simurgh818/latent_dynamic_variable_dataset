@@ -37,7 +37,7 @@ Z_dpca_T = Z_dpca';             % T × nComp
 % 2c) Mapping Components to latents
 H      = h_f_normalized_ds(1:size(Z_dpca_T,1), :);
 
-[corr_dPCA, R_dPCA] = match_components_to_latents(Z_dpca_T, H, 'dPCA');
+[corr_dPCA, R_dPCA] = match_components_to_latents(Z_dpca_T, H, 'dPCA',num_sig_components);
 
 % 3) Reconstruct original h_f using lsqlin
 T = size(s_eeg_ds,2);

@@ -113,7 +113,7 @@ umap_train = umap_train_raw(:, 1:num_sig_components);
 C = umap_train;   % T x nComp
 H = h_train(1:size(C,1), :);
 
-[corr_UMAP, R_UMAP] = match_components_to_latents(C, H, 'UMAP');
+[corr_UMAP, R_UMAP] = match_components_to_latents(C, H, 'UMAP',num_sig_components);
 
 %% 5. Reconstruction Loop (Train Mapping -> Test Eval)
 % We calculate metrics for k=1 to num_sig_components

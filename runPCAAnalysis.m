@@ -23,7 +23,11 @@ file_suffix = sprintf('_k%d', num_sig_components);
 h_f_colors = lines(param.N_F); 
 
 %% 2. Run PCA
-[coeff, score, ~, ~, explained] = pca(eeg_train');
+% Use the max of your k_range to avoid redundant calculations
+max_k = num_sig_components; 
+
+% Run PCA limited to the highest k you care about
+[coeff, score, ~, ~, explained] = pca(eeg_train', 'NumComponents', max_k);
 
 % Project test data
 score_test = (eeg_test' - mean(eeg_train', 1)) * coeff;
@@ -33,7 +37,8 @@ var_test = var(score_test);
 explained_test = 100 * var_test / sum(var_test);
 
 % Match components to latents
-[corr_PCA, R_PCA] = match_components_to_latents(score, h_train, 'PCA');
+% Pass num_sig_components to restrict the correlation search
+[corr_PCA, R_PCA] = match_components_to_latents(score, h_train, 'PCA', num_sig_components);
 
 
 %% 3. Compute R^2 and MSE for Increasing Components

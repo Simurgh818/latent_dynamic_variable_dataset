@@ -38,7 +38,7 @@ k_range    = 1:5; %5 8
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA'}; % , 'dPCA', 'AE', 'ICA' 'UMAP' 
+methods = {'PCA', 'dPCA', 'AE', 'ICA', 'UMAP'}; % , 'dPCA', 'AE', 'ICA' 'UMAP' 
 
 EXP = struct();
 param = struct();
@@ -50,9 +50,6 @@ RESULTS = struct();
 RESULTS.meta = struct();
 RESULTS.meta.created = datetime;
 RESULTS.meta.description = "Dimensionality reduction benchmark";
-
-RESULTS.entries = [];   % this will grow
-
 
 % Best practice: Leave 1-2 cores free for the OS/Main Thread.
 % For a 7-core system, 5 workers is a safe, high-performance choice.

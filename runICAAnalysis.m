@@ -85,7 +85,7 @@ end
 C = icasig_train;   % dPCA gives nComp x T → transpose to T x nComp
 H = h_train(1:size(C,1), :);
 
-[corr_ICA, R_ICA] = match_components_to_latents(C, H, 'ICA');
+[corr_ICA, R_ICA] = match_components_to_latents(C, H, 'ICA', num_comps);
 
 
 %% 3. Linear Mapping ICs -> Latent Fields
