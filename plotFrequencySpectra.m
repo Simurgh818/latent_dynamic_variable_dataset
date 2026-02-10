@@ -39,19 +39,24 @@ function [Ht, Hr, R2_avg, f_axis, f_plot] = plotFrequencySpectra(Z_true, Z_recon
     % True Spectrum
     nexttile; hold on;
     for i = 1:num_f
-        loglog(f_plot, Ht_avg(:,i), 'Color', colors(i,:), ...
-            'DisplayName', sprintf("Z_{%s}(f)", num2str(param.f_peak(fidx))));
+        loglog(f_plot, abs(Ht_avg(1:nHz,i)), 'Color', colors(i,:), ...
+            'DisplayName', sprintf("Z_{%s}(f)", num2str(param.f_peak(i))));
     end
-    title('Ground Truth Latent Spectra'); ylabel('Magnitude'); legend('show','Location','eastoutside'); grid on;
+    xlim([1 101]);
+    ylim([0 max(Ht_avg(1:nHz,1))]);
+    title('Ground Truth Latent Spectra'); ylabel('Magnitude'); 
+    legend('show','Location','eastoutside', 'Interpreter','latex'); grid on;
     
     % Recon Spectrum
     nexttile; hold on;
     for i = 1:num_f
-        loglog(f_plot, Hr_avg(:,i), 'Color', colors(i,:), ...
-            'DisplayName', sprintf("\\hat{Z}_{%s}(f)", num2str(param.f_peak(fidx))));
+        loglog(f_plot, abs(Hr_avg(1:nHz,i)), 'Color', colors(i,:), ...
+            'DisplayName', sprintf("\\hat{Z}_{%s}(f)", num2str(param.f_peak(i))));
     end
+    xlim([1 101]);
+    ylim([0 max(Ht_avg(1:nHz,1))]);
     title([method_name ' Reconstructed Spectra']); xlabel('Frequency (Hz)'); ylabel('Magnitude'); 
-    legend('show','Location','eastoutside'); grid on;
+    legend('show','Location','eastoutside', 'Interpreter','latex'); grid on;
     
     saveas(fig, save_path);
     close(fig);
