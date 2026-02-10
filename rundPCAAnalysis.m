@@ -101,20 +101,22 @@ if isempty(getCurrentTask()) && k > 4
     plotCTraces(k, param, Z_dpca', results_dir, file_suffix);
     
     % 3. Explained Variance
-    fig3 = figure('Position',[50 50 800 600]);
-    tiledlayout(2, 1, 'Padding', 'compact');
-    nexttile;
-    bar(explainedVar_pct, 'FaceColor', [0.3 0.3 0.9]);
-    ylabel('Explained Variance (%)'); xlabel('Component index');
-    title(['dPCA Variance (k=' num2str(k) ')']);
-    
-    nexttile;
-    plot(explainedVar_cum, 'LineWidth', 2);
-    ylabel('Cumulative Variance (%)'); xlabel('Component index');
-    ylim([0 100]); title('Cumulative Explained Variance'); grid on;
-    saveas(fig3, fullfile(results_dir,['dPCA_ExplainedVariance' file_suffix '.png'])); 
-    close(fig3);
-    
+    % fig3 = figure('Position',[50 50 800 600]);
+    % tiledlayout(2, 1, 'Padding', 'compact');
+    % nexttile;
+    % bar(explainedVar_pct, 'FaceColor', [0.3 0.3 0.9]);
+    % ylabel('Explained Variance (%)'); xlabel('Component index');
+    % title(['dPCA Variance (k=' num2str(k) ')']);
+    % 
+    % nexttile;
+    % plot(explainedVar_cum, 'LineWidth', 2);
+    % ylabel('Cumulative Variance (%)'); xlabel('Component index');
+    % ylim([0 100]); title('Cumulative Explained Variance'); grid on;
+    % saveas(fig3, fullfile(results_dir,['dPCA_ExplainedVariance' file_suffix '.png'])); 
+    % close(fig3);
+    save_path = fullfile(results_dir, ['dPCA_ExplainedVariance' file_suffix '.png']);
+    plotCumulativeVariance(explainedVar_pct, k, 'dPCA', save_path);
+
     % --- Frequency Analysis Prep ---
     Z_true = h_f_normalized_ds;
     Z_rec  = h_f_recon_normalized_dpca;

@@ -38,7 +38,7 @@ k_range    = 1:6; %5 8
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA', 'dPCA', 'ICA' }; % , 'AE','UMAP' 
+methods = {'PCA', 'dPCA'}; % , 'AE',, 'ICA' ,'UMAP' 
 
 EXP = struct();
 param = struct();

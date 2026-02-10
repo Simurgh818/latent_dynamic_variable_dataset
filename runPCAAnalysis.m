@@ -117,13 +117,8 @@ if isempty(getCurrentTask()) && k > 4
     plotCTraces(k, param, score, method_dir, file_suffix);
     
     % Cumulative Explained Variance (Scree Plot)
-    fig_scree = figure('Position',[50 50 800 300]);
-    plot(cumsum(explained), 'o-', 'LineWidth', 1.5);
-    xlabel('Number of PCs'); ylabel('Cumulative Var (%)');
-    title(sprintf('PCA Explained Variance (k=%d)', k));
-    grid on;
-    saveas(fig_scree, fullfile(method_dir, ['PCA_ScreePlot' file_suffix '.png']));
-    close(fig_scree);
+    save_path = fullfile(method_dir, ['PCA_ExplainedVariance' file_suffix '.png']);
+    plotCumulativeVariance(explained, k, 'PCA', save_path);
     
     % Frequency Analysis FFT
     fig_fft = figure('Position',[50 50 1000 600]);
