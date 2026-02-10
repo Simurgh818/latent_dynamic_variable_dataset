@@ -53,9 +53,14 @@ for k = 1:max_comp_check
     % Train regression weights
     W = score(:, 1:k) \ h_train;
     
-    % Reconstruct
-    h_recon_train = score(:, 1:k) * W;
-    h_recon_test  = score_test(:, 1:k) * W;
+    % Reconstruct (Raw)
+    h_recon_train_raw = score(:, 1:k) * W;
+    h_recon_test_raw  = score_test(:, 1:k) * W;
+    
+    % --- NORMALIZATION STEP (MATCHING dPCA) ---
+    % Normalize column-wise so std=1 for every feature
+    h_recon_train = h_recon_train_raw ./ std(h_recon_train_raw, 0, 1);
+    h_recon_test  = h_recon_test_raw  ./ std(h_recon_test_raw, 0, 1);
     
     % Per-feature metrics (Train)
     for f = 1:param.N_F
@@ -146,58 +151,10 @@ end
 % ============================================================
 if isempty(getCurrentTask()) && num_sig_components>4
 
-    % fig1 = figure('Position',[50 50 1200 150*size(h_train,2)]);
-    % tiledlayout(size(h_train,2), 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-    % sgtitle(['PCA (k=' num2str(num_sig_components) '): Latent variables Z(t) vs $\hat{z}$(t)'], 'Interpreter','latex');
-    % 
-    % for f = 1:size(h_train,2)
-    %     nexttile; hold on;
-    %     set(gca, 'XColor', 'none', 'YColor', 'none'); box on;
-    %     plot(h_train(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :), 'DisplayName', [sprintf('Z_{%s}', num2str(param.f_peak(f))) ' (true)']);
-    %     plot(h_recon_final(:, f), 'LineStyle', '--','LineWidth',1,'Color', 'k', 'DisplayName', [sprintf('Z_{%s}', num2str(param.f_peak(f))) ' (recon)']);
-    %     ylabel('amplitude');
-    %     xlim([0 fs_new*2]); 
-    %     legend('Show','Location','eastoutside');
-    % 
-    %     rho = zeroLagCorr_pca(f);
-    %     text(0.02 * fs_new, 0.7 * max(h_train(:,f)), sprintf('\\rho(0)=%.2f', rho), ...
-    %         'FontSize', 12, 'FontWeight', 'bold', 'BackgroundColor', 'w', 'EdgeColor','k');
-    %     hold off;
-    % 
-    % end
-    % % scale bars (draw on last axis)
-    % ax = gca;
-    % hold(ax,'on');
-    % x0 = 0;
-    % y0 = min(ylim)+0.2;
-    % line([x0 x0+param.fs], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-    % text(x0+param.fs, y0-0.1, '1 sec', 'VerticalAlignment','top');
-    % line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-    % text(x0-5, y0+4, '2 a.u.', 'VerticalAlignment','bottom', ...
-    %     'HorizontalAlignment','right','Rotation',90);
-    % set(findall(fig1,'-property','FontSize'),'FontSize',16);
-    % saveas(fig1, fullfile(method_dir, ['PCA_Trace_Reconstruction' file_suffix '.png']));
     plotTimeDomainReconstruction(h_test, h_recon_test, param, 'PCA', k, zeroLagCorr_pca, method_dir);
     
     %% Plot 2: PC Traces
-    % if num_sig_components <= param.N_F
-    %     num_comps_plot = num_sig_components;
-    % else
-    %     num_comps_plot = param.N_F;
-    % end
-    % 
-    % fig2 = figure('Position',[50 50 1000 (num_comps_plot*250)/2]);
-    % tiledlayout(num_comps_plot, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-    % sgtitle(['PC Traces (k=' num2str(num_sig_components) ')']);
-    % for pc=1:num_comps_plot
-    %     nexttile;
-    %     plot(score(:,pc), 'LineStyle', '-', 'Color', 'k','DisplayName', ['PC(t) ' num2str(pc)]);
-    %     xlabel('Time bins'); ylabel('PC Amp.');
-    %     xlim([0 param.fs * 2]);
-    %     legend('show');
-    % end
-    % set(findall(fig2,'-property','FontSize'),'FontSize',16);
-    % saveas(fig2, fullfile(method_dir, ['PCA_PC_Traces' file_suffix '.png']));
+    
     plotCTraces(num_sig_components, param, score, method_dir, file_suffix);
     
     %% Plot 3: Metrics (Main Performance)
@@ -406,7 +363,7 @@ outPCA.score_test = score_test;
 outPCA.zeroLagCorr = zeroLagCorr_pca;
 outPCA.errorTrainCurve = reconstruction_error_pca;
 outPCA.errorTestCurve = reconstruction_error_test_pca;
-outPCA.h_recon_train = h_recon_final;
+outPCA.h_recon_train = h_recon_train;
 outPCA.method_dir = method_dir;
 outPCA.corr_PCA = corr_PCA;
 outPCA.R_full = R_PCA;

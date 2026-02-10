@@ -34,11 +34,11 @@ end
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
 nDatasets  = 1; % 10
-k_range    = 1:5; %5 8
+k_range    = 1:6; %5 8
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA'}; % , 'dPCA', 'AE', 'ICA' ,'UMAP' 
+methods = {'PCA', 'dPCA', 'ICA' }; % , 'AE','UMAP' 
 
 EXP = struct();
 param = struct();
@@ -53,15 +53,15 @@ RESULTS.meta.description = "Dimensionality reduction benchmark";
 
 % Best practice: Leave 1-2 cores free for the OS/Main Thread.
 % For a 7-core system, 5 workers is a safe, high-performance choice.
-target_workers = 5; 
-current_pool = gcp('nocreate');
-
-if isempty(current_pool)
-    parpool(target_workers);
-elseif current_pool.NumWorkers ~= target_workers
-    delete(current_pool);
-    parpool(target_workers);
-end
+% target_workers = 5; 
+% current_pool = gcp('nocreate');
+% 
+% if isempty(current_pool)
+%     parpool(target_workers);
+% elseif current_pool.NumWorkers ~= target_workers
+%     delete(current_pool);
+%     parpool(target_workers);
+% end
 
 %% Loop through experiments
 for c = 1:numel(conditions)
@@ -171,6 +171,10 @@ for c = 1:numel(conditions)
                 dataset_res.(method).MSE(ki) = entry.stats.MSE;                             
                 dataset_res.(method).CORR{ki} = entry.corr;
                 dataset_res.(method).R_matrices{ki} = entry.R_matrix;
+
+                if ki== nK
+                    dataset_res.(method).h_recon_train = entry.out.h_recon_train;
+                end
                 
                 % --- Fix for Duplicate Variable Names ---
                 current_corr_table = entry.corr; 
@@ -201,6 +205,27 @@ for c = 1:numel(conditions)
             end
         end
 
+        % saving out snippets of data 
+        snippet_seconds = 10;
+        snippet_samples = min(size(data.H_ds, 1), round(snippet_seconds * local_param.fs));
+        time_idx = 1:snippet_samples;
+
+        snippets = struct();
+        snippets.time_vector = (time_idx - 1) / local_param.fs;
+        snippets.true_latents = data.H_ds(time_idx, :); % Ground truth, if we need to save more
+        % space we can cast as single() since double is 64-bit and single
+        % 32-bit.
+        
+        % Collect the reconstruction from each method at the max k
+        for m = 1:numel(methods)
+            method = methods{m};
+            % h_recon_train is already in dataset_res from the runMethod function
+            % Ensure we only take the snippet window
+            snippets.(method).recon = dataset_res.(method).h_recon_train(time_idx, :);% if we need to save more
+            % space we can cast as single() since double is 64-bit and single
+            % 32-bit.
+        end     
+
         % Pack variables into a structure to save cleanly
         ds_out = struct();
         ds_out.analysis = dataset_res;
@@ -208,6 +233,7 @@ for c = 1:numel(conditions)
         ds_out.param    = local_param;
         ds_out.dataset  = d;
         ds_out.cond     = cond;
+        ds_out.snippet  = snippets;
         
         % Create filename (e.g., "Results_simEEG_set4_spat01.mat")
         ds_filename = fullfile(local_results_dir, sprintf('Results_%s.mat', dataset_name));
@@ -219,6 +245,7 @@ for c = 1:numel(conditions)
         dataset_results{d}.(cond).output_dir = local_results_dir;
         dataset_results{d}.(cond).analysis = dataset_res;
         dataset_results{d}.(cond).entries = all_d_entries;
+        dataset_results{d}.(cond).snippets = snippets;
     end % End Parfor
 
     RESULTS.data = struct();
@@ -242,12 +269,12 @@ for c = 1:numel(conditions)
         EXP.(cond).dataset(d) = dataset_results{d}.(cond);
         local_results_dir = EXP.(cond).dataset(d).output_dir;
         
-        % --- REVERSION: Store hierarchically instead of one big table ---
-        % This organizes everything as RESULTS.data.set4.dataset_1, etc.
+        % Store hierarchically as RESULTS.data.set4.dataset_1, etc.
         ds_field = sprintf('dataset_%d', d);
         RESULTS.data.(cond).(ds_field).analysis = dataset_results{d}.(cond).analysis;
         RESULTS.data.(cond).(ds_field).entries  = dataset_results{d}.(cond).entries;
         RESULTS.data.(cond).(ds_field).path     = dataset_results{d}.(cond).output_dir;
+        RESULTS.data.(cond).(ds_field).snippets = dataset_results{d}.(cond).snippets;
 
         for m = 1:numel(methods)
             method = methods{m};
