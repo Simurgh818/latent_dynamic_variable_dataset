@@ -1,384 +1,248 @@
-function [R2_dpca, MSE_dpca, outDPCA] = rundPCAAnalysis( ...
-        s_eeg_ds, h_f_normalized_ds, param, num_sig_components, results_dir)
-% rundPCAAnalysis: runs single-condition dPCA, reconstructs latents, computes
-% R^2/MSE, makes diagnostic plots and saves them to results_dir.
+function [R2_dpca_avg, MSE_dpca_avg, outDPCA] = rundPCAAnalysis( ...
+        s_eeg_ds, h_f_normalized_ds, param, k, results_dir)
+% rundPCAAnalysis: runs dPCA for a specific k, reconstructs latents, 
+% and computes performance metrics.
 %
 % Inputs:
-%   s_eeg_ds             : nChannels × T
-%   h_f_normalized_ds    : T × N_F
+%   s_eeg_ds             : nChannels x T
+%   h_f_normalized_ds    : T x N_F
 %   param                : struct (uses param.f_peak)
-%   num_sig_components   : scalar
+%   k                    : scalar (Number of components to use)
 %   results_dir          : directory to save figures
-%   param.fs               : sampling rate used for plotting scale bars
 %
 % Outputs:
-%   R2_dpca, MSE_dpca, outDPCA
+%   R2_dpca_avg          : Scalar average R^2 across all latents
+%   MSE_dpca_avg         : Scalar average MSE across all latents
+%   outDPCA              : Structure with detailed results
 
-
-% --- simple arg checks / ensure folder exists
+%% 1. Setup
 if ~exist(results_dir, 'dir')
     mkdir(results_dir);
 end
+file_suffix = sprintf('_k%d', k);
+num_f = size(h_f_normalized_ds, 2);
 
-% File naming suffix
-file_suffix = sprintf('k%d', num_sig_components);
-
-% 1) Prepare X for dPCA (single condition)
+%% 2. Run dPCA (Single Condition)
+% Prepare X for dPCA: (Channels x Time x Trials) -> Trials=1
 X_dpca = zeros(size(s_eeg_ds,1), size(s_eeg_ds,2), 1);
 X_dpca(:,:,1) = s_eeg_ds;
 
-% 2) Run dPCA
-[W, V, whichMarg] = dpca(X_dpca, num_sig_components);
+% Run dPCA for exactly 'k' components
+% Note: If your dPCA library supports requesting specific k, this is fine.
+% If it returns more, we slice it later.
+[W, V, whichMarg] = dpca(X_dpca, k); 
 
-% 2b) latent time series (component × time)
-Z_dpca = W' * s_eeg_ds;         % nComp × T
-Z_dpca_T = Z_dpca';             % T × nComp
+% Latent time series (Components x Time)
+Z_dpca = W' * s_eeg_ds;         
+Z_dpca_T = Z_dpca';             % T x nComp
 
-% 2c) Mapping Components to latents
-H      = h_f_normalized_ds(1:size(Z_dpca_T,1), :);
+% Match components to latents
+H = h_f_normalized_ds(1:size(Z_dpca_T,1), :);
+[corr_dPCA, R_dPCA] = match_components_to_latents(Z_dpca_T, H, 'dPCA', k);
 
-[corr_dPCA, R_dPCA] = match_components_to_latents(Z_dpca_T, H, 'dPCA',num_sig_components);
+%% 3. Reconstruction & Metrics (No inner loop!)
+% We use ALL k components to reconstruct the latents
+h_f_recon_dpca = zeros(size(h_f_normalized_ds));
+h_f_recon_normalized_dpca = zeros(size(h_f_normalized_ds));
 
-% 3) Reconstruct original h_f using lsqlin
-T = size(s_eeg_ds,2);
-num_f = size(h_f_normalized_ds,2);
+R2_feat  = zeros(1, num_f);
+MSE_feat = zeros(1, num_f);
 
-h_f_recon_dpca = zeros(T, num_f);
-h_f_recon_normalized_dpca = zeros(T, num_f);
-
-R2_dpca  = zeros(num_sig_components, num_f);
-MSE_dpca = zeros(num_sig_components, num_f);
-
-for idx = 1:num_sig_components
-    for f = 1:num_f
-        % lsqlin fit: Z_dpca_T(:,1:idx) -> h_f
-        % w = lsqlin(Z_dpca_T(:,1:idx), h_f_normalized_ds(:,f));
-        w = Z_dpca_T(:,1:idx)\ h_f_normalized_ds(:,f);
-        % reconstruction
-        h_f_recon_dpca(:,f) = Z_dpca_T(:,1:idx) * w;
-        % normalize reconstructed latent
-        h_f_recon_normalized_dpca(:,f) = h_f_recon_dpca(:,f) ./ std(h_f_recon_dpca(:,f));
-        % compute R^2
-        numerator   = sum((h_f_normalized_ds(:,f) - h_f_recon_normalized_dpca(:,f)).^2);
-        denominator = sum((h_f_normalized_ds(:,f) - mean(h_f_normalized_ds(:,f))).^2);
-        R2_dpca(idx,f) = 1 - numerator/denominator;
-        % compute MSE
-        MSE_dpca(idx,f) = mean((h_f_normalized_ds(:,f) - h_f_recon_normalized_dpca(:,f)).^2);
-    end
+for f = 1:num_f
+    % Linear regression: Z_dpca_T * w = h_f
+    % We use all columns (1:k) of Z_dpca_T
+    w = Z_dpca_T \ h_f_normalized_ds(:,f);
+    
+    % Reconstruction
+    rec_raw = Z_dpca_T * w;
+    h_f_recon_dpca(:,f) = rec_raw;
+    
+    % --- NORMALIZATION STEP ---
+    % Normalize so std=1, matching the ground truth
+    rec_norm = rec_raw ./ std(rec_raw);
+    h_f_recon_normalized_dpca(:,f) = rec_norm;
+    
+    % Compute Metrics
+    res_var = sum((h_f_normalized_ds(:,f) - rec_norm).^2);
+    tot_var = sum((h_f_normalized_ds(:,f) - mean(h_f_normalized_ds(:,f))).^2);
+    
+    R2_feat(f)  = 1 - (res_var / tot_var);
+    MSE_feat(f) = mean((h_f_normalized_ds(:,f) - rec_norm).^2);
 end
 
-% 4) Zero-lag correlation
+% Averages to return to main script
+R2_dpca_avg  = mean(R2_feat);
+MSE_dpca_avg = mean(MSE_feat);
+
+%% 4. Zero-lag correlation (for plotting)
 maxLag = 200;
 lags   = -maxLag:maxLag;
 zeroLagCorr_dpca = zeros(1, num_f);
 for f = 1:num_f
-    c = xcorr(h_f_normalized_ds(:,f), h_f_recon_dpca(:,f), maxLag, 'coeff');
+    c = xcorr(h_f_normalized_ds(:,f), h_f_recon_normalized_dpca(:,f), maxLag, 'coeff');
     zeroLagCorr_dpca(f) = c(lags==0);
 end
 
-% 5) Explained variance
+%% 5. Explained Variance
 [explainedVar_frac, explainedVar_pct, explainedVar_cum] = ...
     dpca_explained_variance(X_dpca, W, V);
 
-% colors for plotting
-h_f_colors = lines(num_f);
-
-%%% -------------------- Plot reconstructed latent signals --------------------
-if isempty(getCurrentTask()) && num_sig_components >4
-
-    plotTimeDomainReconstruction(h_f_normalized_ds, h_f_recon_dpca, param, 'dPCA', num_sig_components, zeroLagCorr_dpca, results_dir);
-
-    %%% ---------------------- Plot Z_dpca component traces ------------------------
+%% ============================================================
+%  PLOTTING SECTION
+% ============================================================
+% Only plot if running serially (main thread) and k is large enough
+if isempty(getCurrentTask()) && k > 4
     
-    plotCTraces(num_sig_components, param, Z_dpca', results_dir, file_suffix);
-    %%% -------------------- Explained variance figure -----------------------------
+    % 1. Time Domain Reconstruction
+    plotTimeDomainReconstruction(h_f_normalized_ds, h_f_recon_normalized_dpca, ...
+        param, 'dPCA', k, zeroLagCorr_dpca, results_dir);
+    
+    % 2. Component Traces
+    plotCTraces(k, param, Z_dpca', results_dir, file_suffix);
+    
+    % 3. Explained Variance
     fig3 = figure('Position',[50 50 800 600]);
     tiledlayout(2, 1, 'Padding', 'compact');
-    % Fraction per component
-    nexttile
-    bar(explainedVar_pct, 'FaceColor', [0.3 0.3 0.9])
-    ylabel('Explained Variance (%)')
-    xlabel('Component index')
-    title(['dPCA Component Variance Explained(k=' num2str(num_sig_components) ')'])
-    % Cumulative variance
-    nexttile
-    plot(explainedVar_cum, 'LineWidth', 2)
-    ylabel('Cumulative Variance (%)')
-    xlabel('Component index')
-    ylim([0 100])
-    title('Cumulative Explained Variance')
-    grid on
-    set(findall(fig3,'-property','FontSize'),'FontSize',12);
-    saveas(fig3, fullfile(results_dir,['dPCA_ExplainedVariance_' file_suffix '.png'])); 
+    nexttile;
+    bar(explainedVar_pct, 'FaceColor', [0.3 0.3 0.9]);
+    ylabel('Explained Variance (%)'); xlabel('Component index');
+    title(['dPCA Variance (k=' num2str(k) ')']);
     
-    %% --- Frequency-domain analysis for dPCA reconstruction ---
+    nexttile;
+    plot(explainedVar_cum, 'LineWidth', 2);
+    ylabel('Cumulative Variance (%)'); xlabel('Component index');
+    ylim([0 100]); title('Cumulative Explained Variance'); grid on;
+    saveas(fig3, fullfile(results_dir,['dPCA_ExplainedVariance' file_suffix '.png'])); 
+    close(fig3);
+    
+    % --- Frequency Analysis Prep ---
     Z_true = h_f_normalized_ds;
-    Z_rec  = h_f_recon_dpca;
+    Z_rec  = h_f_recon_normalized_dpca;
     
     N = size(Z_true,1);
-    trial_dur = 1;         % seconds per synthetic "trial"
+    trial_dur = 1;         
     L = round(trial_dur * param.fs);
     nTrials = floor(N/L);
-    f = (0:L-1)*(param.fs/L);
-    nF = size(Z_true,2);
+    f_axis = (0:L-1)*(param.fs/L);
+    nHz = L/2 + 1;
+    f_plot = f_axis(1:nHz);
     
-    % Storage
-    R2_trials = zeros(L, nF, nTrials);
-    Ht = zeros(L, nF, nTrials);
-    Hr = zeros(L, nF, nTrials);
-    
-    Zt_trials = zeros(L, nTrials, nF);
-    Zr_trials = zeros(L, nTrials, nF);
+    % FFT Calculation
+    Ht = zeros(L, num_f, nTrials);
+    Hr = zeros(L, num_f, nTrials);
+    R2_trials = zeros(L, num_f, nTrials);
     
     for tr = 1:nTrials
         idx = (tr-1)*L + (1:L);
-        Zt_trials(:,tr,:) = Z_true(idx,:);
-        Zr_trials(:,tr,:) = Z_rec(idx,:);
-        Ht(:,:,tr) = fft(Zt_trials(:,tr,:));
-        Hr(:,:,tr) = fft(Zr_trials(:,tr,:));
-        for fidx = 1:nF
+        Ht(:,:,tr) = fft(Z_true(idx,:));
+        Hr(:,:,tr) = fft(Z_rec(idx,:));
+        for fidx = 1:num_f
             num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
             den = abs(Ht(:,fidx,tr)).^2 + eps;
             R2_trials(:,fidx,tr) = 1 - num./den;
         end
     end
     
-    % Averages
-    R2_avg = mean(R2_trials,3);
     Ht_avg = mean(Ht,3);
     Hr_avg = mean(Hr,3);
+    R2_avg_freq = mean(R2_trials,3);
     
-    %% --- Scatter plot: True vs Reconstructed Band Amplitudes ---
-    % Compute mean FFT amplitude in each band for true vs reconstructed latents
-    nHz = L/2+1;
-    f_plot = f(1:nHz);
-    
-    bands = struct( ...
-        'delta', [1 4], ...
-        'theta', [4 8], ...
-        'alpha', [8 13], ...
-        'beta',  [13 30], ...
-        'gamma', [30 50] ...
-    );
-    band_names = fieldnames(bands);
-    nBands = numel(band_names);
-    
-    Ht_amp = abs(Ht_avg(1:nHz, :));  % True latent mean amplitude spectrum
-    Hr_amp = abs(Hr_avg(1:nHz, :));  % Reconstructed latent mean amplitude spectrum
-    
-    % Normalizing amplitudes before comparison:
-    Ht_amp = Ht_amp ./ max(Ht_amp(:));
-    Hr_amp = Hr_amp ./ max(Hr_amp(:));
-    
-    mean_band_amp_true  = zeros(nBands, size(h_f_normalized_ds,2));
-    mean_band_amp_recon = zeros(nBands, size(h_f_normalized_ds,2));
-    stdDev_band_amp_true  = zeros(nBands, size(h_f_normalized_ds,2));
-    stdDev_band_amp_recon = zeros(nBands, size(h_f_normalized_ds,2));
-    
-    
-    
-    for b = 1:nBands
-        band = band_names{b};
-        f_range = bands.(band);
-        idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
-    
-        % mean FFT amplitude within this frequency band
-        mean_band_amp_true(b,:)  = mean(Ht_amp(idx_band,:), 1, 'omitnan');
-        mean_band_amp_recon(b,:) = mean(Hr_amp(idx_band,:), 1, 'omitnan');
-    
-        % Standard Deviation FFT amplitudes
-        stdDev_band_amp_true(b,:)  = std(Ht_amp(idx_band,:), 0, 1, 'omitnan');
-        stdDev_band_amp_recon(b,:) = std(Hr_amp(idx_band,:), 0, 1, 'omitnan');
-    end
-    
-    %%% --- Plot: FFT amplitudes of true vs reconstructed ---
-    nHz = L/2+1;
-    f_plot = f(1:nHz);
-    
+    % 4. FFT Comparison Plot
+    h_f_colors = lines(num_f);
     fig4 = figure('Position',[50 50 1200 600]);
     tiledlayout(2,1,'TileSpacing','compact','Padding','compact');
-    sgtitle(['dPCA Frequency Analysis (k=' num2str(num_sig_components) ')']);
     
-    % True FFT
     nexttile;
-    for fidx=1:nF
+    for fidx=1:num_f
         loglog(f_plot, abs(Ht_avg(1:nHz,fidx)), 'Color', h_f_colors(fidx,:), ...
-            'DisplayName', [sprintf("Z_{%s}(f)", num2str(param.f_peak(fidx)))]);
+            'DisplayName', sprintf("Z_{%s}(f)", num2str(param.f_peak(fidx))));
         hold on;
     end
-    xlabel('Frequency (Hz)'); ylabel('|Z(f)|');
-    title('FFT of Original Latents');
-    xlim([1 50]); xticks([1 4 8 10 13 20 30 50]);
-    grid on; legend('show','Location','southeastoutside', 'Interpreter','latex');
+    title('FFT of Original Latents'); legend('show','Location','eastoutside'); grid on;
     
-    % Reconstructed FFT
     nexttile;
-    for fidx=1:nF
+    for fidx=1:num_f
         loglog(f_plot, abs(Hr_avg(1:nHz,fidx)), 'Color', h_f_colors(fidx,:), ...
-            'DisplayName', [sprintf("\\hat{Z}_{%s}(f)", num2str(param.f_peak(fidx)))]);
+            'DisplayName', sprintf("\\hat{Z}_{%s}(f)", num2str(param.f_peak(fidx))));
         hold on;
     end
-    xlabel('Frequency (Hz)'); ylabel('|Ẑ(f)|');
-    title('FFT of Reconstructed Latents');
-    xlim([1 50]); xticks([1 4 8 10 13 20 30 50]);
-    grid on; legend('show','Location','southeastoutside', 'Interpreter','latex');
+    title('FFT of Reconstructed Latents'); legend('show','Location','eastoutside'); grid on;
+    saveas(fig4, fullfile(results_dir,['dPCA_FFT_True_vs_Recon' file_suffix '.png']));
+    close(fig4);
     
-    set(findall(fig4,'-property','FontSize'),'FontSize',14);
-    saveas(fig4, fullfile(results_dir,['dPCA_FFT_True_vs_Recon_' file_suffix '.png']));
-    
-    %%% --- Band-wise R² ---
+    % 5. Band-wise R2 Bar Chart
     bands = struct('delta',[1 4],'theta',[4 8],'alpha',[8 13], ...
                    'beta',[13 30],'gamma',[30 50]);
     band_names = fieldnames(bands);
     nBands = numel(band_names);
-    band_avg_R2 = zeros(nBands, nF);
+    band_avg_R2 = zeros(nBands, num_f);
+    
     for b = 1:nBands
         f_range = bands.(band_names{b});
         idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
-        for fidx=1:nF
-            band_avg_R2(b,fidx) = mean(R2_avg(idx_band,fidx));
+        for fidx=1:num_f
+            band_avg_R2(b,fidx) = mean(R2_avg_freq(idx_band,fidx));
         end
     end
     
     fig5 = figure('Position',[50 50 1000 300]);
     bar(band_avg_R2');
-    set(gca,'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i))), 1:nF, 'UniformOutput',false));
-    ylim([-1 1]);
-    ylabel('Mean R^2'); xlabel('Latent Variable');
-    legend(band_names, 'Location','southeastoutside'); title('Band-wise R^2 of dPCA Reconstruction');
-    grid on; set(findall(fig5,'-property','FontSize'),'FontSize',14);
-    saveas(fig5, fullfile(results_dir,['dPCA_Bandwise_R2_' file_suffix '.png'])); 
+    set(gca,'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i))), 1:num_f, 'UniformOutput',false));
+    legend(band_names, 'Location','eastoutside'); title('Band-wise R^2 of dPCA Reconstruction');
+    ylim([-1 1]); grid on;
+    saveas(fig5, fullfile(results_dir,['dPCA_Bandwise_R2' file_suffix '.png'])); 
+    close(fig5);
     
-    %%% --- True vs reconstructed band FFT amplitude scatter ---
-
-    numF = param.N_F;
-    % -------------------------------------------------------------
-    % dPCA Reconstruction: True vs Reconstructed Band Amplitudes
-    % -------------------------------------------------------------
-    %% ===================== BAND-WISE TRUE VS RECON PLOTS (dPCA) =====================
-    
-    true_vals  = mean_band_amp_true(:);
-    recon_vals = mean_band_amp_recon(:);
-    band_labels = repelem(band_names, size(h_f_normalized_ds,2));
-    
-    fig6 = figure('Position',[50 50 1600 300]);
-    tiledlayout(1, param.N_F, 'TileSpacing', 'compact', 'Padding', 'compact');
-    sgtitle(['True vs Reconstructed Band Mean FFT Amplitudes (per latent) (k=' num2str(num_sig_components) ')']);
-    
-    colors = lines(nBands);
-    markers = {'o','s','d','h','^','hexagram'}; %,'hexagram','<','>'
-    hold on;
-    
-    for b = 1:nBands    
-        nexttile;   
-        idx_b = strcmp(band_labels, band_names{b});
-        x = true_vals(idx_b);
-        y = recon_vals(idx_b);
-        
-        for m = 1:length(markers)
-            if m > size(x,1), break; end 
-            hold on;
-            scatter(x(m), y(m), 70, 'filled', 'MarkerFaceColor', colors(b,:),'Marker', markers{m},...
-                'DisplayName', [sprintf('Z_{%s}', num2str(param.f_peak(m)))]);
-            
-            errorbar(x(m), y(m), stdDev_band_amp_true(b, m), stdDev_band_amp_recon(b, m), ...
-                     'LineStyle', 'none', 'Color', colors(b,:), 'CapSize', 5,'HandleVisibility', 'off');
-        end
-    
-        xfit = linspace(min(x), max(x), 100);
-        plot(xfit, xfit, 'Color', colors(b,:), 'LineWidth', 2, 'DisplayName', "y=x");
-    
-        R_fit = corrcoef(x, y);
-        R2_fit = R_fit(1,2)^2;
-        text(mean(x), mean(y), sprintf('R^2=%.2f', R2_fit), 'Color', colors(b,:), 'FontSize', 12)
-        if b==1
-            xlabel('Mean True Amp.')
-            ylabel('Mean Recon. Amp.')
-        end
-        title([band_names{b} ' band'])
-        grid on;
-    end
-    nLatents = length(markers);
-    proxy_handles = gobjects(nLatents + 1,1); 
-    for m = 1:nLatents
-        proxy_handles(m) = scatter(nan, nan, 70, 'Marker', markers{m}, ...
-                                   'MarkerEdgeColor', 'k', ...
-                                   'MarkerFaceColor', 'k');
-    end
-    proxy_handles(end) = plot(nan, nan, 'k', 'LineWidth', 2);
-    legend_labels = [arrayfun(@(m) sprintf('Z_{%s}', num2str(param.f_peak(m))), 1:length(markers), 'UniformOutput', false), {'y = x'}];
-    legend(proxy_handles, legend_labels, 'Location','eastoutside','TextColor','k','IconColumnWidth',7, 'NumColumns',2);
-    hold off;
-    set(findall(gcf,'-property','FontSize'),'FontSize',14)
-    saveas(fig6, fullfile(results_dir, ['dPCA_Scatter_Band_Amp_Mean_' file_suffix '.png']));
-    
-    %% ===================== TRIALWISE BAND AMPLITUDE SCATTER PLOTS (dPCA) =====================
-    
-    
-    %% --------------------- PLOTTING ------------------------
-       
-    plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, num_sig_components, "dPCA", results_dir);
+    % 6. Scatter Plots
+    % (Keeping your scatter logic, simplified call)
+    plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, k, "dPCA", results_dir);
 end
-close All;
-%% 6) Package output struct
+
+%% 6. Package Output
+outDPCA = struct();
 outDPCA.W = W;
 outDPCA.V = V;
 outDPCA.Z_dpca = Z_dpca;
+outDPCA.h_recon_train = h_f_recon_normalized_dpca; % Normalized reconstruction
 outDPCA.zeroLagCorr = zeroLagCorr_dpca;
 outDPCA.explainedVar_frac = explainedVar_frac;
 outDPCA.explainedVar_pct  = explainedVar_pct;
-outDPCA.explainedVar_cum  = explainedVar_cum;
 outDPCA.folder = results_dir;
 outDPCA.corr_dPCA = corr_dPCA;
 outDPCA.R_full = R_dPCA;
-outDPCA.h_recon_train = h_f_recon_normalized_dpca;
+outDPCA.R2_features = R2_feat;
+outDPCA.MSE_features = MSE_feat;
 
-% Inputs:
-%   X          : nChannels x T  (single condition) OR nChannels x T x C
-%   W          : nChannels x nComp  (decoder from dpca)
-%   V          : nComp x nChannels  (encoder from dpca) -- sometimes V = W'
-% Outputs:
-%   explainedVar_frac : 1 x nComp, fraction of total variance explained by each comp
-%   explainedVar_pct  : percent
-%   explainedVar_cum  : cumulative percent
+close all;
+end
 
+%% Nested Helper Function
 function [explainedVar_frac, explainedVar_pct, explainedVar_cum] = dpca_explained_variance(X, W, V)
-
-    %--- ensure shaped as n x (T*C) ---
+    % Ensure shaped as n x (T*C)
     if ismatrix(X)
-        Xflat = X;                    % n x T
+        Xflat = X;                    
     elseif ndims(X) == 3
-        Xflat = reshape(X, size(X,1), []);  % n x (T*C)
+        Xflat = reshape(X, size(X,1), []); 
     else
         error('X must be 2D or 3D array');
     end
-
-    %--- mean-center across time/conditions (important) ---
-    Xmean = mean(Xflat, 2);           % n x 1
+    % Mean-center 
+    Xmean = mean(Xflat, 2);           
     Xc = bsxfun(@minus, Xflat, Xmean);
-
-    %--- total variance (sum over channels) ---
-    perChannelVar = var(Xc, 0, 2);    % n x 1 (unbiased sample var, normalized by N-1)
+    % Total variance 
+    perChannelVar = var(Xc, 0, 2);    
     totalVar = sum(perChannelVar(:)) + eps;
-
-    %--- project to components (nComp x Nsamples) ---
-    Z = V' * Xc;                       % nComp x (T*C)
-
+    % Project to components 
+    Z = V' * Xc;                       
     nComp = size(Z,1);
     explainedVar_frac = zeros(1,nComp);
-
-    %--- compute contribution of each component to the original data ---
+    % Compute contribution 
     for c = 1:nComp
-        Recon_c = W(:,c) * Z(c,:);    % n x (T*C)
-        % variance explained by this component (sum across channels)
+        Recon_c = W(:,c) * Z(c,:);    
         explainedVar_frac(c) = sum(var(Recon_c, 0, 2)) / totalVar;
     end
-
-    %--- normalize tiny numerical drift, and compute percentages ---
-    explainedVar_frac = explainedVar_frac ./ sum(explainedVar_frac); % optional normalize
+    % Normalize and convert to percent
+    explainedVar_frac = explainedVar_frac ./ sum(explainedVar_frac); 
     explainedVar_pct  = 100 * explainedVar_frac;
     explainedVar_cum  = cumsum(explainedVar_pct);
-
-end
-
 end

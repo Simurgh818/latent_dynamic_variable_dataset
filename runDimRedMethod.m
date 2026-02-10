@@ -15,10 +15,10 @@ switch method
         [R2_test, MSE_test, outPCA] = runPCAAnalysis(data.eeg_train, data.eeg_test,...
             data.H_train, data.H_test, local_param, k, method_dir);
         
-        % Extract Scalar Values immediately
-        R2  = mean(R2_test(ki,:), 'omitnan');
-        MSE = mean(MSE_test(ki,:), 'omitnan');
-
+        % --- FIX: No indexing needed for single-k results ---
+        R2  = R2_test; 
+        MSE = MSE_test;
+        
         out = outPCA;
         if isfield(outPCA, 'corr_PCA'), corr_table = outPCA.corr_PCA; end
         if isfield(outPCA, 'R_full'),   R_matrix   = outPCA.R_full;   end
@@ -29,17 +29,15 @@ switch method
         out = outAE;
         if isfield(outAE, 'corr_AE'), corr_table = outAE.corr_AE; end
         if isfield(outAE, 'R_full'),  R_matrix   = outAE.R_full;  end
-
+        
     case 'ICA'
         [R2, MSE, outICA] = runICAAnalysis(data.eeg_train, data.eeg_test, ...
              data.H_train, data.H_test, k, local_param, method_dir);
         out = outICA;
         if isfield(outICA, 'corr_ICA'), corr_table = outICA.corr_ICA; end
         if isfield(outICA, 'R_full'),   R_matrix   = outICA.R_full;   end
-
+        
     case 'UMAP'
-        % Note: Java properties should ideally be set outside parfor, 
-        % but some workers might need it reset.
         n_neighbors = 3; min_dist = 0.99;
         [R2, MSE, outUMAP] = runUMAPAnalysis( ...
             n_neighbors, min_dist, data.eeg_train, data.eeg_test, local_param, ...
@@ -47,13 +45,16 @@ switch method
         out = outUMAP;
         if isfield(outUMAP, 'corr_UMAP'), corr_table = outUMAP.corr_UMAP; end
         if isfield(outUMAP, 'R_full'),    R_matrix   = outUMAP.R_full;    end
-
+        
     case 'dPCA'
+        % Assuming rundPCAAnalysis also takes 'k' now and returns single-k result
         [R2_test, MSE_test, outDPCA] = rundPCAAnalysis( ...
             data.eeg_train, data.H_train, local_param, k, method_dir);
-        R2  = mean(R2_test(ki,:), 'omitnan');
-        MSE = mean(MSE_test(ki,:), 'omitnan');
-
+            
+        % --- FIX: No indexing here either ---
+        R2  = R2_test; 
+        MSE = MSE_test;
+        
         out = outDPCA;
         if isfield(outDPCA, 'corr_dPCA'), corr_table = outDPCA.corr_dPCA; end
         if isfield(outDPCA, 'R_full'),    R_matrix   = outDPCA.R_full;    end
@@ -72,11 +73,9 @@ entry.dataset = string(dataset_name);
 entry.method  = string(method);
 entry.k       = k;
 entry.ki      = ki;
-
 entry.stats = struct();
 entry.stats.R2  = R2;
 entry.stats.MSE = MSE;
-
 entry.corr = corr_table;
 entry.R_matrix = R_matrix;
 entry.out  = out;
