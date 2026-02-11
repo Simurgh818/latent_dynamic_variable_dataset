@@ -45,7 +45,7 @@ try
     % 'g': 'tanh' is a good general purpose non-linearity
     [icasig, A, W] = fastica(eeg_train, ...
         'numOfIC', num_comps, ...
-        'lastEig', num_comps, ...
+        'lastEig', pca_dim, ...
         'verbose', 'off', ...
         'displayMode', 'off', ...
         'approach', 'symm', ...
@@ -142,40 +142,6 @@ for f = 1:param.N_F
     c = corrcoef(h_test(:,f), h_rec_test(:,f));
     zeroLagCorr_ica(f) = c(1,2);
 end
-
-%% 5. Frequency Analysis (FFT Calculation)
-% Using TEST data for reconstruction analysis
-% N = size(h_test, 1);
-% trial_dur = 1; 
-% L = round(trial_dur * param.fs);
-% nTrials = floor(N/L);
-% f_freq = (0:L-1)*(param.fs/L);
-% nHz = L/2 + 1;
-% f_plot = f_freq(1:nHz);
-% 
-% Ht = zeros(L, param.N_F, nTrials);
-% Hr = zeros(L, param.N_F, nTrials);
-% R2_trials = zeros(L, param.N_F, nTrials);
-% 
-% for tr = 1:nTrials
-%     idx = (tr-1)*L + (1:L);
-%     Z_true_sub = h_test(idx, :);
-%     Z_recon_sub = h_rec_test(idx, :);
-% 
-%     Ht(:,:,tr) = fft(Z_true_sub);
-%     Hr(:,:,tr) = fft(Z_recon_sub);
-% 
-%     for fidx = 1:param.N_F
-%         num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
-%         den = abs(Ht(:,fidx,tr)).^2 + eps;
-%         R2_trials(:,fidx,tr) = 1 - num./den;
-%     end
-% end
-% 
-% Ht_avg_ica = mean(Ht, 3);
-% Hr_avg_ica = mean(Hr, 3);
-% R2_avg_ica = mean(R2_trials, 3);
-
 
 
 %% ============================================================

@@ -435,8 +435,8 @@ end
 %% 6. Outputs and Summary Saves
 outAE = struct();
 outAE.net = net;
-outAE.H_recon_train     = H_recon_train;
-outAE.H_recon_test      = H_recon_test;
+outAE.h_recon_train     = H_recon_train;
+outAE.h_recon_test      = H_recon_test;
 outAE.R2_test          = R2_test;
 outAE.MSE_test         = MSE_test;
 outAE.component_R2     = recon_R2_test;
