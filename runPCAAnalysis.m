@@ -108,15 +108,8 @@ if isempty(getCurrentTask()) && k > 4
     plotCumulativeVariance(explained, k, 'PCA', save_path);
     
     % Frequency Analysis FFT
-    % fig_fft = figure('Position',[50 50 1000 600]);
-    % tiledlayout(2, 1);
-    % nexttile; loglog(f_plot, abs(Ht_avg(1:nHz,:))); title('True Latents FFT'); grid on;
-    % nexttile; loglog(f_plot, abs(Hr_avg(1:nHz,:))); title('Reconstructed FFT'); grid on;
-    % 
-    % saveas(fig_fft, fullfile(method_dir, ['PCA_Frequency' file_suffix '.png']));
-    % close(fig_fft);
     save_path_fft = fullfile(method_dir, ['PCA_FFT_True_vs_Recon' file_suffix '.png']);
-    [Ht, Hr, R2_avg, f_axis, f_plot] = plotFrequencySpectra(h_train, h_recon_train, 'PCA', param, save_path_fft);
+    [Ht, Hr, R2_avg, f_axis, f_plot] = plotFrequencySpectra(h_train, h_recon_train, 'PCA', param, k, save_path_fft);
 
     % Bandwise R2 Bar Chart
     % Band Averaging

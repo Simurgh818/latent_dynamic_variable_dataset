@@ -105,61 +105,8 @@ if isempty(getCurrentTask()) && k > 4
     plotCumulativeVariance(explainedVar_pct, k, 'dPCA', save_path);
 
     % --- Frequency Analysis Prep ---
-    % Z_true = h_f_normalized_ds;
-    % Z_rec  = h_f_recon_normalized_dpca;
-    % 
-    % N = size(Z_true,1);
-    % trial_dur = 1;         
-    % L = round(trial_dur * param.fs);
-    % nTrials = floor(N/L);
-    % f_axis = (0:L-1)*(param.fs/L);
-    % nHz = L/2 + 1;
-    % f_plot = f_axis(1:nHz);
-    % 
-    % % FFT Calculation
-    % Ht = zeros(L, num_f, nTrials);
-    % Hr = zeros(L, num_f, nTrials);
-    % R2_trials = zeros(L, num_f, nTrials);
-    % 
-    % for tr = 1:nTrials
-    %     idx = (tr-1)*L + (1:L);
-    %     Ht(:,:,tr) = fft(Z_true(idx,:));
-    %     Hr(:,:,tr) = fft(Z_rec(idx,:));
-    %     for fidx = 1:num_f
-    %         num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
-    %         den = abs(Ht(:,fidx,tr)).^2 + eps;
-    %         R2_trials(:,fidx,tr) = 1 - num./den;
-    %     end
-    % end
-    % 
-    % Ht_avg = mean(Ht,3);
-    % Hr_avg = mean(Hr,3);
-    % R2_avg_freq = mean(R2_trials,3);
-    % 
-    % % 4. FFT Comparison Plot
-    % h_f_colors = lines(num_f);
-    % fig4 = figure('Position',[50 50 1200 600]);
-    % tiledlayout(2,1,'TileSpacing','compact','Padding','compact');
-    % 
-    % nexttile;
-    % for fidx=1:num_f
-    %     loglog(f_plot, abs(Ht_avg(1:nHz,fidx)), 'Color', h_f_colors(fidx,:), ...
-    %         'DisplayName', sprintf("Z_{%s}(f)", num2str(param.f_peak(fidx))));
-    %     hold on;
-    % end
-    % title('FFT of Original Latents'); legend('show','Location','eastoutside'); grid on;
-    % 
-    % nexttile;
-    % for fidx=1:num_f
-    %     loglog(f_plot, abs(Hr_avg(1:nHz,fidx)), 'Color', h_f_colors(fidx,:), ...
-    %         'DisplayName', sprintf("\\hat{Z}_{%s}(f)", num2str(param.f_peak(fidx))));
-    %     hold on;
-    % end
-    % % title('FFT of Reconstructed Latents'); legend('show','Location','eastoutside'); grid on;
-    % saveas(fig4, fullfile(results_dir,['dPCA_FFT_True_vs_Recon' file_suffix '.png']));
-    % close(fig4);
     save_path_fft = fullfile(results_dir, ['dPCA_FFT_True_vs_Recon' file_suffix '.png']);
-    [Ht, Hr, R2_avg, f_axis, f_plot] = plotFrequencySpectra(h_f_normalized_ds, h_f_recon_normalized_dpca, 'dPCA', param, save_path_fft);
+    [Ht, Hr, R2_avg, f_axis, f_plot] = plotFrequencySpectra(h_f_normalized_ds, h_f_recon_normalized_dpca, 'dPCA', param, k, save_path_fft);
 
     % 5. Band-wise R2 Bar Chart
     bands = struct('delta',[1 4],'theta',[4 8],'alpha',[8 13], ...
