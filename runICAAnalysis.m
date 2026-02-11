@@ -145,59 +145,74 @@ end
 
 %% 5. Frequency Analysis (FFT Calculation)
 % Using TEST data for reconstruction analysis
-N = size(h_test, 1);
-trial_dur = 1; 
-L = round(trial_dur * param.fs);
-nTrials = floor(N/L);
-f_freq = (0:L-1)*(param.fs/L);
-nHz = L/2 + 1;
-f_plot = f_freq(1:nHz);
+% N = size(h_test, 1);
+% trial_dur = 1; 
+% L = round(trial_dur * param.fs);
+% nTrials = floor(N/L);
+% f_freq = (0:L-1)*(param.fs/L);
+% nHz = L/2 + 1;
+% f_plot = f_freq(1:nHz);
+% 
+% Ht = zeros(L, param.N_F, nTrials);
+% Hr = zeros(L, param.N_F, nTrials);
+% R2_trials = zeros(L, param.N_F, nTrials);
+% 
+% for tr = 1:nTrials
+%     idx = (tr-1)*L + (1:L);
+%     Z_true_sub = h_test(idx, :);
+%     Z_recon_sub = h_rec_test(idx, :);
+% 
+%     Ht(:,:,tr) = fft(Z_true_sub);
+%     Hr(:,:,tr) = fft(Z_recon_sub);
+% 
+%     for fidx = 1:param.N_F
+%         num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
+%         den = abs(Ht(:,fidx,tr)).^2 + eps;
+%         R2_trials(:,fidx,tr) = 1 - num./den;
+%     end
+% end
+% 
+% Ht_avg_ica = mean(Ht, 3);
+% Hr_avg_ica = mean(Hr, 3);
+% R2_avg_ica = mean(R2_trials, 3);
 
-Ht = zeros(L, param.N_F, nTrials);
-Hr = zeros(L, param.N_F, nTrials);
-R2_trials = zeros(L, param.N_F, nTrials);
 
-for tr = 1:nTrials
-    idx = (tr-1)*L + (1:L);
-    Z_true_sub = h_test(idx, :);
-    Z_recon_sub = h_rec_test(idx, :);
-    
-    Ht(:,:,tr) = fft(Z_true_sub);
-    Hr(:,:,tr) = fft(Z_recon_sub);
-    
-    for fidx = 1:param.N_F
-        num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
-        den = abs(Ht(:,fidx,tr)).^2 + eps;
-        R2_trials(:,fidx,tr) = 1 - num./den;
-    end
-end
-
-Ht_avg_ica = mean(Ht, 3);
-Hr_avg_ica = mean(Hr, 3);
-R2_avg_ica = mean(R2_trials, 3);
-
-% Band Averaging
-bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 13], 'beta', [13 30], 'gamma', [30 50]);
-band_names = fieldnames(bands);
-nBands = numel(band_names);
-band_avg_R2_ica = zeros(nBands, param.N_F);
-
-for b = 1:nBands
-    f_range = bands.(band_names{b});
-    idx_b = f_freq >= f_range(1) & f_freq <= f_range(2);
-    for fidx = 1:param.N_F
-        band_avg_R2_ica(b, fidx) = mean(R2_avg_ica(idx_b, fidx));
-    end
-end
 
 %% ============================================================
 % PLOTTING SECTION
 % ============================================================
 if isempty(getCurrentTask()) && num_comps>4
-
+    % Time domain plot
     plotTimeDomainReconstruction(h_test, h_rec_test, param, 'ICA', num_comps, zeroLagCorr_ica, method_dir);
     
+    % Independent Component traces plot
     plotCTraces(num_comps, param, h_rec_test, method_dir, file_suffix);
+
+    % Frequency Analysis FFT
+    save_path_fft = fullfile(method_dir, ['ICA_FFT_True_vs_Recon' file_suffix '.png']);
+    [outFSP] = plotFrequencySpectra(h_train, h_rec_train, 'ICA', param, num_comps, save_path_fft);
+    
+    nHz = outFSP.nHz;
+    Ht = outFSP.Ht;
+    Hr = outFSP.Hr;
+    Ht_avg_ica = outFSP.Ht_avg;
+    Hr_avg_ica = outFSP.Hr_avg;
+    R2_avg_ica = outFSP.R2_avg;
+    f_freq = outFSP.f_axis;
+    f_plot = outFSP.f_plot;
+    % Band Averaging
+    bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 13], 'beta', [13 30], 'gamma', [30 50]);
+    band_names = fieldnames(bands);
+    nBands = numel(band_names);
+    band_avg_R2_ica = zeros(nBands, param.N_F);
+    
+    for b = 1:nBands
+        f_range = bands.(band_names{b});
+        idx_b = f_freq >= f_range(1) & f_freq <= f_range(2);
+        for fidx = 1:param.N_F
+            band_avg_R2_ica(b, fidx) = mean(R2_avg_ica(idx_b, fidx));
+        end
+    end
     %% Plot 2: Band-wise R2 Bar Chart
     fig2 = figure('Position',[50 50 1000 300]);
     tiledlayout(1, 1, 'TileSpacing', 'compact', 'Padding', 'compact');

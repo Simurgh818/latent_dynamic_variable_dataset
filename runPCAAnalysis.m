@@ -60,38 +60,8 @@ for f = 1:param.N_F
     zeroLagCorr_pca(f) = c(1,2);
 end
 
-%% 5. Frequency Analysis (FFT Calculation)
-% Using h_recon_test for FFT analysis
-% N = size(h_test, 1);
-% trial_dur = 1; 
-% L = round(trial_dur * param.fs);
-% nTrials = floor(N/L);
-% f_freq = (0:L-1)*(param.fs/L);
-% nHz = L/2 + 1;
-% f_plot = f_freq(1:nHz);
-% Ht = zeros(L, param.N_F, nTrials);
-% Hr = zeros(L, param.N_F, nTrials);
-% R2_trials = zeros(L, param.N_F, nTrials);
-% 
-% for tr = 1:nTrials
-%     idx = (tr-1)*L + (1:L);
-%     Z_true_sub  = h_test(idx, :);
-%     Z_recon_sub = h_recon_test(idx, :);
-% 
-%     Ht(:,:,tr) = fft(Z_true_sub);
-%     Hr(:,:,tr) = fft(Z_recon_sub);
-% 
-%     for fidx = 1:param.N_F
-%         num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
-%         den = abs(Ht(:,fidx,tr)).^2 + eps;
-%         R2_trials(:,fidx,tr) = 1 - num./den;
-%     end
-% end
-% Ht_avg = mean(Ht, 3);
-% Hr_avg = mean(Hr, 3);
-% R2_avg = mean(R2_trials, 3);
 
-% ============================================================
+%% ============================================================
 % PLOTTING SECTION
 % ============================================================
 % Only plot if we aren't in a parallel worker (to save time)
@@ -109,8 +79,16 @@ if isempty(getCurrentTask()) && k > 4
     
     % Frequency Analysis FFT
     save_path_fft = fullfile(method_dir, ['PCA_FFT_True_vs_Recon' file_suffix '.png']);
-    [Ht, Hr, R2_avg, f_axis, f_plot] = plotFrequencySpectra(h_train, h_recon_train, 'PCA', param, k, save_path_fft);
+    [outFSP] = plotFrequencySpectra(h_train, h_recon_train, 'PCA', param, k, save_path_fft);
 
+    Ht = outFSP.Ht;
+    Hr = outFSP.Hr;
+    Ht_avg = outFSP.Ht_avg;
+    Hr_avg = outFSP.Hr_avg;
+    R2_avg = outFSP.R2_avg;
+    f_axis = outFSP.f_axis;
+    f_plot = outFSP.f_plot;
+    
     % Bandwise R2 Bar Chart
     % Band Averaging
     bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 12], 'beta', [13 30], 'gamma', [30 50]);

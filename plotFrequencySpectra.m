@@ -1,4 +1,4 @@
-function [Ht, Hr, R2_avg, f_axis, f_plot] = plotFrequencySpectra(Z_true, Z_recon, method_name, param, k, save_path)
+function [outFSP] = plotFrequencySpectra(Z_true, Z_recon, method_name, param, k, save_path)
     % Z_true: T x N_F (Original)
     % Z_recon: T x N_F (Reconstructed)
     % param: struct with fields .fs, .f_peak, .N_F
@@ -47,6 +47,8 @@ function [Ht, Hr, R2_avg, f_axis, f_plot] = plotFrequencySpectra(Z_true, Z_recon
         hold on;
     end
     title('FFT Amplitude Original'); 
+    xticks(param.f_peak);
+    yticks();
     ylabel('$|Z(f)|$', 'Interpreter', 'latex'); 
     grid on; box on;
     legend('show', 'Location', 'eastoutside', 'Interpreter', 'latex');
@@ -82,4 +84,15 @@ function [Ht, Hr, R2_avg, f_axis, f_plot] = plotFrequencySpectra(Z_true, Z_recon
     
     saveas(fig, save_path);
     close(fig);
+
+    % Return the output structure
+    outFSP.nHz = nHz;
+    outFSP.Ht = Ht;
+    outFSP.Hr = Hr;
+    outFSP.Ht_avg = Ht_avg;
+    outFSP.Hr_avg = Hr_avg;
+    outFSP.R2_avg = R2_avg;
+    outFSP.f_axis = f_axis;
+    outFSP.f_plot = f_plot;
+    
 end

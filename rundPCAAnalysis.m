@@ -106,7 +106,15 @@ if isempty(getCurrentTask()) && k > 4
 
     % --- Frequency Analysis Prep ---
     save_path_fft = fullfile(results_dir, ['dPCA_FFT_True_vs_Recon' file_suffix '.png']);
-    [Ht, Hr, R2_avg, f_axis, f_plot] = plotFrequencySpectra(h_f_normalized_ds, h_f_recon_normalized_dpca, 'dPCA', param, k, save_path_fft);
+    [outFSP] = plotFrequencySpectra(h_f_normalized_ds, h_f_recon_normalized_dpca, 'dPCA', param, k, save_path_fft);
+
+    Ht = outFSP.Ht;
+    Hr = outFSP.Hr;
+    Ht_avg = outFSP.Ht_avg;
+    Hr_avg = outFSP.Hr_avg;
+    R2_avg = outFSP.R2_avg;
+    f_axis = outFSP.f_axis;
+    f_plot = outFSP.f_plot;
 
     % 5. Band-wise R2 Bar Chart
     bands = struct('delta',[1 4],'theta',[4 8],'alpha',[8 13], ...
