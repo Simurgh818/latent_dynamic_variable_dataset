@@ -112,27 +112,6 @@ end
 if isempty(getCurrentTask()) && bottleNeck>4
 
     % %% Plot 1: Mapping Correlation Bar Chart
-    % fig1 = figure('Position',[50 50 400 250]);
-    % bar(corr_vals);
-    % xlabel('Latent dim (h_f)');
-    % ylabel('Corr(predicted, true)');
-    % title(['Mapping accuracy AE (k=' num2str(bottleNeck) ')']);
-    % grid on;
-    % saveas(fig1, fullfile(method_dir, ['AE_Mapping_Corr' file_suffix '.png']));
-    
-    % %% Plot 2: Trace Overlays (Simple)
-    % fig2 = figure('Position',[50 50 1000 700]);
-    % tiledlayout(param.N_F, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-    % plot_len = min(1000, size(H_train,1));
-    % for i = 1:min(param.N_F, size(H_train,2))
-    %     nexttile;
-    %     plot(H_train(1:plot_len,i), 'b', 'LineWidth', 1.5); hold on;
-    %     plot(pred_H_train(1:plot_len,i), 'r--', 'LineWidth', 1.5);
-    %     legend('True', 'Predicted','Location','eastoutside');
-    %     title(sprintf('Latent %d: corr = %.2f', i, corr_vals(i)));
-    %     grid on;
-    % end
-    % saveas(fig2, fullfile(method_dir, ['AE_Simple_Traces' file_suffix '.png']));
     plotCTraces(bottleNeck, param, H_recon_test, method_dir, file_suffix);
     %% Plot 3: Detailed Reconstruction (Train & Test Split)
     fig3 = figure('Name','True vs. AE Latents', 'Position', [100, 100, 1200, 110*param.N_F]);
@@ -204,43 +183,23 @@ if isempty(getCurrentTask()) && bottleNeck>4
          end
     end
     set(findall(fig3,'-property','FontSize'),'FontSize',16);
-    saveas(fig3, fullfile(method_dir, ['AE_Split_Reconstruction' file_suffix '.png']));
+    saveas(fig3, fullfile(method_dir, ['AE_Split_Reconstruction' file_suffix '.png']));  
     
+    %% Plot 4: FFT Analysis
+    % fig4 = figure('Position',[50 50 1000 600]);
+   
+    save_path_fft = fullfile(method_dir, ['AE_FFT_True_vs_Recon' file_suffix '.png']);
+    [outFSP] = plotFrequencySpectra(H_train, H_recon_train, 'AE', param, bottleNeck, save_path_fft);
     
-    %% 5. Frequency Analysis (FFT)
-    N = size(H_recon_test, 1);
-    trial_dur = 1;              
-    L         = round(trial_dur * fs_new);   
-    nTrials   = floor(N/L);
-    f_freq    = (0:L-1)*(fs_new/L);   
-    nHz       = L/2+1;
-    f_plot    = f_freq(1:nHz);
-    
-    % Initialize containers
-    R2_trials_ae = zeros(L, param.N_F, nTrials);
-    Ht_ae = zeros(L, param.N_F, nTrials);
-    Hr_ae = zeros(L, param.N_F, nTrials);
-    
-    for tr = 1:nTrials
-        idx = (tr-1)*L + (1:L);      
-        Z_true_sub  = H_test(idx,:);      
-        Z_recon_sub = H_recon_test(idx,:);
-        
-        Ht_ae(:,:,tr) = fft(Z_true_sub);   
-        Hr_ae(:,:,tr) = fft(Z_recon_sub);
-        
-        for fidx = 1:param.N_F
-            num = abs(Ht_ae(:,fidx,tr) - Hr_ae(:,fidx,tr)).^2;
-            den = abs(Ht_ae(:,fidx,tr)).^2 + eps;
-            R2_trials_ae(:,fidx,tr) = 1 - num./den;
-        end
-    end
-    
-    % Averages
-    R2_avg_ae = mean(R2_trials_ae, 3);
-    Ht_avg_ae = mean(Ht_ae, 3);
-    Hr_avg_ae = mean(Hr_ae, 3);
-    
+    nHz = outFSP.nHz;
+    Ht_ae = outFSP.Ht;
+    Hr_ae = outFSP.Hr;
+    Ht_avg_ae = outFSP.Ht_avg;
+    Hr_avg_ae = outFSP.Hr_avg;
+    R2_avg_ae = outFSP.R2_avg;
+    f_freq = outFSP.f_axis;
+    f_plot = outFSP.f_plot;
+
     % Band Definitions
     bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 13], 'beta', [13 30], 'gamma', [30 50]);
     band_names = fieldnames(bands);
@@ -254,36 +213,7 @@ if isempty(getCurrentTask()) && bottleNeck>4
             band_avg_R2_ae(b, fidx) = mean(R2_avg_ae(idx, fidx));
         end
     end
-    
-    %% Plot 4: FFT Analysis
-    fig4 = figure('Position',[50 50 1000 600]);
-    tiledlayout(2, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-    sgtitle(['Autoencoder Frequency Analysis, k= ' num2str(bottleNeck)]);
-    
-    nexttile
-    for fidx=1:param.N_F
-        idx = 1:L/2+1;
-        loglog(f_plot(idx), abs(Ht_avg_ae(idx,fidx)),'Color',h_f_colors(fidx,:), ...
-            'DisplayName', [sprintf("Z_{%s}(f)", num2str(param.f_peak(fidx)))]);
-        hold on;
-    end
-    xlabel('Frequency (Hz)'); ylabel('|Z(f)|'); title('FFT Amplitude Original');
-    xlim([1, 50]); xticks([1, 4, 8, 13, 30, 50]); grid on; hold off;
-    
-    nexttile
-    for fidx=1:param.N_F
-        idx = 1:L/2+1;
-        loglog(f_plot(idx), abs(Hr_avg_ae(idx,fidx)), 'Color',h_f_colors(fidx,:), ...
-            'DisplayName', [sprintf("\\hat{Z}_{%s}(f)", num2str(param.f_peak(fidx)))]);
-        hold on;
-    end
-    xlabel('Frequency (Hz)'); ylabel('|Ẑ(f)|'); title('FFT Amplitude Reconstructed');
-    xlim([1, 50]); xticks([1, 4, 8, 13, 30, 50]); grid on; 
-    legend('show','Location','southeastoutside', 'Interpreter','latex'); hold off;
-    set(findall(fig4,'-property','FontSize'),'FontSize',16);
-    saveas(fig4, fullfile(method_dir, ['AE_Frequency_Analysis' file_suffix '.png']));
-    
-    
+
     %% Plot 5: Band Power Bar Chart
     band_power_true = zeros(nBands, param.N_F);
     band_power_recon = zeros(nBands, param.N_F);
