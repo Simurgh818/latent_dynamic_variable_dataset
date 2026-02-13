@@ -190,7 +190,7 @@ if isempty(getCurrentTask()) && num_sig_components >4
               ['n=' num2str(n_neighbors) ', dist=' num2str(min_dist) ', (k=' num2str(num_sig_components) ')']}, ...
               'FontSize', 14, 'FontWeight', 'bold');
     colormap(turbo);
-    set(findall(fig1,'-property','FontSize'),'FontSize',16);
+    set(findall(fig1,'-property','FontSize'),'FontSize',20);
     saveas(fig1, fullfile(method_dir, ['UMAP_Embedding' file_suffix '.png']));
     
     %% Plot 1.1: UMAP Dim 1 vs. Dim 2 colored by Intensity of each latent variable
@@ -214,8 +214,8 @@ if isempty(getCurrentTask()) && num_sig_components >4
         axis square; grid on;
     end
     
-    title(t, 'UMAP colored by Intensity of each Latent Variable', 'FontSize', 16);
-    set(findall(fig1,'-property','FontSize'),'FontSize',16);
+    title(t, 'UMAP colored by Intensity of each Latent Variable');
+    set(findall(fig11,'-property','FontSize'),'FontSize',16);
     saveas(fig11, fullfile(method_dir, ['UMAP_Embedding_perLatentVariable' file_suffix '.png']));
     %% Plot 2: Time Domain Reconstruction (Test Set)
     % Zero-lag correlation
@@ -227,35 +227,8 @@ if isempty(getCurrentTask()) && num_sig_components >4
         c = xcorr(Z_true(:,f), Z_recon(:,f), maxLag, 'coeff');
         zeroLagCorr(f) = c(lags==0);
     end
-    
-    fig2 = figure('Position',[50 50 1200 150*param.N_F]);
-    tiledlayout(param.N_F, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-    sgtitle(sprintf('UMAP (Test Set, k=%d) Latent variables $Z(t)$ and $\\hat{Z}(t)$', ...
-            num_sig_components), 'Interpreter', 'latex')
-    for f=1:param.N_F
-        nexttile; hold on;
-        set(gca, 'XColor', 'none', 'YColor', 'none'); box on
-        plot(h_train(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :),'DisplayName', ['$Z_{' num2str(param.f_peak(f)) '}$ (t) ']);
-        plot(h_rec_train_final(:, f), 'LineStyle', '--','Color', 'k','DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$ (t) ']);
-        
-        xlim([0 fs_new*2]);
-        legend('Show','Interpreter', 'latex', 'Location','eastoutside');
-        
-        text(0.02 * fs_new, 0.7 * max(h_train(:,f)), ...
-            sprintf('\\rho(0)=%.2f', zeroLagCorr(f)), ...
-            'FontSize', 12, 'FontWeight', 'bold', 'BackgroundColor', 'w', 'EdgeColor','k');
-        hold off;
-    end
-    % Scale bar
-    x0 = 0; y0 = min(ylim)+0.2;
-    line([x0 x0+(fs_new)], [y0 y0], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-    text(x0+fs_new, y0-0.1, '1 sec', 'VerticalAlignment','top');
-    line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2,'HandleVisibility', 'off');
-    text(x0-5, y0+7, '2 a.u.', 'VerticalAlignment','bottom','HorizontalAlignment','right','Rotation',90);
-    set(findall(fig2,'-property','FontSize'),'FontSize',16);
-    saveas(fig2, fullfile(method_dir, ['UMAP_TimeDomain' file_suffix '.png']));
-    
-
+      
+    plotTimeDomainReconstruction(h_train, h_rec_train_final, param, 'UMAP', num_sig_components, zeroLagCorr, method_dir);
     %% Plot 4: Band Power Bar Chart & FFT
     % Setup FFT
     N = size(h_train, 1);
@@ -302,7 +275,7 @@ if isempty(getCurrentTask()) && num_sig_components >4
     ylim([-1 1]); legend(band_names, 'Location', 'southeastoutside');
     ylabel('Mean R^2'); xlabel('Latent');
     title(['UMAP Band-wise R^2 (Test Set , k=' num2str(num_sig_components) ')']); grid on;
-    set(findall(fig3,'-property','FontSize'),'FontSize',16);
+    set(findall(fig3,'-property','FontSize'),'FontSize',20);
     saveas(fig3, fullfile(method_dir, ['UMAP_Bandwise_R2' file_suffix '.png']));
     
     
@@ -331,7 +304,7 @@ if isempty(getCurrentTask()) && num_sig_components >4
         end
         title(['Latent ' num2str(i)]);
     end
-    set(findall(fig4,'-property','FontSize'),'FontSize',16);
+    set(findall(fig4,'-property','FontSize'),'FontSize',20);
     saveas(fig4, fullfile(method_dir, ['UMAP_Coherence' file_suffix '.png']));
     
     
@@ -369,7 +342,7 @@ if isempty(getCurrentTask()) && num_sig_components >4
         R = corrcoef(x,y); text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', colors(b,:));
         title(band_names{b}); grid on;
     end
-    set(findall(fig5,'-property','FontSize'),'FontSize',16);
+    set(findall(fig5,'-property','FontSize'),'FontSize',20);
     saveas(fig5, fullfile(method_dir, ['UMAP_Scatter_Mean' file_suffix '.png']));
     
     
