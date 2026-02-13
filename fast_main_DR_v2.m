@@ -34,11 +34,11 @@ end
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
 nDatasets  = 1; % 10
-k_range    = 1:6; %5 8
+k_range    = 6:6; %5 8
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'AE'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
+methods = {'UMAP'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
 
 EXP = struct();
 param = struct();

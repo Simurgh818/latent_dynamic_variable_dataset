@@ -1,4 +1,4 @@
-function [R2_test_global, MSE_test_global, outUMAP] = runUMAPAnalysis( ...
+function [R2_train_global, MSE_train_global, outUMAP] = runUMAPAnalysis( ...
         n_neighbors, min_dist, s_train, s_test, param, ...
         h_train, h_test, num_sig_components, results_dir)
 % runUMAPAnalysis UMAP reduction + Linear Mapping + Detailed Plotting
@@ -117,6 +117,8 @@ H = h_train(1:size(C,1), :);
 
 %% 5. Reconstruction Loop (Train Mapping -> Test Eval)
 % We calculate metrics for k=1 to num_sig_components
+MSE_train_curve = zeros(1, param.N_F);
+R2_train_curve  = zeros(1, param.N_F);
 MSE_test_curve = zeros(1, param.N_F);
 R2_test_curve  = zeros(1, param.N_F);
 
@@ -129,30 +131,37 @@ disp('Calculating Reconstruction Metrics...');
 % for f = 1:param.N_F
 %     W_k(:,f) = lsqlin(umap_test_raw, h_test(:,f));
 % end
+W_k_train = umap_train_raw \ h_train;
 W_k = umap_test_raw \ h_test;
 % 2. Apply Map to Test: UMAP_test * W -> H_rec_test
+h_rec_train_final = umap_train_raw * W_k_train;
 h_rec_test_final = umap_test_raw * W_k;
 
 % 3. Calculate Test Metrics
 for f = 1:param.N_F
     % MSE
     MSE_test_curve(1,f) = mean((h_test(:,f) - h_rec_test_final(:,f)).^2);
-    
+    MSE_train_curve(1,f) = mean((h_train(:,f) - h_rec_train_final(:,f)).^2);
     % R2
     res_var = sum((h_test(:,f) - h_rec_test_final(:,f)).^2);
     tot_var = sum((h_test(:,f) - mean(h_test(:,f))).^2);
     R2_test_curve(1,f) = 1 - (res_var / tot_var);
+    res_var_train = sum((h_train(:,f) - h_rec_train_final(:,f)).^2);
+    tot_var_train = sum((h_train(:,f) - mean(h_train(:,f))).^2);
+    R2_train_curve(1,f) = 1 - (res_var_train / tot_var_train);
 end
 
 % Global outputs (vector of size num_sig_components for the main script loop)
 % We take the mean across all latent fields for the global metric
 MSE_test_global = mean(MSE_test_curve, 2); 
 R2_test_global  = mean(R2_test_curve, 2);
-
+MSE_train_global = mean(MSE_train_curve, 2); 
+R2_train_global  = mean(R2_train_curve, 2);
 % Normalized version for plotting
 h_rec_test_norm = h_rec_test_final; 
 for f = 1:param.N_F
    h_rec_test_norm(:,f) = h_rec_test_final(:,f) ./ std(h_rec_test_final(:,f)); 
+   h_rec_train_norm(:,f) = h_rec_train_final(:,f) ./ std(h_rec_train_final(:,f)); 
 end
 fs_new = param.fs;
 %% ============================================================
@@ -210,8 +219,8 @@ if isempty(getCurrentTask()) && num_sig_components >4
     saveas(fig11, fullfile(method_dir, ['UMAP_Embedding_perLatentVariable' file_suffix '.png']));
     %% Plot 2: Time Domain Reconstruction (Test Set)
     % Zero-lag correlation
-    Z_true = h_test; 
-    Z_recon = h_rec_test_final; % Use non-normalized for correlation calc
+    Z_true = h_train; 
+    Z_recon = h_rec_train_final; % Use non-normalized for correlation calc
     maxLag = 200; lags = -maxLag:maxLag;
     zeroLagCorr = zeros(1, param.N_F);
     for f = 1:param.N_F
@@ -226,13 +235,13 @@ if isempty(getCurrentTask()) && num_sig_components >4
     for f=1:param.N_F
         nexttile; hold on;
         set(gca, 'XColor', 'none', 'YColor', 'none'); box on
-        plot(h_test(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :),'DisplayName', ['$Z_{' num2str(param.f_peak(f)) '}$ (t) ']);
-        plot(h_rec_test_final(:, f), 'LineStyle', '--','Color', 'k','DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$ (t) ']);
+        plot(h_train(:, f),'LineStyle', '-', 'Color', h_f_colors(f, :),'DisplayName', ['$Z_{' num2str(param.f_peak(f)) '}$ (t) ']);
+        plot(h_rec_train_final(:, f), 'LineStyle', '--','Color', 'k','DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$ (t) ']);
         
         xlim([0 fs_new*2]);
         legend('Show','Interpreter', 'latex', 'Location','eastoutside');
         
-        text(0.02 * fs_new, 0.7 * max(h_test(:,f)), ...
+        text(0.02 * fs_new, 0.7 * max(h_train(:,f)), ...
             sprintf('\\rho(0)=%.2f', zeroLagCorr(f)), ...
             'FontSize', 12, 'FontWeight', 'bold', 'BackgroundColor', 'w', 'EdgeColor','k');
         hold off;
@@ -246,9 +255,10 @@ if isempty(getCurrentTask()) && num_sig_components >4
     set(findall(fig2,'-property','FontSize'),'FontSize',16);
     saveas(fig2, fullfile(method_dir, ['UMAP_TimeDomain' file_suffix '.png']));
     
+
     %% Plot 4: Band Power Bar Chart & FFT
     % Setup FFT
-    N = size(h_test, 1);
+    N = size(h_train, 1);
     L = round(1 * fs_new); % 1 sec window
     nTrials = floor(N/L);
     f_freq = (0:L-1)*(fs_new/L);
@@ -261,8 +271,8 @@ if isempty(getCurrentTask()) && num_sig_components >4
     
     for tr = 1:nTrials
         idx = (tr-1)*L + (1:L);
-        Ht(:,:,tr) = fft(h_test(idx, :));
-        Hr(:,:,tr) = fft(h_rec_test_final(idx, :));
+        Ht(:,:,tr) = fft(h_train(idx, :));
+        Hr(:,:,tr) = fft(h_rec_train_final(idx, :));
         for fidx = 1:param.N_F
             num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
             den = abs(Ht(:,fidx,tr)).^2 + eps;
@@ -312,7 +322,7 @@ if isempty(getCurrentTask()) && num_sig_components >4
     for i = 1:param.N_F
         nexttile;
         try
-            [C,~,~,~,~,t_coh,f_coh] = cohgramc(h_test(:, i), h_rec_test_final(:, i), movingwin, params_coh);
+            [C,~,~,~,~,t_coh,f_coh] = cohgramc(h_train(:, i), h_rec_train_final(:, i), movingwin, params_coh);
             imagesc(t_coh, f_coh, C'); axis xy;
             xlabel('Time (s)'); ylabel('Freq (Hz)');
             caxis([0 1]); colorbar;
@@ -403,8 +413,15 @@ outUMAP = struct();
 outUMAP.umap_train = umap_train;
 % outUMAP.umap_test = umap_test;
 outUMAP.h_rec_test = h_rec_test_final;
-outUMAP.MSE_curve = MSE_test_curve;
-outUMAP.R2_curve = R2_test_curve;
+outUMAP.h_recon_train = h_rec_train_final;
+outUMAP.MSE_test_curve = MSE_test_curve;
+outUMAP.R2_test_curve = R2_test_curve;
+outUMAP.MSE_train_curve = MSE_train_curve;
+outUMAP.R2_train_curve = R2_train_curve;
+outUMAP.MSE_test_global = MSE_test_global; 
+outUMAP.R2_test_global = R2_test_global;
+outUMAP.MSE_train_global = MSE_train_global; 
+outUMAP.R2_train_global = R2_train_global;
 outUMAP.n_neighbors = n_neighbors;
 outUMAP.min_dist = min_dist;
 outUMAP.corr_UMAP = corr_UMAP;
