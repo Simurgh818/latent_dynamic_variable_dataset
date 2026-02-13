@@ -294,7 +294,7 @@ for i_spat = 1:num_spatial_realizations
     ylabel('Power (uV/Hz)');
     grid on;
     xlim([f_psd(2) 50]); % Optional: Zoom in to relevant frequencies if needed
-    xticks([1, 4, 8, 10, 13, 20, 30, 50]) 
+    xticks(param.f_peak) 
     legend('Location','northeast');
     set(findall(fig1,'-property','FontSize'),'FontSize',16);
     saveas(gcf, fullfile(output_folder, sprintf('PSD_Set2_Spat%02d_dur%d.png', i_spat,T)));
@@ -396,7 +396,7 @@ for i_spat = 1:num_spatial_realizations
     ylabel('Power (uV/Hz)');
     grid on;
     xlim([f_psd(2) 50]); 
-    xticks([1, 4, 8, 10, 13, 20, 30, 50]) 
+    xticks([param.f_peak) 
     legend('Location','northeast');
     set(findall(fig2,'-property','FontSize'),'FontSize',16);
     saveas(gcf, fullfile(output_folder, sprintf('PSD_Set4_Spat%02d_dur%d.png', i_spat, T)));
@@ -480,7 +480,7 @@ for i_comp = 1:size(spatial_comps, 2)
     ylabel(['h_' num2str(i_comp) '(t)'], 'Interpreter','tex')
     title(['f_{peak} = ' num2str(param.f_peak(i_comp), '%1.2f') ' Hz'], 'Interpreter','tex' )
 end
-
+set(findall(gcf,'-property','FontSize'),'FontSize',20);
 exportgraphics(gcf, 'layout1_fig.pdf')
 savefig('layout1_fig.fig')
 %%

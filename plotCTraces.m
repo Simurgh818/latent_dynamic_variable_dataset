@@ -1,22 +1,61 @@
 function plotCTraces(num_sig_components, param, score, method_dir, file_suffix)
+    % plotCTraces: Creates a stacked component trace plot similar to EEG channel views.
+    %
+    % Inputs:
+    %   num_sig_components : Total components in the run
+    %   param              : Struct containing .fs and .N_F
+    %   score              : Component activations (Time x Components)
+    %   method_dir         : Output directory
+    %   file_suffix        : Suffix for filename
 
-if num_sig_components <= param.N_F
-    num_comps_plot = num_sig_components;
-else
-    num_comps_plot = param.N_F;
-end
+    % Determine how many components to plot (cap at number of latents or available score columns)
+    num_comps_plot = min([num_sig_components, param.N_F, size(score, 2)]);
+    
+    % Define time vector for the first 1 seconds (matching your previous xlim)
+    t_plot_sec = 1; 
+    num_samples = min(size(score, 1), round(t_plot_sec * param.fs));
+    time_vec = (0:num_samples-1) / param.fs *1000;
+    
+    % Setup Figure
+    fig2 = figure('Position', [50 50 1200 900]);
+    hold on;
+    
+    % --- Styling ---
+    % Calculate offset based on data range to prevent excessive overlap
+    % If the components are z-scored, an offset of 5-10 usually works well.
+    % Here we use a fixed offset similar to your EEG example.
+    offset = max(std(score(:, 1:num_comps_plot), 0, 1)) * 6; 
+    if offset == 0 || isnan(offset), offset = 10; end % Fallback
 
-fig2 = figure('Position',[50 50 1000 (num_comps_plot*300)/2]);
-tiledlayout(num_comps_plot, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-sgtitle(['Component Traces (k=' num2str(num_sig_components) ')']);
-for pc=1:num_comps_plot
-    nexttile;
-    plot(score(:,pc), 'LineStyle', '-', 'Color', 'k','DisplayName', ['C_' num2str(pc) '(t)']);
-    xlabel('Time (msec)'); ylabel('Amp.');
-    xlim([0 param.fs * 2]);
-    legend('show');
-end
-set(findall(fig2,'-property','FontSize'),'FontSize',16);
-saveas(fig2, fullfile(method_dir, ['Component_Traces_' file_suffix '.png']));
+    for pc = 1:num_comps_plot
+        % Extract data for this component
+        trace = score(1:num_samples, pc);
+        
+        % Plot each component stacked (Component 1 at the top)
+        % Using (num_comps_plot - pc) ensures C_1 is at the top of the y-axis
+        y_shift = (num_comps_plot - pc) * offset;
+        plot(time_vec, trace + y_shift, 'Color', 'k', 'LineWidth', 1.2);
+    end
+    
+    hold off;
 
+    % --- Formatting ---
+    xlim([0 t_plot_sec*1000]);
+    ylim([-offset, num_comps_plot * offset]);
+    
+    xlabel('Time (msec)');
+    ylabel('Components (stacked)');
+    title(['Component Traces (k=' num2str(num_sig_components) ')']);
+    
+    % Set ticks to show component numbers clearly
+    yticks((0:num_comps_plot-1) * offset);
+    yticklabels(arrayfun(@(c) sprintf('C_{%d}', num_comps_plot - c), ...
+        0:num_comps_plot-1, 'UniformOutput', false));
+
+    grid on;
+    set(findall(fig2, '-property', 'FontSize'), 'FontSize', 20);
+    
+    % Save
+    saveas(fig2, fullfile(method_dir, ['Component_Traces_Stacked' file_suffix '.png']));
+    close(fig2);
 end

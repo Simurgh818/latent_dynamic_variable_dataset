@@ -32,10 +32,7 @@ function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, zer
     % Invisible figure is faster and doesn't steal focus
     fig = figure('Position',[50 50 1200 150*num_vars], 'Visible', 'off');
     tiledlayout(num_vars, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-    
-    sgtitle([methodName ' (k=' num2str(k) ') Latent variables Z(t) and $\hat{z}(t)$'], ...
-        'Interpreter','latex');
-    
+       
     % --- 4. Plot Loop ---
     for f = 1:num_vars
         nexttile;
@@ -71,7 +68,7 @@ function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, zer
         if f <= length(zeroLagCorr)
             rho = zeroLagCorr(f);
             % Position text relative to the max amplitude of the current trace
-            y_pos = 0.7 * max(abs(h_true(:, f)));
+            y_pos = 0.5 * max(abs(h_true(:, f)));
             text(0.02 * param.fs, y_pos, ...
                 sprintf('\\rho(0)=%.2f', rho), ...
                 'FontSize', 12, 'FontWeight', 'bold', ...
@@ -95,9 +92,10 @@ function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, zer
     line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2, 'HandleVisibility', 'off');
     text(x0-5, y0+2.5, '2 a.u.', 'VerticalAlignment', 'bottom', ...
         'HorizontalAlignment', 'right', 'Rotation', 90);
-    
+    sgtitle([methodName ' (k=' num2str(k) ') Latent variables Z(t) and $\hat{z}(t)$'], ...
+        'Interpreter','latex');
     % --- 6. Save and Close ---
-    set(findall(fig, '-property', 'FontSize'), 'FontSize', 16);
+    set(findall(fig, '-property', 'FontSize'), 'FontSize', 20);
     
     filename = sprintf('%s_TimeDomain%s.png', methodName, file_suffix);
     saveas(fig, fullfile(save_dir, filename));

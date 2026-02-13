@@ -1,44 +1,66 @@
-function plotBandwiseR2(Z_true, Z_recon, fs, f_peaks, method_name, save_path)
-    % Band Definitions
-    bands = struct('delta',[1 4], 'theta',[4 8], 'alpha',[8 13], 'beta',[13 30], 'gamma',[30 50]);
+function [outBR2P] = plotBandwiseR2(R2_avg, f_axis, param, k, method_name, save_path)
+    % plotBandwiseR2: Calculates mean spectral R2 per frequency band and plots.
+    % 
+    % Inputs:
+    %   R2_avg      : [L x N_F] matrix of trial-averaged spectral R2
+    %   f_axis      : [1 x L] vector of frequencies
+    %   param       : struct with .f_peak and .N_F
+    %   k           : number of components (for title)
+    %   method_name : string (e.g., 'PCA')
+    %   save_path   : string for output file
+    
+    % 1. Band Definitions
+    bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 12], ...
+                   'beta', [13 30], 'gamma', [30 50]);
     b_names = fieldnames(bands);
+    nBands = numel(b_names);
     
-    T = size(Z_true, 1);
-    num_f = size(Z_true, 2);
-    L = fs; % 1-second window
-    nTrials = floor(T/L);
-    f_axis = (0:L-1)*(fs/L);
+    % 2. Calculate Mean R2 per Band
+    % Preallocate [nBands x N_F]
+    band_avg_R2 = zeros(nBands, param.N_F);
     
-    R2_band = zeros(numel(b_names), num_f);
-    
-    % Compute R2 per frequency in the Fourier domain
-    for tr = 1:nTrials
-        idx = (tr-1)*L + (1:L);
-        FT_true = fft(Z_true(idx, :));
-        FT_recon = fft(Z_recon(idx, :));
+    for b = 1:nBands
+        f_range = bands.(b_names{b});
+        % Find frequency indices within the current band
+        idx_b = f_axis >= f_range(1) & f_axis <= f_range(2);
         
-        for b = 1:numel(b_names)
-            f_range = bands.(b_names{b});
-            f_idx = f_axis >= f_range(1) & f_axis <= f_range(2);
-            
-            for i = 1:num_f
-                num = sum(abs(FT_true(f_idx, i) - FT_recon(f_idx, i)).^2);
-                den = sum(abs(FT_true(f_idx, i)).^2) + eps;
-                R2_band(b, i) = R2_band(b, i) + (1 - num/den);
+        if any(idx_b)
+            for fidx = 1:param.N_F
+                % Mean of R2_avg across the frequency bins in this band
+                band_avg_R2(b, fidx) = mean(R2_avg(idx_b, fidx), 'omitnan');
             end
+        else
+            % Handle case where no frequency bins fall in the band
+            band_avg_R2(b, :) = NaN;
         end
     end
-    R2_band = R2_band / nTrials; % Average over windows
 
-    % Plotting
-    fig = figure('Position', [100, 100, 1000, 400], 'Visible', 'off');
-    b_plot = bar(R2_band', 'grouped');
-    set(gca, 'XTickLabel', arrayfun(@(x) sprintf('%.1fHz', x), f_peaks, 'UniformOutput', false));
-    ylabel('Mean Spectral R^2');
-    legend(b_names, 'Location', 'eastoutside');
-    title([method_name ': Reconstruction Quality by Band']);
-    ylim([-1 1]); grid on;
+    % 3. Plotting
+    fig = figure('Position', [50, 50, 1000, 350], 'Visible', 'off');
     
+    % Plot transposed (Latents on X-axis, Bars represent Bands)
+    bar(band_avg_R2', 'grouped');
+    
+    % Formatting
+    set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', ...
+        num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
+    
+    ylabel('Mean Spectral R^2');
+    xlabel('Latent Variables (Peak Frequency)');
+    legend(b_names, 'Location', 'eastoutside');
+    title(sprintf('%s: Bandwise R^2 for k=%d', method_name, k));
+    
+    ylim([-1 1]); 
+    grid on;
+    set(findall(fig, '-property', 'FontSize'), 'FontSize', 14);
+    
+    % 4. Save and Output
     saveas(fig, save_path);
     close(fig);
+    
+    outBR2P = struct();
+    outBR2P.band_avg_R2 = band_avg_R2;
+    outBR2P.bands = bands;
+    outBR2P.b_names = b_names; 
+    outBR2P.nBands = nBands;
 end

@@ -117,28 +117,11 @@ if isempty(getCurrentTask()) && k > 4
     f_plot = outFSP.f_plot;
 
     % 5. Band-wise R2 Bar Chart
-    bands = struct('delta',[1 4],'theta',[4 8],'alpha',[8 13], ...
-                   'beta',[13 30],'gamma',[30 50]);
-    band_names = fieldnames(bands);
-    nBands = numel(band_names);
-    band_avg_R2 = zeros(nBands, num_f);
-    
-    for b = 1:nBands
-        f_range = bands.(band_names{b});
-        idx_band = f_axis >= f_range(1) & f_axis <= f_range(2);
-        for fidx=1:num_f
-            band_avg_R2(b,fidx) = mean(R2_avg(idx_band,fidx));
-        end
-    end
-    
-    fig5 = figure('Position',[50 50 1000 300]);
-    bar(band_avg_R2');
-    set(gca,'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i))), 1:num_f, 'UniformOutput',false));
-    legend(band_names, 'Location','eastoutside'); title('Band-wise R^2 of dPCA Reconstruction');
-    ylim([-1 1]); grid on;
-    saveas(fig5, fullfile(results_dir,['dPCA_Bandwise_R2' file_suffix '.png'])); 
-    close(fig5);
-    
+    br2_path = fullfile(results_dir, ['dPCA_Bandwise_R2' file_suffix '.png']);
+    [outBR2P] = plotBandwiseR2(R2_avg, f_axis, param, k, 'dPCA', br2_path);
+    bands = outBR2P.bands;
+    band_names = outBR2P.b_names; 
+
     % 6. Scatter Plots
     % (Keeping your scatter logic, simplified call)
     plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, k, "dPCA", results_dir);

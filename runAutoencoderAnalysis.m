@@ -201,20 +201,36 @@ if isempty(getCurrentTask()) && bottleNeck>4
     f_plot = outFSP.f_plot;
 
     % Band Definitions
-    bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 13], 'beta', [13 30], 'gamma', [30 50]);
-    band_names = fieldnames(bands);
-    nBands = numel(band_names);
-    band_avg_R2_ae = zeros(nBands, param.N_F);
+    % bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 13], 'beta', [13 30], 'gamma', [30 50]);
+    % band_names = fieldnames(bands);
+    % nBands = numel(band_names);
+    % band_avg_R2_ae = zeros(nBands, param.N_F);
+    % 
+    % for b = 1:nBands
+    %     f_range = bands.(band_names{b});
+    %     idx = f_freq >= f_range(1) & f_freq <= f_range(2);
+    %     for fidx = 1:param.N_F
+    %         band_avg_R2_ae(b, fidx) = mean(R2_avg_ae(idx, fidx));
+    %     end
+    % end   
     
-    for b = 1:nBands
-        f_range = bands.(band_names{b});
-        idx = f_freq >= f_range(1) & f_freq <= f_range(2);
-        for fidx = 1:param.N_F
-            band_avg_R2_ae(b, fidx) = mean(R2_avg_ae(idx, fidx));
-        end
-    end
-
-    %% Plot 5: Band Power Bar Chart
+    %% Plot 5: Band R2
+    % fig6 = figure('Position',[50 50 1000 300]);
+    % bar(band_avg_R2_ae');
+    % set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}',num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
+    % ylim([-1 1]);
+    % legend(band_names, 'Location', 'southeastoutside');
+    % ylabel('Mean R^2'); xlabel('Latent Variable'); title(['Autoencoder Band-wise R^2 for k= ' num2str(bottleNeck)]);
+    % grid on;
+    % set(findall(fig6,'-property','FontSize'),'FontSize',16);
+    % saveas(fig6, fullfile(method_dir, ['AE_Bandwise_R2' file_suffix '.png']));
+    br2_path = fullfile(method_dir, ['AE_Bandwise_R2' file_suffix '.png']);
+    [outBR2P] = plotBandwiseR2(R2_avg_ae, f_freq, param, bottleNeck, 'AE', br2_path);
+    bands = outBR2P.bands;
+    band_names = outBR2P.b_names; 
+    nBands = outBR2P.nBands;
+    
+    %% Plot 6: Band Power Bar Chart
     band_power_true = zeros(nBands, param.N_F);
     band_power_recon = zeros(nBands, param.N_F);
     band_power_true_std = zeros(nBands, param.N_F);
@@ -258,20 +274,6 @@ if isempty(getCurrentTask()) && bottleNeck>4
     legend({'True','Reconstructed'}, 'Location','northoutside','Orientation','horizontal');
     set(findall(fig5,'-property','FontSize'),'FontSize',16);
     saveas(fig5, fullfile(method_dir, ['AE_Band_Power' file_suffix '.png']));
-    
-    
-    %% Plot 6: Band R2
-    fig6 = figure('Position',[50 50 1000 300]);
-    bar(band_avg_R2_ae');
-    set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}',num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
-    ylim([-1 1]);
-    legend(band_names, 'Location', 'southeastoutside');
-    ylabel('Mean R^2'); xlabel('Latent Variable'); title(['Autoencoder Band-wise R^2 for k= ' num2str(bottleNeck)]);
-    grid on;
-    set(findall(fig6,'-property','FontSize'),'FontSize',16);
-    saveas(fig6, fullfile(method_dir, ['AE_Bandwise_R2' file_suffix '.png']));
-    
-    
     %% Plot 7: Scatter Mean Band Amplitudes
     Ht_amp = abs(Ht_avg_ae(1:nHz, :));
     Hr_amp = abs(Hr_avg_ae(1:nHz, :));

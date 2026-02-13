@@ -83,7 +83,7 @@ function plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, k, me
         axis tight; grid on; axis equal;
     end
     legend('Location','eastoutside','Orientation','horizontal','NumColumns', ceil((nLatents)/4),'TextColor','k');
-    set(findall(fig,'-property','FontSize'),'FontSize',15);
+    set(findall(fig,'-property','FontSize'),'FontSize',20);
     
     % 5. Save and Close
     if ~isempty(save_dir)
