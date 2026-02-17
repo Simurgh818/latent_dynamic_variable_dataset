@@ -34,11 +34,11 @@ end
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
 nDatasets  = 1; % 10
-k_range    = 6:6; %5 8
+k_range    = 1:6; %5 8
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'UMAP'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
+methods = {'dPCA'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
 
 EXP = struct();
 param = struct();
@@ -173,7 +173,7 @@ for c = 1:numel(conditions)
                 dataset_res.(method).R_matrices{ki} = entry.R_matrix;
 
                 if ki== nK
-                    dataset_res.(method).h_recon_train = entry.out.h_recon_train;
+                    dataset_res.(method).h_recon_test = entry.out.h_recon_test;
                 end
                 
                 % --- Fix for Duplicate Variable Names ---
@@ -221,9 +221,9 @@ for c = 1:numel(conditions)
         % Collect the reconstruction from each method at the max k
         for m = 1:numel(methods)
             method = methods{m};
-            % h_recon_train is already in dataset_res from the runMethod function
+            % h_recon_test is already in dataset_res from the runMethod function
             % Ensure we only take the snippet window
-            snippets.(method).h_recon_train = dataset_res.(method).h_recon_train(time_idx, :);% if we need to save more
+            snippets.(method).h_recon_test = dataset_res.(method).h_recon_test(time_idx, :);% if we need to save more
             % space we can cast as single() since double is 64-bit and single
             % 32-bit.
         end     

@@ -49,7 +49,8 @@ switch method
     case 'dPCA'
         % Assuming rundPCAAnalysis also takes 'k' now and returns single-k result
         [R2_test, MSE_test, outDPCA] = rundPCAAnalysis( ...
-            data.eeg_train, data.H_train, local_param, k, method_dir);
+            data.eeg_train, data.eeg_test, data.H_train, data.H_test,...
+            local_param, k, method_dir);
             
         % --- FIX: No indexing here either ---
         R2  = R2_test; 

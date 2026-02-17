@@ -1,11 +1,11 @@
 function [R2_dpca_avg, MSE_dpca_avg, outDPCA] = rundPCAAnalysis( ...
-        s_eeg_ds, h_f_normalized_ds, param, k, results_dir)
+        eeg_train, eeg_test, h_train, h_test, param, k, results_dir)
 % rundPCAAnalysis: runs dPCA for a specific k, reconstructs latents, 
 % and computes performance metrics.
 %
 % Inputs:
-%   s_eeg_ds             : nChannels x T
-%   h_f_normalized_ds    : T x N_F
+%   eeg_train             : nChannels x T
+%   h_train    : T x N_F
 %   param                : struct (uses param.f_peak)
 %   k                    : scalar (Number of components to use)
 %   results_dir          : directory to save figures
@@ -20,12 +20,12 @@ if ~exist(results_dir, 'dir')
     mkdir(results_dir);
 end
 file_suffix = sprintf('_k%d', k);
-num_f = size(h_f_normalized_ds, 2);
+num_f = size(h_train, 2);
 
 %% 2. Run dPCA (Single Condition)
 % Prepare X for dPCA: (Channels x Time x Trials) -> Trials=1
-X_dpca = zeros(size(s_eeg_ds,1), size(s_eeg_ds,2), 1);
-X_dpca(:,:,1) = s_eeg_ds;
+X_dpca = zeros(size(eeg_train,1), size(eeg_train,2), 1);
+X_dpca(:,:,1) = eeg_train;
 
 % Run dPCA for exactly 'k' components
 % Note: If your dPCA library supports requesting specific k, this is fine.
@@ -33,17 +33,17 @@ X_dpca(:,:,1) = s_eeg_ds;
 [W, V, whichMarg] = dpca(X_dpca, k); 
 
 % Latent time series (Components x Time)
-Z_dpca = W' * s_eeg_ds;         
+Z_dpca = W' * eeg_test;         
 Z_dpca_T = Z_dpca';             % T x nComp
 
 % Match components to latents
-H = h_f_normalized_ds(1:size(Z_dpca_T,1), :);
+H = h_test(1:size(Z_dpca_T,1), :);
 [corr_dPCA, R_dPCA] = match_components_to_latents(Z_dpca_T, H, 'dPCA', k);
 
 %% 3. Reconstruction & Metrics (No inner loop!)
 % We use ALL k components to reconstruct the latents
-h_f_recon_dpca = zeros(size(h_f_normalized_ds));
-h_f_recon_normalized_dpca = zeros(size(h_f_normalized_ds));
+h_f_recon_dpca = zeros(size(h_test));
+h_f_recon_normalized_dpca = zeros(size(h_test));
 
 R2_feat  = zeros(1, num_f);
 MSE_feat = zeros(1, num_f);
@@ -51,7 +51,7 @@ MSE_feat = zeros(1, num_f);
 for f = 1:num_f
     % Linear regression: Z_dpca_T * w = h_f
     % We use all columns (1:k) of Z_dpca_T
-    w = Z_dpca_T \ h_f_normalized_ds(:,f);
+    w = Z_dpca_T \ h_test(:,f);
     
     % Reconstruction
     rec_raw = Z_dpca_T * w;
@@ -63,11 +63,11 @@ for f = 1:num_f
     h_f_recon_normalized_dpca(:,f) = rec_norm;
     
     % Compute Metrics
-    res_var = sum((h_f_normalized_ds(:,f) - rec_norm).^2);
-    tot_var = sum((h_f_normalized_ds(:,f) - mean(h_f_normalized_ds(:,f))).^2);
+    res_var = sum((h_test(:,f) - rec_norm).^2);
+    tot_var = sum((h_test(:,f) - mean(h_test(:,f))).^2);
     
     R2_feat(f)  = 1 - (res_var / tot_var);
-    MSE_feat(f) = mean((h_f_normalized_ds(:,f) - rec_norm).^2);
+    MSE_feat(f) = mean((h_test(:,f) - rec_norm).^2);
 end
 
 % Averages to return to main script
@@ -79,7 +79,7 @@ maxLag = 200;
 lags   = -maxLag:maxLag;
 zeroLagCorr_dpca = zeros(1, num_f);
 for f = 1:num_f
-    c = xcorr(h_f_normalized_ds(:,f), h_f_recon_normalized_dpca(:,f), maxLag, 'coeff');
+    c = xcorr(h_test(:,f), h_f_recon_normalized_dpca(:,f), maxLag, 'coeff');
     zeroLagCorr_dpca(f) = c(lags==0);
 end
 
@@ -94,7 +94,7 @@ end
 if isempty(getCurrentTask()) && k > 4
     
     % 1. Time Domain Reconstruction
-    plotTimeDomainReconstruction(h_f_normalized_ds, h_f_recon_normalized_dpca, ...
+    plotTimeDomainReconstruction(h_test, h_f_recon_normalized_dpca, ...
         param, 'dPCA', k, zeroLagCorr_dpca, results_dir);
     
     % 2. Component Traces
@@ -106,7 +106,7 @@ if isempty(getCurrentTask()) && k > 4
 
     % --- Frequency Analysis Prep ---
     save_path_fft = fullfile(results_dir, ['dPCA_FFT_True_vs_Recon' file_suffix '.png']);
-    [outFSP] = plotFrequencySpectra(h_f_normalized_ds, h_f_recon_normalized_dpca, 'dPCA', param, k, save_path_fft);
+    [outFSP] = plotFrequencySpectra(h_test, h_f_recon_normalized_dpca, 'dPCA', param, k, save_path_fft);
 
     Ht = outFSP.Ht;
     Hr = outFSP.Hr;
@@ -132,7 +132,7 @@ outDPCA = struct();
 outDPCA.W = W;
 outDPCA.V = V;
 outDPCA.Z_dpca = Z_dpca;
-outDPCA.h_recon_train = h_f_recon_normalized_dpca; % Normalized reconstruction
+outDPCA.h_recon_test = h_f_recon_normalized_dpca; % Normalized reconstruction
 outDPCA.zeroLagCorr = zeroLagCorr_dpca;
 outDPCA.explainedVar_frac = explainedVar_frac;
 outDPCA.explainedVar_pct  = explainedVar_pct;

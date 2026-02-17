@@ -21,7 +21,7 @@ h_f_colors = lines(param.N_F);
 score_test = (eeg_test' - mean(eeg_train', 1)) * coeff;
 
 % Match components to latents (Limited to this k)
-[corr_PCA, R_PCA] = match_components_to_latents(score, h_train, 'PCA', k);
+[corr_PCA, R_PCA] = match_components_to_latents(score_test, h_test, 'PCA', k);
 
 %% 3. Reconstruction & Normalization
 % Train regression weights: ICs * W = Latents
@@ -71,7 +71,7 @@ if isempty(getCurrentTask()) && k > 4
     plotTimeDomainReconstruction(h_test, h_recon_test, param, 'PCA', k, zeroLagCorr_pca, method_dir);
     
     % PC Traces
-    plotCTraces(k, param, score, method_dir, file_suffix);
+    plotCTraces(k, param, score_test, method_dir, file_suffix);
     
     % Cumulative Explained Variance (Scree Plot)
     save_path = fullfile(method_dir, ['PCA_ExplainedVariance' file_suffix '.png']);
@@ -79,7 +79,7 @@ if isempty(getCurrentTask()) && k > 4
     
     % Frequency Analysis FFT
     save_path_fft = fullfile(method_dir, ['PCA_FFT_True_vs_Recon' file_suffix '.png']);
-    [outFSP] = plotFrequencySpectra(h_train, h_recon_train, 'PCA', param, k, save_path_fft);
+    [outFSP] = plotFrequencySpectra(h_test, h_recon_test, 'PCA', param, k, save_path_fft);
 
     Ht = outFSP.Ht;
     Hr = outFSP.Hr;
