@@ -38,7 +38,7 @@ k_range    = 5:6; %5 8
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'UMAP'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
+methods = {'PCA'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
 
 EXP = struct();
 param = struct();
@@ -158,7 +158,8 @@ for c = 1:numel(conditions)
             dataset_res.(method).MSE  = nan(1, nK);
             dataset_res.(method).CORR = cell(1, nK);
             dataset_res.(method).R_matrices = cell(1, nK);
-            
+            dataset_res.(method).spectral_R2 = nan(local_param.N_F, nK);
+
             for ki = 1:nK
                 k = k_range(ki);
               
@@ -171,6 +172,7 @@ for c = 1:numel(conditions)
                 dataset_res.(method).MSE(ki) = entry.stats.MSE;                             
                 dataset_res.(method).CORR{ki} = entry.corr;
                 dataset_res.(method).R_matrices{ki} = entry.R_matrix;
+                dataset_res.(method).spectral_R2(:,ki) = entry.spectral_R2;
 
                 if ki== nK
                     dataset_res.(method).h_recon_test = entry.out.h_recon_test;
@@ -206,6 +208,7 @@ for c = 1:numel(conditions)
         end
 
         % saving out snippets of data 
+        % To Do: take h_test sample
         snippet_seconds = 10;
         snippet_samples = min(size(data.H_ds, 1), round(snippet_seconds * local_param.fs));
         time_idx = 1:snippet_samples;
@@ -318,10 +321,12 @@ for c = 1:numel(conditions)
 
         R2_all  = nan(nDatasets, nK);
         MSE_all = nan(nDatasets, nK);
+        spectral_R2_all = nan(nDatasets, local_param.N_F, nK);
 
         for d = 1:nDatasets
             R2_all(d,:)  = EXP.(cond).dataset(d).analysis.(method).R2;
             MSE_all(d,:) = EXP.(cond).dataset(d).analysis.(method).MSE;
+            spectral_R2_all(d, :, :) = EXP.(cond).dataset(d).analysis.(method).spectral_R2;
         end
 
         STATS.(cond).(method).R2.mean  = mean(R2_all,1,'omitnan');
@@ -329,6 +334,9 @@ for c = 1:numel(conditions)
 
         STATS.(cond).(method).MSE.mean = mean(MSE_all,1,'omitnan');
         STATS.(cond).(method).MSE.std  = std(MSE_all,0,1,'omitnan');
+
+        STATS.(cond).(method).spectral_R2.mean  = squeeze(mean(spectral_R2_all, 1, 'omitnan'));
+        STATS.(cond).(method).spectral_R2.std   = squeeze(std(spectral_R2_all, 0, 1, 'omitnan'));
     end
 end
 

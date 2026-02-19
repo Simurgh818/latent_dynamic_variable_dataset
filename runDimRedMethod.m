@@ -8,20 +8,18 @@ MSE = NaN;
 out = struct();
 corr_table = table(); % default empty
 R_matrix = [];
+spectral_R2 = NaN; % Initialize spectral_R2 for cases where it's not defined
 
 % Run Analysis
 switch method
     case 'PCA'
-        [R2_test, MSE_test, outPCA] = runPCAAnalysis(data.eeg_train, data.eeg_test,...
+        [R2, MSE, outPCA] = runPCAAnalysis(data.eeg_train, data.eeg_test,...
             data.H_train, data.H_test, local_param, k, method_dir);
-        
-        % --- FIX: No indexing needed for single-k results ---
-        R2  = R2_test; 
-        MSE = MSE_test;
-        
+                        
         out = outPCA;
         if isfield(outPCA, 'corr_PCA'), corr_table = outPCA.corr_PCA; end
         if isfield(outPCA, 'R_full'),   R_matrix   = outPCA.R_full;   end
+        if isfield(outPCA, 'spectral_R2'), spectral_R2 = outPCA.spectral_R2; end
         
     case 'AE'
         [R2, MSE, outAE] = runAutoencoderAnalysis(data.eeg_train, data.eeg_test,...
@@ -48,13 +46,9 @@ switch method
         
     case 'dPCA'
         % Assuming rundPCAAnalysis also takes 'k' now and returns single-k result
-        [R2_test, MSE_test, outDPCA] = rundPCAAnalysis( ...
+        [R2, MSE, outDPCA] = rundPCAAnalysis( ...
             data.eeg_train, data.eeg_test, data.H_train, data.H_test,...
-            local_param, k, method_dir);
-            
-        % --- FIX: No indexing here either ---
-        R2  = R2_test; 
-        MSE = MSE_test;
+            local_param, k, method_dir);       
         
         out = outDPCA;
         if isfield(outDPCA, 'corr_dPCA'), corr_table = outDPCA.corr_dPCA; end
@@ -79,6 +73,7 @@ entry.stats.R2  = R2;
 entry.stats.MSE = MSE;
 entry.corr = corr_table;
 entry.R_matrix = R_matrix;
+entry.spectral_R2 = spectral_R2;
 entry.out  = out;
 
 end

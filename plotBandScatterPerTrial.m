@@ -1,13 +1,16 @@
-function R2_values = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, k, methodName, save_dir)
+function spectral_R2_values = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, k, methodName, save_dir)
     % 1. Safety Check
     if ~isempty(getCurrentTask())
-        R2_values = []; % Return empty if parallel to prevent crash
+        spectral_R2_values = []; % Return empty if parallel to prevent crash
         return; 
     end
 
     nBands   = numel(band_names);
     nHz      = size(Ht,1);
     nLatents = size(Ht,2);
+    
+    % Pre-allocate the output array to prevent memory reallocation in loops
+    spectral_R2_values = nan(nLatents, 1);
 
     % Markers & Colors
     markers = {'o','s','d','h','^'}; 
@@ -73,7 +76,7 @@ function R2_values = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, 
             if ismember(z, target_zs)
                 R = corrcoef(x_z, y_z);
                 if numel(R) > 1, r_sq = R(1,2)^2; else, r_sq = 0; end
-                R2_values(z) = r_sq;
+                spectral_R2_values(z) = r_sq;
                 
                 % Update the GLOBAL legend label for this Z
                 % This overwrites the default "Z_1" with "Z_1 (R^2=0.90)"

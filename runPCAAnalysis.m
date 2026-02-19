@@ -95,7 +95,7 @@ if isempty(getCurrentTask()) && k > 4
     band_names = outBR2P.b_names; 
 
     % Band Amplitude Scatter
-    pca_r2_scores = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, k, "PCA", method_dir);
+    pca_R2_scores = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, k, "PCA", method_dir);
 end
 
 %% 6. Final Output Structure
@@ -108,7 +108,7 @@ outPCA.corr_PCA      = corr_PCA;      % Table of matches
 outPCA.R_full        = R_PCA;         % Full corr matrix
 outPCA.explained     = explained;
 outPCA.method_dir    = method_dir;
-outPCA.spectral_r2 = pca_r2_scores;    
+outPCA.spectral_R2 = pca_R2_scores;    
 
 close all;
 end
