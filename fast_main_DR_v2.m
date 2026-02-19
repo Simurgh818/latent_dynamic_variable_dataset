@@ -33,12 +33,12 @@ end
 %% Loop through experiments
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 1; % 10
+nDatasets  = 2; % 10
 k_range    = 6:6; %5 8
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'UMAP'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
+methods = {'ICA'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
 
 EXP = struct();
 param = struct();
@@ -158,6 +158,7 @@ for c = 1:numel(conditions)
             dataset_res.(method).MSE  = nan(1, nK);
             dataset_res.(method).CORR = cell(1, nK);
             dataset_res.(method).R_matrices = cell(1, nK);
+            dataset_res.(method).zeroLagCorr = nan(local_param.N_F, nK);
             dataset_res.(method).spectral_R2 = nan(local_param.N_F, nK);
 
             for ki = 1:nK
@@ -172,8 +173,9 @@ for c = 1:numel(conditions)
                 dataset_res.(method).MSE(ki) = entry.stats.MSE;                             
                 dataset_res.(method).CORR{ki} = entry.corr;
                 dataset_res.(method).R_matrices{ki} = entry.R_matrix;
+                dataset_res.(method).zeroLagCorr(:,ki) = entry.zeroLagCorr;
                 dataset_res.(method).spectral_R2(:,ki) = entry.spectral_R2;
-
+                
                 if ki== nK
                     dataset_res.(method).h_recon_test = entry.out.h_recon_test;
                 end
@@ -322,10 +324,12 @@ for c = 1:numel(conditions)
         R2_all  = nan(nDatasets, nK);
         MSE_all = nan(nDatasets, nK);
         spectral_R2_all = nan(nDatasets, local_param.N_F, nK);
+        zeroLagCorr_all = nan(nDatasets, local_param.N_F, nK);
 
         for d = 1:nDatasets
             R2_all(d,:)  = EXP.(cond).dataset(d).analysis.(method).R2;
             MSE_all(d,:) = EXP.(cond).dataset(d).analysis.(method).MSE;
+            zeroLagCorr_all(d, :, :) = EXP.(cond).dataset(d).analysis.(method).zeroLagCorr;
             spectral_R2_all(d, :, :) = EXP.(cond).dataset(d).analysis.(method).spectral_R2;
         end
 
@@ -337,6 +341,9 @@ for c = 1:numel(conditions)
 
         STATS.(cond).(method).spectral_R2.mean  = squeeze(mean(spectral_R2_all, 1, 'omitnan'));
         STATS.(cond).(method).spectral_R2.std   = squeeze(std(spectral_R2_all, 0, 1, 'omitnan'));
+
+        STATS.(cond).(method).zeroLagCorr.mean  = squeeze(mean(zeroLagCorr_all, 1, 'omitnan'));
+        STATS.(cond).(method).zeroLagCorr.std   = squeeze(std(zeroLagCorr_all, 0, 1, 'omitnan'));
     end
 end
 

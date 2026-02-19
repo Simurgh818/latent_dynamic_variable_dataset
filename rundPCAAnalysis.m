@@ -141,6 +141,7 @@ outDPCA.corr_dPCA = corr_dPCA;
 outDPCA.R_full = R_dPCA;
 outDPCA.R2_features = R2_feat;
 outDPCA.MSE_features = MSE_feat;
+outDPCA.zeroLagCorr = zeroLagCorr_dpca;
 outDPCA.spectral_R2 = dpca_R2_scores;   
 
 close all;

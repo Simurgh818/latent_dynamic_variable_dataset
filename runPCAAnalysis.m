@@ -108,6 +108,7 @@ outPCA.corr_PCA      = corr_PCA;      % Table of matches
 outPCA.R_full        = R_PCA;         % Full corr matrix
 outPCA.explained     = explained;
 outPCA.method_dir    = method_dir;
+outPCA.zeroLagCorr = zeroLagCorr_pca;
 outPCA.spectral_R2 = pca_R2_scores;    
 
 close all;

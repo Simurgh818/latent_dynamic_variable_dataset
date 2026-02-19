@@ -20,7 +20,8 @@ switch method
         if isfield(outPCA, 'corr_PCA'), corr_table = outPCA.corr_PCA; end
         if isfield(outPCA, 'R_full'),   R_matrix   = outPCA.R_full;   end
         if isfield(outPCA, 'spectral_R2'), spectral_R2 = outPCA.spectral_R2; end
-        
+        if isfield(outPCA, 'zeroLagCorr'), zeroLagCorr = outPCA.zeroLagCorr; end
+
    case 'dPCA'
         % Assuming rundPCAAnalysis also takes 'k' now and returns single-k result
         [R2, MSE, outDPCA] = rundPCAAnalysis( ...
@@ -31,6 +32,7 @@ switch method
         if isfield(outDPCA, 'corr_dPCA'), corr_table = outDPCA.corr_dPCA; end
         if isfield(outDPCA, 'R_full'),    R_matrix   = outDPCA.R_full;    end
         if isfield(outDPCA, 'spectral_R2'), spectral_R2 = outDPCA.spectral_R2; end
+        if isfield(outDPCA, 'zeroLagCorr'), zeroLagCorr = outDPCA.zeroLagCorr; end
 
    case 'ICA'
         [R2, MSE, outICA] = runICAAnalysis(data.eeg_train, data.eeg_test, ...
@@ -77,6 +79,7 @@ entry.stats.R2  = R2;
 entry.stats.MSE = MSE;
 entry.corr = corr_table;
 entry.R_matrix = R_matrix;
+entry.zeroLagCorr = zeroLagCorr;
 entry.spectral_R2 = spectral_R2;
 entry.out  = out;
 

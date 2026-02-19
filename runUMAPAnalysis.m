@@ -235,55 +235,71 @@ if isempty(getCurrentTask()) && num_sig_components >4
     plotCTraces(num_sig_components, param, umap_train_raw, method_dir, file_suffix);
 
     %% Plot 4: Band Power Bar Chart & FFT
-    % Setup FFT
-    N = size(h_test, 1);
-    L = round(1 * fs_new); % 1 sec window
-    nTrials = floor(N/L);
-    f_freq = (0:L-1)*(fs_new/L);
-    nHz = L/2+1;
-    f_plot = f_freq(1:nHz);
+    % % Setup FFT
+    % N = size(h_test, 1);
+    % L = round(1 * fs_new); % 1 sec window
+    % nTrials = floor(N/L);
+    % f_freq = (0:L-1)*(fs_new/L);
+    % nHz = L/2+1;
+    % f_plot = f_freq(1:nHz);
+    % 
+    % Ht = zeros(L, param.N_F, nTrials);
+    % Hr = zeros(L, param.N_F, nTrials);
+    % R2_trials = zeros(L, param.N_F, nTrials);
+    % 
+    % for tr = 1:nTrials
+    %     idx = (tr-1)*L + (1:L);
+    %     Ht(:,:,tr) = fft(h_test(idx, :));
+    %     Hr(:,:,tr) = fft(h_rec_test_final(idx, :));
+    %     for fidx = 1:param.N_F
+    %         num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
+    %         den = abs(Ht(:,fidx,tr)).^2 + eps;
+    %         R2_trials(:,fidx,tr) = 1 - num./den;
+    %     end
+    % end
+    % R2_avg = mean(R2_trials, 3);
+    % Ht_avg = mean(Ht, 3);
+    % Hr_avg = mean(Hr, 3);
+    % 
+    % % Band Calc
+    % bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 13], 'beta', [13 30], 'gamma', [30 50]);
+    % band_names = fieldnames(bands);
+    % nBands = numel(band_names);
+    % band_avg_R2 = zeros(nBands, param.N_F);
+    % for b = 1:nBands
+    %     f_range = bands.(band_names{b});
+    %     idx = f_freq >= f_range(1) & f_freq <= f_range(2);
+    %     for fidx = 1:param.N_F
+    %         band_avg_R2(b, fidx) = mean(R2_avg(idx, fidx));
+    %     end
+    % end
+    % 
+    % fig3 = figure('Position',[50 50 1000 300]);
+    % bar(band_avg_R2');
+    % set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
+    % ylim([-1 1]); legend(band_names, 'Location', 'southeastoutside');
+    % ylabel('Mean R^2'); xlabel('Latent');
+    % title(['UMAP Band-wise R^2 (Test Set , k=' num2str(num_sig_components) ')']); grid on;
+    % set(findall(fig3,'-property','FontSize'),'FontSize',20);
+    % saveas(fig3, fullfile(method_dir, ['UMAP_Bandwise_R2' file_suffix '.png']));
+      
+    save_path_fft = fullfile(method_dir, ['UMAP_FFT_True_vs_Recon' file_suffix '.png']);
+    [outFSP] = plotFrequencySpectra(h_test, h_rec_test_final, 'UMAP', param, num_sig_components, save_path_fft);
     
-    Ht = zeros(L, param.N_F, nTrials);
-    Hr = zeros(L, param.N_F, nTrials);
-    R2_trials = zeros(L, param.N_F, nTrials);
-    
-    for tr = 1:nTrials
-        idx = (tr-1)*L + (1:L);
-        Ht(:,:,tr) = fft(h_test(idx, :));
-        Hr(:,:,tr) = fft(h_rec_test_final(idx, :));
-        for fidx = 1:param.N_F
-            num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
-            den = abs(Ht(:,fidx,tr)).^2 + eps;
-            R2_trials(:,fidx,tr) = 1 - num./den;
-        end
-    end
-    R2_avg = mean(R2_trials, 3);
-    Ht_avg = mean(Ht, 3);
-    Hr_avg = mean(Hr, 3);
-    
-    % Band Calc
-    bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 13], 'beta', [13 30], 'gamma', [30 50]);
-    band_names = fieldnames(bands);
-    nBands = numel(band_names);
-    band_avg_R2 = zeros(nBands, param.N_F);
-    for b = 1:nBands
-        f_range = bands.(band_names{b});
-        idx = f_freq >= f_range(1) & f_freq <= f_range(2);
-        for fidx = 1:param.N_F
-            band_avg_R2(b, fidx) = mean(R2_avg(idx, fidx));
-        end
-    end
-    
-    fig3 = figure('Position',[50 50 1000 300]);
-    bar(band_avg_R2');
-    set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
-    ylim([-1 1]); legend(band_names, 'Location', 'southeastoutside');
-    ylabel('Mean R^2'); xlabel('Latent');
-    title(['UMAP Band-wise R^2 (Test Set , k=' num2str(num_sig_components) ')']); grid on;
-    set(findall(fig3,'-property','FontSize'),'FontSize',20);
-    saveas(fig3, fullfile(method_dir, ['UMAP_Bandwise_R2' file_suffix '.png']));
-    
-    
+    Ht = outFSP.Ht;
+    Hr = outFSP.Hr;
+    Ht_avg = outFSP.Ht_avg;
+    Hr_avg = outFSP.Hr_avg;
+    R2_avg = outFSP.R2_avg;
+    f_axis = outFSP.f_axis;
+    f_plot = outFSP.f_plot;
+    nHz = outFSP.nHz;
+
+    br2_path = fullfile(method_dir, ['UMAP_Bandwise_R2' file_suffix '.png']);
+    [outBR2P] = plotBandwiseR2(R2_avg, f_axis, param, num_sig_components, 'UMAP', br2_path);
+    bands = outBR2P.bands;
+    band_names = outBR2P.b_names; 
+    nBands = outBR2P.nBands;
     %% Plot 5: Coherence Analysis (Chronux)
     % Multitaper params
     params_coh.Fs = fs_new; 
@@ -303,7 +319,8 @@ if isempty(getCurrentTask()) && num_sig_components >4
             [C,~,~,~,~,t_coh,f_coh] = cohgramc(h_train(:, i), h_rec_train_final(:, i), movingwin, params_coh);
             imagesc(t_coh, f_coh, C'); axis xy;
             xlabel('Time (s)'); ylabel('Freq (Hz)');
-            caxis([0 1]); colorbar;
+            ylim([0 50]);
+            clim([0 1]); colorbar;
         catch
             text(0.5,0.5,'Chronux Toolbox missing or error','HorizontalAlignment','center');
         end
@@ -331,7 +348,7 @@ if isempty(getCurrentTask()) && num_sig_components >4
     fig5 = figure('Position',[50 50 1400 300]);
     tiledlayout(1, nBands, 'TileSpacing', 'loose', 'Padding', 'compact');
     sgtitle(['UMAP Band Mean FFT Amplitudes (k=' num2str(num_sig_components) ')']);
-    colors = lines(nBands); markers = {'o','s','d','h','^','hexagram','<','>'};
+    colors = lines(nBands); markers = {'o','s','d','h','^'}; % ,'hexagram','<','>'
     
     for b = 1:nBands    
         nexttile; hold on;
