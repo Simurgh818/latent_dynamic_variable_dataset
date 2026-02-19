@@ -107,7 +107,7 @@ end
 % Extract only the requested number of components for analysis
 % If k=1, we take column 1. If k>=2, we take columns 1:k.
 umap_train = umap_train_raw(:, 1:num_sig_components);
-% umap_test  = umap_test_raw(:, 1:num_sig_components);
+umap_test  = umap_test_raw(:, 1:num_sig_components);
 
 % Mapping components to latents
 C = umap_train;   % T x nComp
@@ -219,8 +219,8 @@ if isempty(getCurrentTask()) && num_sig_components >4
     saveas(fig11, fullfile(method_dir, ['UMAP_Embedding_perLatentVariable' file_suffix '.png']));
     %% Plot 2: Time Domain Reconstruction (Test Set)
     % Zero-lag correlation
-    Z_true = h_train; 
-    Z_recon = h_rec_train_final; % Use non-normalized for correlation calc
+    Z_true = h_test; 
+    Z_recon = h_rec_test_final; % Use non-normalized for correlation calc
     maxLag = 200; lags = -maxLag:maxLag;
     zeroLagCorr = zeros(1, param.N_F);
     for f = 1:param.N_F
@@ -228,10 +228,10 @@ if isempty(getCurrentTask()) && num_sig_components >4
         zeroLagCorr(f) = c(lags==0);
     end
       
-    plotTimeDomainReconstruction(h_train, h_rec_train_final, param, 'UMAP', num_sig_components, zeroLagCorr, method_dir);
+    plotTimeDomainReconstruction(h_test, h_rec_test_final, param, 'UMAP', num_sig_components, zeroLagCorr, method_dir);
     %% Plot 4: Band Power Bar Chart & FFT
     % Setup FFT
-    N = size(h_train, 1);
+    N = size(h_test, 1);
     L = round(1 * fs_new); % 1 sec window
     nTrials = floor(N/L);
     f_freq = (0:L-1)*(fs_new/L);
@@ -244,8 +244,8 @@ if isempty(getCurrentTask()) && num_sig_components >4
     
     for tr = 1:nTrials
         idx = (tr-1)*L + (1:L);
-        Ht(:,:,tr) = fft(h_train(idx, :));
-        Hr(:,:,tr) = fft(h_rec_train_final(idx, :));
+        Ht(:,:,tr) = fft(h_test(idx, :));
+        Hr(:,:,tr) = fft(h_rec_test_final(idx, :));
         for fidx = 1:param.N_F
             num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
             den = abs(Ht(:,fidx,tr)).^2 + eps;
@@ -347,37 +347,6 @@ if isempty(getCurrentTask()) && num_sig_components >4
     
     
     %% Plot 7: Scatter Per-Trial
-    % Ht_tr = abs(Ht(1:nHz,:,:))./max(abs(Ht(:))); 
-    % Hr_tr = abs(Hr(1:nHz,:,:))./max(abs(Hr(:)));
-    % flat_tr_true = cell(nBands,1); flat_tr_recon = cell(nBands,1);
-    % 
-    % for b = 1:nBands
-    %     idx = f_plot >= bands.(band_names{b})(1) & f_plot <= bands.(band_names{b})(2);
-    %     tmp_t = squeeze(mean(Ht_tr(idx,:,:),1)); tmp_r = squeeze(mean(Hr_tr(idx,:,:),1));
-    %     flat_tr_true{b} = tmp_t(:); flat_tr_recon{b} = tmp_r(:);
-    % end
-    % 
-    % fig6 = figure('Position',[50 50 1200 300]);
-    % tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-    % sgtitle(['UMAP Per-Trial Band Amplitudes (k=' num2str(num_sig_components) ')']);
-    % 
-    % for b = 1:nBands
-    %     nexttile; hold on;
-    %     x = flat_tr_true{b}; y = flat_tr_recon{b};
-    %     scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceAlpha', 0.3,...
-    %         'DisplayName', [sprintf('Z_{%s}', band_names{b})]);
-    %     plot([min(x) max(x)], [min(x) max(x)], 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
-    %     R = corrcoef(x, y); text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', 'k');
-    %     title(band_names{b}); grid on;
-    %     if b==1
-    %         xlabel('True Band Amp.')
-    %         ylabel('Recon. Band Amp.')
-    %     end
-    % 
-    %     legend('Location','southoutside','TextColor','k','Orientation','horizontal');
-    % end
-    % set(findall(fig6,'-property','FontSize'),'FontSize',16);
-    % saveas(fig6, fullfile(method_dir, ['UMAP_Scatter_Trials' file_suffix '.png']));
     
     plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, num_sig_components, "UMAP", method_dir);
 end
@@ -385,7 +354,7 @@ end
 outUMAP = struct();
 outUMAP.umap_train = umap_train;
 % outUMAP.umap_test = umap_test;
-outUMAP.h_rec_test = h_rec_test_final;
+outUMAP.h_recon_test = h_rec_test_final;
 outUMAP.h_recon_train = h_rec_train_final;
 outUMAP.MSE_test_curve = MSE_test_curve;
 outUMAP.R2_test_curve = R2_test_curve;

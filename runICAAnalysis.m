@@ -82,8 +82,8 @@ end
 % end
 
 % Mapping components to latents
-C = icasig_train;   % dPCA gives nComp x T → transpose to T x nComp
-H = h_train(1:size(C,1), :);
+C = icasig_test;   % dPCA gives nComp x T → transpose to T x nComp
+H = h_test(1:size(C,1), :);
 
 [corr_ICA, R_ICA] = match_components_to_latents(C, H, 'ICA', num_comps);
 
@@ -156,7 +156,7 @@ if isempty(getCurrentTask()) && num_comps>4
 
     % Frequency Analysis FFT
     save_path_fft = fullfile(method_dir, ['ICA_FFT_True_vs_Recon' file_suffix '.png']);
-    [outFSP] = plotFrequencySpectra(h_train, h_rec_train, 'ICA', param, num_comps, save_path_fft);
+    [outFSP] = plotFrequencySpectra(h_test, h_rec_test, 'ICA', param, num_comps, save_path_fft);
     
     nHz = outFSP.nHz;
     Ht = outFSP.Ht;
@@ -166,32 +166,9 @@ if isempty(getCurrentTask()) && num_comps>4
     R2_avg_ica = outFSP.R2_avg;
     f_freq = outFSP.f_axis;
     f_plot = outFSP.f_plot;
-    % Band Averaging
-    % bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 13], 'beta', [13 30], 'gamma', [30 50]);
-    % band_names = fieldnames(bands);
-    % nBands = numel(band_names);
-    % band_avg_R2_ica = zeros(nBands, param.N_F);
-    % 
-    % for b = 1:nBands
-    %     f_range = bands.(band_names{b});
-    %     idx_b = f_freq >= f_range(1) & f_freq <= f_range(2);
-    %     for fidx = 1:param.N_F
-    %         band_avg_R2_ica(b, fidx) = mean(R2_avg_ica(idx_b, fidx));
-    %     end
-    % end
+ 
     %% Plot 2: Band-wise R2 Bar Chart
-    % fig2 = figure('Position',[50 50 1000 300]);
-    % tiledlayout(1, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-    % nexttile;
-    % bar(band_avg_R2_ica');
-    % set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
-    % ylim([-1 1]);
-    % legend(band_names, 'Location', 'southeastoutside');
-    % ylabel('Mean R^2 in Band'); xlabel('Latent Variable');
-    % title(['ICA Band-wise Average R^2(f), (k=' num2str(num_comps) ')']);
-    % grid on;
-    % set(findall(gcf,'-property','FontSize'),'FontSize',16);
-    % saveas(fig2, fullfile(method_dir, ['ICA_Bandwise_R2' file_suffix '.png']));
+   
     br2_path = fullfile(method_dir, ['ICA_Bandwise_R2' file_suffix '.png']);
     [outBR2P] = plotBandwiseR2(R2_avg_ica, f_freq, param, num_comps, 'ICA', br2_path);
     bands = outBR2P.bands;
@@ -264,10 +241,9 @@ if isempty(getCurrentTask()) && num_comps>4
     hold off;
     set(findall(gcf,'-property','FontSize'),'FontSize',14)
     saveas(fig3, fullfile(method_dir, ['ICA_Scatter_Mean' file_suffix '.png']));
+
     
-    
-    %% Plot 4: Scatter plot: True vs Reconstructed Band Amplitudes (per trial)
-       
+    %% Plot 4: Scatter plot: True vs Reconstructed Band Amplitudes (per trial)  
     
     plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, num_comps, "ICA", method_dir);
 end

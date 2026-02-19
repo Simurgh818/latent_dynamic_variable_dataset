@@ -51,7 +51,7 @@ Z_test_c  = Z_test_c(1:minLenTest,:);
 H_test    = H_test(1:minLenTest,:);
 
 % Matching components to latents
-[corr_AE, R_AE] = match_components_to_latents(Z_train_c, H_train, 'AE',bottleNeck);
+[corr_AE, R_AE] = match_components_to_latents(Z_test_c, H_test, 'AE',bottleNeck);
 
 %% 3. Linear Mapping via lsqlin
 H_recon_train = zeros(size(H_train));
@@ -189,7 +189,7 @@ if isempty(getCurrentTask()) && bottleNeck>4
     % fig4 = figure('Position',[50 50 1000 600]);
    
     save_path_fft = fullfile(method_dir, ['AE_FFT_True_vs_Recon' file_suffix '.png']);
-    [outFSP] = plotFrequencySpectra(H_train, H_recon_train, 'AE', param, bottleNeck, save_path_fft);
+    [outFSP] = plotFrequencySpectra(H_test, H_recon_test, 'AE', param, bottleNeck, save_path_fft);
     
     nHz = outFSP.nHz;
     Ht_ae = outFSP.Ht;
@@ -199,31 +199,8 @@ if isempty(getCurrentTask()) && bottleNeck>4
     R2_avg_ae = outFSP.R2_avg;
     f_freq = outFSP.f_axis;
     f_plot = outFSP.f_plot;
-
-    % Band Definitions
-    % bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 13], 'beta', [13 30], 'gamma', [30 50]);
-    % band_names = fieldnames(bands);
-    % nBands = numel(band_names);
-    % band_avg_R2_ae = zeros(nBands, param.N_F);
-    % 
-    % for b = 1:nBands
-    %     f_range = bands.(band_names{b});
-    %     idx = f_freq >= f_range(1) & f_freq <= f_range(2);
-    %     for fidx = 1:param.N_F
-    %         band_avg_R2_ae(b, fidx) = mean(R2_avg_ae(idx, fidx));
-    %     end
-    % end   
     
     %% Plot 5: Band R2
-    % fig6 = figure('Position',[50 50 1000 300]);
-    % bar(band_avg_R2_ae');
-    % set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}',num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
-    % ylim([-1 1]);
-    % legend(band_names, 'Location', 'southeastoutside');
-    % ylabel('Mean R^2'); xlabel('Latent Variable'); title(['Autoencoder Band-wise R^2 for k= ' num2str(bottleNeck)]);
-    % grid on;
-    % set(findall(fig6,'-property','FontSize'),'FontSize',16);
-    % saveas(fig6, fullfile(method_dir, ['AE_Bandwise_R2' file_suffix '.png']));
     br2_path = fullfile(method_dir, ['AE_Bandwise_R2' file_suffix '.png']);
     [outBR2P] = plotBandwiseR2(R2_avg_ae, f_freq, param, bottleNeck, 'AE', br2_path);
     bands = outBR2P.bands;
@@ -325,44 +302,8 @@ if isempty(getCurrentTask()) && bottleNeck>4
     
     
     %% Plot 8: Scatter Per-Trial Band Amplitudes
-    % Ht_amp_tr = abs(Ht_ae(1:nHz, :, :)) ./ max(abs(Ht_ae(:)));
-    % Hr_amp_tr = abs(Hr_ae(1:nHz, :, :)) ./ max(abs(Hr_ae(:)));
-    % true_vals_band = cell(nBands, 1);
-    % recon_vals_band = cell(nBands, 1);
-    % 
-    % for b = 1:nBands
-    %     f_range = bands.(band_names{b});
-    %     idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
-    %     temp_t = squeeze(mean(Ht_amp_tr(idx_band, :, :), 1, 'omitnan'));
-    %     temp_r = squeeze(mean(Hr_amp_tr(idx_band, :, :), 1, 'omitnan'));
-    %     true_vals_band{b} = temp_t(:);
-    %     recon_vals_band{b} = temp_r(:);
-    % end
-    % 
-    % fig8 = figure('Position',[50 50 1200 300]);
-    % tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-    % sgtitle(['AE: True vs Reconstructed Per-Trial Band Amplitudes for k= ' num2str(bottleNeck)]);
-    % 
-    % for b = 1:nBands
-    %     nexttile; hold on;
-    %     x = true_vals_band{b}; y = recon_vals_band{b};
-    %     scatter(x, y, 30, 'Marker', markers{b}, 'MarkerEdgeColor', colors(b,:), 'MarkerFaceAlpha', 0.3,...
-    %         'DisplayName', [sprintf('Z_{%s}', band_names{b})]);
-    %     plot(linspace(min(x),max(x)), linspace(min(x),max(x)), 'k--', 'LineWidth', 1.5, 'DisplayName', 'y=x');
-    %     R = corrcoef(x,y);
-    %     text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', 'k', 'FontSize', 12);
-    %     title(band_names{b}); grid on;
-    %     if b==1
-    %         xlabel('True Band Amp.')
-    %         ylabel('Recon. Band Amp.')
-    %     end
-    % 
-    %     legend('Location','southoutside','TextColor','k','Orientation','horizontal');
-    % end
-    % set(findall(fig8,'-property','FontSize'),'FontSize',16);
-    % saveas(fig8, fullfile(method_dir, ['AE_Scatter_Trials' file_suffix '.png']));
     
-    plotBandScatterPerTrial(Ht_ae, Hr_ae, f_plot, bands, band_names, param, bottleNeck, "AE", method_dir);
+    R2_values = plotBandScatterPerTrial(Ht_ae, Hr_ae, f_plot, bands, band_names, param, bottleNeck, "AE", method_dir);
 end
 %% 6. Outputs and Summary Saves
 outAE = struct();

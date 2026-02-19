@@ -89,35 +89,13 @@ if isempty(getCurrentTask()) && k > 4
     f_axis = outFSP.f_axis;
     f_plot = outFSP.f_plot;
     
-    % Bandwise R2 Bar Chart
-    % Band Averaging
-    % bands = struct('delta', [1 4], 'theta', [4 8], 'alpha', [8 12], 'beta', [13 30], 'gamma', [30 50]);
-    % band_names = fieldnames(bands);
-    % nBands = numel(band_names);
-    % band_avg_R2 = zeros(nBands, param.N_F);
-    % for b = 1:nBands
-    %     f_range = bands.(band_names{b});
-    %     idx_b = f_axis >= f_range(1) & f_axis <= f_range(2);
-    %     for fidx = 1:param.N_F
-    %         band_avg_R2(b, fidx) = mean(R2_avg(idx_b, fidx));
-    %     end
-    % end
-    % 
-    % fig_band = figure('Position',[50 50 1000 300]);
-    % bar(band_avg_R2');
-    % set(gca, 'XTickLabel', arrayfun(@(i) sprintf('Z_{%s}', num2str(param.f_peak(i))), 1:param.N_F, 'UniformOutput', false));
-    % legend(band_names, 'Location', 'eastoutside');
-    % title(sprintf('Bandwise R^2 for k=%d', k));
-    % ylim([-1 1]); grid on;
-    % saveas(fig_band, fullfile(method_dir, ['PCA_Bandwise_R2' file_suffix '.png']));
-    % close(fig_band);
     br2_path = fullfile(method_dir, ['PCA_Bandwise_R2' file_suffix '.png']);
     [outBR2P] = plotBandwiseR2(R2_avg, f_axis, param, k, 'PCA', br2_path);
     bands = outBR2P.bands;
     band_names = outBR2P.b_names; 
 
     % Band Amplitude Scatter
-    plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, k, "PCA", method_dir);
+    pca_r2_scores = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, k, "PCA", method_dir);
 end
 
 %% 6. Final Output Structure
@@ -130,6 +108,7 @@ outPCA.corr_PCA      = corr_PCA;      % Table of matches
 outPCA.R_full        = R_PCA;         % Full corr matrix
 outPCA.explained     = explained;
 outPCA.method_dir    = method_dir;
+outPCA.spectral_r2 = pca_r2_scores;    
 
 close all;
 end
