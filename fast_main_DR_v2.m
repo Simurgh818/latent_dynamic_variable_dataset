@@ -34,11 +34,11 @@ end
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
 nDatasets  = 1; % 10
-k_range    = 5:6; %5 8
+k_range    = 6:6; %5 8
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'ICA'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
+methods = {'UMAP'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
 
 EXP = struct();
 param = struct();
@@ -215,7 +215,7 @@ for c = 1:numel(conditions)
 
         snippets = struct();
         snippets.time_vector = (time_idx - 1) / local_param.fs;
-        snippets.H_train = data.H_train(time_idx, :); % Ground truth, if we need to save more
+        snippets.H_test = data.H_test(time_idx, :); % Ground truth, if we need to save more
         % space we can cast as single() since double is 64-bit and single
         % 32-bit.
         snippets.eeg_train = data.eeg_train;

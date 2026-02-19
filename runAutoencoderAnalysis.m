@@ -303,7 +303,7 @@ if isempty(getCurrentTask()) && bottleNeck>4
     
     %% Plot 8: Scatter Per-Trial Band Amplitudes
     
-    R2_values = plotBandScatterPerTrial(Ht_ae, Hr_ae, f_plot, bands, band_names, param, bottleNeck, "AE", method_dir);
+    AE_R2_values = plotBandScatterPerTrial(Ht_ae, Hr_ae, f_plot, bands, band_names, param, bottleNeck, "AE", method_dir);
 end
 %% 6. Outputs and Summary Saves
 outAE = struct();
@@ -316,6 +316,7 @@ outAE.component_R2     = recon_R2_test;
 outAE.results_dir      = method_dir;
 outAE.corr_AE          = corr_AE;
 outAE.R_full           = R_AE;
+outAE.spectral_R2 = AE_R2_values;  
 
 close All;
 

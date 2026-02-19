@@ -206,7 +206,8 @@ if isempty(getCurrentTask()) && num_sig_components >4
         % We color by the i-th column of your h_f matrix
         scatter(umap_train_raw(:,1), umap_train_raw(:,2), 15, h_train(:,i), 'filled');
         r2= round(R2_test_curve(end,i),2);
-        title(['Latent Variable ' num2str(i), ', R^2= ' num2str(r2)]); % Or use a name like "Freq 12Hz"
+        peak_lbl = num2str(param.f_peak(i));
+        title([sprintf('Z_{%s}', peak_lbl), ', R^2= ', num2str(r2)]); % Or use a name like "Freq 12Hz"
         xlabel('UMAP 1'); ylabel('UMAP 2');
         colormap(turbo); 
         colorbar; % Shows the scale of the latent value
@@ -229,6 +230,10 @@ if isempty(getCurrentTask()) && num_sig_components >4
     end
       
     plotTimeDomainReconstruction(h_test, h_rec_test_final, param, 'UMAP', num_sig_components, zeroLagCorr, method_dir);
+
+    % Embedding Traces:
+    plotCTraces(num_sig_components, param, umap_train_raw, method_dir, file_suffix);
+
     %% Plot 4: Band Power Bar Chart & FFT
     % Setup FFT
     N = size(h_test, 1);
@@ -348,7 +353,7 @@ if isempty(getCurrentTask()) && num_sig_components >4
     
     %% Plot 7: Scatter Per-Trial
     
-    plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, num_sig_components, "UMAP", method_dir);
+    UMAP_R2_values = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, num_sig_components, "UMAP", method_dir);
 end
 %% Output Structure
 outUMAP = struct();
@@ -368,6 +373,7 @@ outUMAP.n_neighbors = n_neighbors;
 outUMAP.min_dist = min_dist;
 outUMAP.corr_UMAP = corr_UMAP;
 outUMAP.R_full = R_UMAP; 
+outUMAP.spectral_R2 = UMAP_R2_values;
 
 close All;
 end

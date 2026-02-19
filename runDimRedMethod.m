@@ -46,6 +46,7 @@ switch method
         out = outAE;
         if isfield(outAE, 'corr_AE'), corr_table = outAE.corr_AE; end
         if isfield(outAE, 'R_full'),  R_matrix   = outAE.R_full;  end
+        if isfield(outAE, 'spectral_R2'), spectral_R2 = outAE.spectral_R2; end
         
     case 'UMAP'
         n_neighbors = 3; min_dist = 0.99;
@@ -55,8 +56,7 @@ switch method
         out = outUMAP;
         if isfield(outUMAP, 'corr_UMAP'), corr_table = outUMAP.corr_UMAP; end
         if isfield(outUMAP, 'R_full'),    R_matrix   = outUMAP.R_full;    end
-        
-
+        if isfield(outUMAP, 'spectral_R2'), spectral_R2 = outUMAP.spectral_R2; end
 end
 
 % Process Correlation Table Metadata
