@@ -21,6 +21,17 @@ switch method
         if isfield(outPCA, 'R_full'),   R_matrix   = outPCA.R_full;   end
         if isfield(outPCA, 'spectral_R2'), spectral_R2 = outPCA.spectral_R2; end
         
+   case 'dPCA'
+        % Assuming rundPCAAnalysis also takes 'k' now and returns single-k result
+        [R2, MSE, outDPCA] = rundPCAAnalysis( ...
+            data.eeg_train, data.eeg_test, data.H_train, data.H_test,...
+            local_param, k, method_dir);       
+        
+        out = outDPCA;
+        if isfield(outDPCA, 'corr_dPCA'), corr_table = outDPCA.corr_dPCA; end
+        if isfield(outDPCA, 'R_full'),    R_matrix   = outDPCA.R_full;    end
+        if isfield(outDPCA, 'spectral_R2'), spectral_R2 = outDPCA.spectral_R2; end
+
     case 'AE'
         [R2, MSE, outAE] = runAutoencoderAnalysis(data.eeg_train, data.eeg_test,...
             data.H_train, data.H_test, k, local_param, local_results_dir);
@@ -44,15 +55,7 @@ switch method
         if isfield(outUMAP, 'corr_UMAP'), corr_table = outUMAP.corr_UMAP; end
         if isfield(outUMAP, 'R_full'),    R_matrix   = outUMAP.R_full;    end
         
-    case 'dPCA'
-        % Assuming rundPCAAnalysis also takes 'k' now and returns single-k result
-        [R2, MSE, outDPCA] = rundPCAAnalysis( ...
-            data.eeg_train, data.eeg_test, data.H_train, data.H_test,...
-            local_param, k, method_dir);       
-        
-        out = outDPCA;
-        if isfield(outDPCA, 'corr_dPCA'), corr_table = outDPCA.corr_dPCA; end
-        if isfield(outDPCA, 'R_full'),    R_matrix   = outDPCA.R_full;    end
+
 end
 
 % Process Correlation Table Metadata

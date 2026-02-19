@@ -124,7 +124,7 @@ if isempty(getCurrentTask()) && k > 4
 
     % 6. Scatter Plots
     % (Keeping your scatter logic, simplified call)
-    plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, k, "dPCA", results_dir);
+    dpca_R2_scores = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, k, "dPCA", results_dir);
 end
 
 %% 6. Package Output
@@ -141,6 +141,7 @@ outDPCA.corr_dPCA = corr_dPCA;
 outDPCA.R_full = R_dPCA;
 outDPCA.R2_features = R2_feat;
 outDPCA.MSE_features = MSE_feat;
+outDPCA.spectral_R2 = dpca_R2_scores;   
 
 close all;
 end
