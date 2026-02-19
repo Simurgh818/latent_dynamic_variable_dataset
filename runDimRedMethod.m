@@ -32,19 +32,20 @@ switch method
         if isfield(outDPCA, 'R_full'),    R_matrix   = outDPCA.R_full;    end
         if isfield(outDPCA, 'spectral_R2'), spectral_R2 = outDPCA.spectral_R2; end
 
+   case 'ICA'
+        [R2, MSE, outICA] = runICAAnalysis(data.eeg_train, data.eeg_test, ...
+             data.H_train, data.H_test, k, local_param, method_dir);
+        out = outICA;
+        if isfield(outICA, 'corr_ICA'), corr_table = outICA.corr_ICA; end
+        if isfield(outICA, 'R_full'),   R_matrix   = outICA.R_full;   end
+        if isfield(outICA, 'spectral_R2'), spectral_R2 = outICA.spectral_R2; end
+    
     case 'AE'
         [R2, MSE, outAE] = runAutoencoderAnalysis(data.eeg_train, data.eeg_test,...
             data.H_train, data.H_test, k, local_param, local_results_dir);
         out = outAE;
         if isfield(outAE, 'corr_AE'), corr_table = outAE.corr_AE; end
         if isfield(outAE, 'R_full'),  R_matrix   = outAE.R_full;  end
-        
-    case 'ICA'
-        [R2, MSE, outICA] = runICAAnalysis(data.eeg_train, data.eeg_test, ...
-             data.H_train, data.H_test, k, local_param, method_dir);
-        out = outICA;
-        if isfield(outICA, 'corr_ICA'), corr_table = outICA.corr_ICA; end
-        if isfield(outICA, 'R_full'),   R_matrix   = outICA.R_full;   end
         
     case 'UMAP'
         n_neighbors = 3; min_dist = 0.99;

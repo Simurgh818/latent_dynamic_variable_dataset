@@ -245,7 +245,7 @@ if isempty(getCurrentTask()) && num_comps>4
     
     %% Plot 4: Scatter plot: True vs Reconstructed Band Amplitudes (per trial)  
     
-    plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, num_comps, "ICA", method_dir);
+    ica_R2_scores = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, num_comps, "ICA", method_dir);
 end
 %% 6. Outputs
 outICA = struct();
@@ -257,6 +257,7 @@ outICA.MSE_train    = mean((h_test - h_rec_test).^2, 'all');
 outICA.method_dir   = method_dir;
 outICA.corr_ICA    = corr_ICA;
 outICA.R_full = R_ICA; 
+outICA.spectral_R2 = ica_R2_scores;  
 
 % Close local figures
 close All;
