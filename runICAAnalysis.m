@@ -257,6 +257,7 @@ outICA.MSE_train    = mean((h_test - h_rec_test).^2, 'all');
 outICA.method_dir   = method_dir;
 outICA.corr_ICA    = corr_ICA;
 outICA.R_full = R_ICA; 
+outICA.zeroLagCorr = zeroLagCorr_ica;
 outICA.spectral_R2 = ica_R2_scores;  
 
 % Close local figures

@@ -33,12 +33,12 @@ end
 %% Loop through experiments
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 2; % 10
+nDatasets  = 10; % 10
 k_range    = 6:6; %5 8
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'ICA'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
+methods = {'PCA', 'AE','dPCA', 'ICA'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
 
 EXP = struct();
 param = struct();
@@ -323,8 +323,8 @@ for c = 1:numel(conditions)
 
         R2_all  = nan(nDatasets, nK);
         MSE_all = nan(nDatasets, nK);
-        spectral_R2_all = nan(nDatasets, local_param.N_F, nK);
-        zeroLagCorr_all = nan(nDatasets, local_param.N_F, nK);
+        spectral_R2_all = nan(nDatasets, length(param.f_peak), nK);
+        zeroLagCorr_all = nan(nDatasets, length(param.f_peak), nK);
 
         for d = 1:nDatasets
             R2_all(d,:)  = EXP.(cond).dataset(d).analysis.(method).R2;
@@ -333,15 +333,15 @@ for c = 1:numel(conditions)
             spectral_R2_all(d, :, :) = EXP.(cond).dataset(d).analysis.(method).spectral_R2;
         end
 
-        STATS.(cond).(method).R2.mean  = mean(R2_all,1,'omitnan');
-        STATS.(cond).(method).R2.std   = std(R2_all,0,1,'omitnan');
+        % Global basic stats
+        STATS.(cond).(method).R2.mean  = mean(R2_all, 1, 'omitnan');
+        STATS.(cond).(method).R2.std   = std(R2_all, 0, 1, 'omitnan');
+        STATS.(cond).(method).MSE.mean = mean(MSE_all, 1, 'omitnan');
+        STATS.(cond).(method).MSE.std  = std(MSE_all, 0, 1, 'omitnan');
 
-        STATS.(cond).(method).MSE.mean = mean(MSE_all,1,'omitnan');
-        STATS.(cond).(method).MSE.std  = std(MSE_all,0,1,'omitnan');
-
+        % Per-latent detailed stats (Mean and Std across datasets)
         STATS.(cond).(method).spectral_R2.mean  = squeeze(mean(spectral_R2_all, 1, 'omitnan'));
         STATS.(cond).(method).spectral_R2.std   = squeeze(std(spectral_R2_all, 0, 1, 'omitnan'));
-
         STATS.(cond).(method).zeroLagCorr.mean  = squeeze(mean(zeroLagCorr_all, 1, 'omitnan'));
         STATS.(cond).(method).zeroLagCorr.std   = squeeze(std(zeroLagCorr_all, 0, 1, 'omitnan'));
     end
@@ -399,6 +399,7 @@ for c = 1:numel(conditions)
 
         xlabel('Peak Frequency (Hz)');
         ylabel('Correlation');
+        xticks(param.f_peak);
         ylim([0 1]);
         title(sprintf('Latent–Component Corr (k=%d, %s)', k, cond));
         grid on;
@@ -504,6 +505,109 @@ end
 set(findall(gcf,'-property','FontSize'),'FontSize',16)
 summary_trace_name = fullfile(local_results_dir, 'Main_Summary_Trace.png');
 saveas(fig1, summary_trace_name);
+%% ----------------------------------------------------------
+% 5. Plot Zero-Lag Corr and Spectral R^2 vs Peak Frequency (for k=6)
+% ----------------------------------------------------------
+target_k = 6;
+ki_target = find(k_range == target_k);
+
+if ~isempty(ki_target)
+    fig2 = figure('Position', [50 50 1000 800]);
+    tiledlayout(2, 1, 'Padding', 'compact');
+    
+    for c = 1:numel(conditions)
+        cond = conditions{c};
+        
+        % --- Top Subplot: Zero-Lag Corr ---
+        nexttile; hold on;
+        colors = lines(numel(methods));
+        
+        for m = 1:numel(methods)
+            method = methods{m};
+            
+            % Extract mean and std
+            mu = STATS.(cond).(method).zeroLagCorr.mean;
+            sd = STATS.(cond).(method).zeroLagCorr.std;
+            if size(mu, 2) > 1
+                mu = mu(:, ki_target);
+                sd = sd(:, ki_target);
+            end
+            
+            % FIX: Force strictly into column vectors
+            x_col = reshape(double(param.f_peak), [], 1);
+            y_col = reshape(double(mu), [], 1);
+            e_col = reshape(double(sd), [], 1);
+            
+            % Plot and capture the handle
+            h = errorbar(x_col, y_col, e_col, '-o', ...
+                'LineWidth', 2, 'Color', colors(m,:));
+            
+            % Ensure only the first handle is labeled in the legend
+            if numel(h) >= 1
+                h(1).DisplayName = char(method);
+                for idx = 2:numel(h)
+                    h(idx).HandleVisibility = 'off';
+                end
+            end
+        end
+        
+        xlabel('Peak Frequency (Hz)');
+        ylabel('Zero-Lag Correlation');
+        xticks(param.f_peak);
+        ylim([0 1]); % Adjusted back to [0 1] for general safety
+        title(sprintf('Zero-Lag Corr vs Frequency (k=%d, %s)', target_k, cond));
+        grid on; 
+        legend('Location','eastoutside'); 
+        set(gca, 'FontSize', 16);
+        
+        
+        % --- Bottom Subplot: Spectral R^2 ---
+        nexttile; hold on;
+        
+        for m = 1:numel(methods)
+            method = methods{m};
+            
+            mu = STATS.(cond).(method).spectral_R2.mean;
+            sd = STATS.(cond).(method).spectral_R2.std;
+            if size(mu, 2) > 1
+                mu = mu(:, ki_target);
+                sd = sd(:, ki_target);
+            end
+            
+            % FIX: Force strictly into column vectors
+            x_col = reshape(double(param.f_peak), [], 1);
+            y_col = reshape(double(mu), [], 1);
+            e_col = reshape(double(sd), [], 1);
+            
+            % Plot and capture the handle
+            h = errorbar(x_col, y_col, e_col, '-o', ...
+                'LineWidth', 2, 'Color', colors(m,:));
+            
+            % Ensure only the first handle is labeled in the legend
+            if numel(h) >= 1
+                h(1).DisplayName = char(method);
+                for idx = 2:numel(h)
+                    h(idx).HandleVisibility = 'off';
+                end
+            end
+        end
+        
+        xlabel('Peak Frequency (Hz)');
+        ylabel('Spectral R^2');
+        xticks(param.f_peak);
+        ylim([0 1]); % Widened slightly to account for negative R2 error bars
+        title(sprintf('Spectral R^2 vs Frequency (k=%d, %s)', target_k, cond));
+        grid on; 
+        legend('Location','eastoutside'); 
+        set(gca, 'FontSize', 16);
+    end
+    
+    set(findall(fig2,'-property','FontSize'),'FontSize',16);
+    summary_spectral_name = fullfile(local_results_dir, sprintf('Summary_FreqProfile_k%d.png', target_k));
+    saveas(fig2, summary_spectral_name);
+else
+    disp('k=6 is not in your current k_range. Skipping the frequency profile plot.');
+end
 %% ---------------------------------------------------------------------
 %  HELPER FUNCTIONS
 % ---------------------------------------------------------------------

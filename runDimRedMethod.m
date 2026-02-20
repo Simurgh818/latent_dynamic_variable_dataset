@@ -41,6 +41,7 @@ switch method
         if isfield(outICA, 'corr_ICA'), corr_table = outICA.corr_ICA; end
         if isfield(outICA, 'R_full'),   R_matrix   = outICA.R_full;   end
         if isfield(outICA, 'spectral_R2'), spectral_R2 = outICA.spectral_R2; end
+        if isfield(outICA, 'zeroLagCorr'), zeroLagCorr = outICA.zeroLagCorr; end
     
     case 'AE'
         [R2, MSE, outAE] = runAutoencoderAnalysis(data.eeg_train, data.eeg_test,...
@@ -49,6 +50,7 @@ switch method
         if isfield(outAE, 'corr_AE'), corr_table = outAE.corr_AE; end
         if isfield(outAE, 'R_full'),  R_matrix   = outAE.R_full;  end
         if isfield(outAE, 'spectral_R2'), spectral_R2 = outAE.spectral_R2; end
+        if isfield(outAE, 'zeroLagCorr'), zeroLagCorr = outAE.zeroLagCorr; end
         
     case 'UMAP'
         n_neighbors = 3; min_dist = 0.99;
@@ -59,6 +61,7 @@ switch method
         if isfield(outUMAP, 'corr_UMAP'), corr_table = outUMAP.corr_UMAP; end
         if isfield(outUMAP, 'R_full'),    R_matrix   = outUMAP.R_full;    end
         if isfield(outUMAP, 'spectral_R2'), spectral_R2 = outUMAP.spectral_R2; end
+        if isfield(outUMAP, 'zeroLagCorr'), zeroLagCorr = outUMAP.zeroLagCorr; end
 end
 
 % Process Correlation Table Metadata

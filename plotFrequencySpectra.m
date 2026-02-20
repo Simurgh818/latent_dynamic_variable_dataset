@@ -48,7 +48,6 @@ function [outFSP] = plotFrequencySpectra(Z_true, Z_recon, method_name, param, k,
     end
     title('FFT Amplitude Original'); 
     xticks(param.f_peak);
-    yticks();
     ylabel('$|Z(f)|$', 'Interpreter', 'latex'); 
     grid on; box on;
     legend('show', 'Location', 'eastoutside', 'Interpreter', 'latex');

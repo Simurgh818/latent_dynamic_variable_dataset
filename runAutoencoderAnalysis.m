@@ -316,6 +316,7 @@ outAE.component_R2     = recon_R2_test;
 outAE.results_dir      = method_dir;
 outAE.corr_AE          = corr_AE;
 outAE.R_full           = R_AE;
+outAE.zeroLagCorr = zeroLagCorr_test;
 outAE.spectral_R2 = AE_R2_values;  
 
 close All;
