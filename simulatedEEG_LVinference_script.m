@@ -396,7 +396,7 @@ for i_spat = 1:num_spatial_realizations
     ylabel('Power (uV/Hz)');
     grid on;
     xlim([f_psd(2) 50]); 
-    xticks([param.f_peak) 
+    xticks([param.f_peak]) 
     legend('Location','northeast');
     set(findall(fig2,'-property','FontSize'),'FontSize',16);
     saveas(gcf, fullfile(output_folder, sprintf('PSD_Set4_Spat%02d_dur%d.png', i_spat, T)));
@@ -462,25 +462,27 @@ legend('Location','northeast');
 set(findall(fig1,'-property','FontSize'),'FontSize',16);
 %% Parsimonious plots: just show the electrodes, color by component
 t_range = 1:500;
-makeMyFigure(20, 15);
+makeMyFigure(25, 16);
 
 tiledlayout(3, 6, 'TileSpacing', 'compact', 'Padding', 'compact');
 for i_comp = 1:size(spatial_comps, 2)
     nexttile([1 1]);
-    scatter(eeg_loc_x, eeg_loc_y, 30, spatial_comps(:, i_comp), 'filled')
+    scatter(eeg_loc_x, eeg_loc_y, 30, spatial_comps(:, i_comp), 'filled');
     title(['s_{i' num2str(i_comp) '}'], 'interpreter','tex')
-    axis tight
-    axis equal
+    axis tight;
+    axis equal;
     set(gca, 'box', 'off', 'color', 'none', 'xtick', [], 'ytick', [])
 % set(gca, 'visible', 'off')
     nexttile([1 2]);
-    plot(dt*t_range, test_true_hF(i_comp, t_range), 'k')
-    axis tight
+    plot(dt*t_range, test_true_hF(i_comp, t_range), 'k','LineWidth',1.5);
+    % axis tight;
+    yticks([-2, 0, 2]);
+    ylim([-3.5 3.5]);
     set(gca, 'color', 'none', 'box', 'off')
     ylabel(['h_' num2str(i_comp) '(t)'], 'Interpreter','tex')
-    title(['f_{peak} = ' num2str(param.f_peak(i_comp), '%1.2f') ' Hz'], 'Interpreter','tex' )
+    title(['f_{peak} = ' num2str(param.f_peak(i_comp), '%d') ' Hz'], 'Interpreter','tex' )
 end
-set(findall(gcf,'-property','FontSize'),'FontSize',20);
+set(findall(gcf,'-property','FontSize'),'FontSize',24);
 exportgraphics(gcf, 'layout1_fig.pdf')
 savefig('layout1_fig.fig')
 %%
