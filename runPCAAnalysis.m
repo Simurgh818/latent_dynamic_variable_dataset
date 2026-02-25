@@ -65,7 +65,7 @@ end
 % PLOTTING SECTION
 % ============================================================
 % Only plot if we aren't in a parallel worker (to save time)
-if isempty(getCurrentTask()) && k > 4
+if isempty(getCurrentTask()) 
     
     % Time Domain Plots
     plotTimeDomainReconstruction(h_test, h_recon_test, param, 'PCA', k, zeroLagCorr_pca, method_dir);

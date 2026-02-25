@@ -167,7 +167,7 @@ fs_new = param.fs;
 %% ============================================================
 % PLOTTING SECTION (Using TEST Data)
 % ============================================================
-if isempty(getCurrentTask()) && num_sig_components >4
+if isempty(getCurrentTask())
 
     % Plot 1: UMAP Embedding (Training) colored by Latents
     % We visualize the Training embedding because that's the manifold structure we learned

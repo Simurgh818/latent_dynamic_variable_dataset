@@ -91,7 +91,7 @@ end
 %  PLOTTING SECTION
 % ============================================================
 % Only plot if running serially (main thread) and k is large enough
-if isempty(getCurrentTask()) && k > 4
+if isempty(getCurrentTask())
     
     % 1. Time Domain Reconstruction
     plotTimeDomainReconstruction(h_test, h_f_recon_normalized_dpca, ...

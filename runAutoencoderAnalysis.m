@@ -109,7 +109,7 @@ end
 % ============================================================
 % PLOTTING SECTION
 % ============================================================
-if isempty(getCurrentTask()) && bottleNeck>4
+if isempty(getCurrentTask()) 
 
     % %% Plot 1: Mapping Correlation Bar Chart
     plotCTraces(bottleNeck, param, H_recon_test, method_dir, file_suffix);

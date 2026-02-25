@@ -27,46 +27,55 @@ EEG.srate  = param.fs;
 EEG.xmin   = 0;
 EEG = eeg_checkset(EEG);
 
-% Rank check
+% 1. Get the true mathematical limit
 data_rank = rank(EEG.data); 
 if num_comps > data_rank
     warning('Requested %d components, but data rank is %d. Capping components.', num_comps, data_rank);
-    pca_dim = data_rank;
+    k = data_rank;
 else
-    pca_dim = num_comps;
+    k = num_comps;
 end
 
-% Run ICA with PCA reduction
+% 2. Run ICA at FULL RANK
 try
     % EEG = pop_runica(EEG,'extended', 1, 'pca', pca_dim, 'interrupt','off', 'verbose', 'off'); 
     % FastICA expects (Channels x Time)
     % 'lastEig': performs PCA reduction before ICA
     % 'approach': 'symm' is generally faster and more robust than 'defl'
     % 'g': 'tanh' is a good general purpose non-linearity
-    [icasig, A, W] = fastica(eeg_train, ...
-        'numOfIC', num_comps, ...
-        'lastEig', pca_dim, ...
+    
+    [icasig, A, W] = fastica(eeg_train, ... 
+        'numOfIC', k, ...
+        'lastEig', k, ... % doing PCA before ICA improves reconstruction.
         'verbose', 'off', ...
         'displayMode', 'off', ...
         'approach', 'symm', ...
         'g', 'tanh');
 
     % icasig is (Components x Time) -> Transpose to (Time x Comp)
-    icasig_train = icasig';
+    icasig_train = icasig'; 
+    
+    % 3. Project Test Data
+    % Center the test data using the training mean for accurate projection
+    train_mean = mean(eeg_train, 2);
+    eeg_test_centered = eeg_test - train_mean;
+    
+    % Project test data: (Time x Comp)
+    icasig_test = (W * eeg_test_centered)';
 
-    % Project Test Data
-    % FastICA mapping: Source = W * X
-    % We apply the same W to the test data
-    icasig_test = (W * eeg_test)'; % (Time x Comp)
 catch ME
-    % warning('Extended ICA failed or not found, trying "runica" default');
-    % EEG = pop_runica(EEG, 'pca', pca_dim, 'interrupt','off', 'verbose', 'off'); 
     fprintf('FastICA failed or not installed. Falling back to MATLAB "rica". Error: %s \n', ME.message);
-    % Error handling for FastICA failure
-    % Fallback: MATLAB Statistics Toolbox "rica"
-    Mdl = rica(eeg_train', num_comps); % rica expects (Time x Channels)
+    
+    % 1. Run RICA directly for 'k' components
+    % rica expects data as (Time x Channels), so we transpose eeg_train
+    Mdl = rica(eeg_train', k); 
+    
+    % 2. Get training activations (Time x k)
     icasig_train = transform(Mdl, eeg_train');
-    icasig_test  = transform(Mdl, eeg_test');
+    
+    % 3. Project Test Data 
+    % The transform() function handles mean-centering automatically
+    icasig_test = transform(Mdl, eeg_test');
 end
 
 % % Get Activations (Time x Components)
@@ -82,7 +91,7 @@ end
 % end
 
 % Mapping components to latents
-C = icasig_test;   % dPCA gives nComp x T → transpose to T x nComp
+C = icasig_test;   % ICA gives nComp x T → transpose to T x nComp
 H = h_test(1:size(C,1), :);
 
 [corr_ICA, R_ICA] = match_components_to_latents(C, H, 'ICA', num_comps);
@@ -147,7 +156,7 @@ end
 %% ============================================================
 % PLOTTING SECTION
 % ============================================================
-if isempty(getCurrentTask()) && num_comps>4
+if isempty(getCurrentTask())
     % Time domain plot
     plotTimeDomainReconstruction(h_test, h_rec_test, param, 'ICA', num_comps, zeroLagCorr_ica, method_dir);
     
