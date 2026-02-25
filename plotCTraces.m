@@ -53,7 +53,7 @@ function plotCTraces(num_sig_components, param, score, method_dir, file_suffix)
         0:num_comps_plot-1, 'UniformOutput', false));
 
     grid on;
-    set(findall(fig2, '-property', 'FontSize'), 'FontSize', 20);
+    set(findall(fig2, '-property', 'FontSize'), 'FontSize', 24);
     
     % Save
     saveas(fig2, fullfile(method_dir, ['Component_Traces_Stacked' file_suffix '.png']));

@@ -49,9 +49,9 @@ function spectral_R2_values = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, ban
     end
 
     % --- PLOTTING ---
-    fig = figure('Position',[50 50 1500 320], 'Visible', 'off'); 
-    tiledlayout(1,nBands,'TileSpacing','compact','Padding','compact');
-    sgtitle(sprintf('True vs %s Reconstructed FFT Band Amplitudes (k=%d)', methodName, k));
+    fig = figure('Position',[50 50 1600 400], 'Visible', 'off'); 
+    t = tiledlayout(1,nBands,'TileSpacing','compact','Padding','compact');
+    sgtitle(sprintf('True vs %s Reconstructed FFT Band Amplitudes (k=%d)', methodName, k),'FontSize',26);
     
     for b = 1:nBands
         nexttile; hold on;
@@ -97,17 +97,42 @@ function spectral_R2_values = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, ban
                 'HandleVisibility', 'off'); % HIDE from auto-legend
         end
         
-        % 4. Plot y=x Line
+% 4. Plot y=x Line and Format Axes
         x_flat = X_mat(:); y_flat = Y_mat(:);
-        g_min = min([x_flat; y_flat]); 
         g_max = max([x_flat; y_flat]);
-        plot([g_min g_max], [g_min g_max], 'k--', 'LineWidth', 1.5, 'HandleVisibility', 'off'); 
         
-        title([band_names{b} ' band']);
-        if b == 1, xlabel('True Band Amp.'); ylabel('Recon. Band Amp.'); end
-        axis tight; grid on; axis equal;
+        % Determine dynamic maximum limit (round up to nearest 0.05)
+        ax_max = ceil(g_max / 0.05) * 0.05;
+        
+        % Force the limit to be at least 0.05 so the tick always shows
+        if ax_max < 0.05
+            ax_max = 0.05; 
+        end
+        
+        % Plot reference line from 0 to the new axis max
+        plot([0 ax_max], [0 ax_max], 'k--', 'LineWidth', 1.5, 'HandleVisibility', 'off'); 
+        
+        title([band_names{b}]);
+        set(gca,'FontSize',26);
+        
+        % Explicitly set limits so data isn't squished
+        xlim([0 ax_max]);
+        ylim([0 ax_max]);
+        
+        % Apply the ticks 
+        tick_vals = 0:0.05:ax_max;
+        xticks(tick_vals);
+        yticks(tick_vals);
+        
+        % Force all x-axis labels to be slanted at 45 degrees
+        xtickangle(60); 
+        
+        grid on; axis equal;
     end
-    
+    % --- APPLY SHARED AXIS LABELS ---
+    xlabel(t, 'True Band Amp.','FontSize',26);
+    ylabel(t, 'Recon. Band Amp.','FontSize',26);
+    % set(gcbf,'FontSize',26);
     % --- CONSTRUCT CUSTOM LEGEND ---
     % We create invisible "Dummy" plots just to generate the legend symbols
     h_dummies = zeros(nLatents, 1);
@@ -121,8 +146,8 @@ function spectral_R2_values = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, ban
             'DisplayName', legend_labels{z}); % Use the stored R^2 label
     end
     
-    legend(h_dummies, 'Location','eastoutside','Orientation','vertical','NumColumns',1, 'TextColor','k');
-    set(findall(fig,'-property','FontSize'),'FontSize',20);
+    legend(h_dummies, 'Location','eastoutside','Orientation','vertical',...
+        'NumColumns',1, 'TextColor','k','FontSize',24);
     
     if ~isempty(save_dir)
         saveas(fig, fullfile(save_dir, sprintf('%s_Scatter_BandAmp_Trials_k%d.png', methodName, k)));

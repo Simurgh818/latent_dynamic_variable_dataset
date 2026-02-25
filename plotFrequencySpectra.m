@@ -79,7 +79,7 @@ function [outFSP] = plotFrequencySpectra(Z_true, Z_recon, method_name, param, k,
     max_val = max(Ht_avg(:));
     ylim([max_val/1000, max_val]); 
     
-    set(findall(fig,'-property','FontSize'),'FontSize',14);
+    set(findall(fig,'-property','FontSize'),'FontSize',24);
     
     saveas(fig, save_path);
     close(fig);

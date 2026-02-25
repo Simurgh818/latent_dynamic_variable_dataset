@@ -51,11 +51,11 @@ function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, zer
 
         % Plot True
         plot(h_true(:, f), 'LineStyle', '-', 'Color', h_f_colors(f, :), ...
-            'DisplayName', lbl_true);
+            'LineWidth',1.5,'DisplayName', lbl_true);
             
         % Plot Recon
         plot(h_recon(:, f), 'LineStyle', '--', 'Color', 'k', ...
-            'DisplayName', lbl_recon);
+            'LineWidth',1.5,'DisplayName', lbl_recon);
         
         ylabel('Amp');
         % Limit to 2 seconds or full length, whichever is shorter
@@ -95,7 +95,7 @@ function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, zer
     sgtitle([methodName ' (k=' num2str(k) ') Latent variables Z(t) and $\hat{z}(t)$'], ...
         'Interpreter','latex');
     % --- 6. Save and Close ---
-    set(findall(fig, '-property', 'FontSize'), 'FontSize', 20);
+    set(findall(fig, '-property', 'FontSize'), 'FontSize', 24);
     
     filename = sprintf('%s_TimeDomain%s.png', methodName, file_suffix);
     saveas(fig, fullfile(save_dir, filename));
