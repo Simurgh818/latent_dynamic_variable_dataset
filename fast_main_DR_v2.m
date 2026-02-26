@@ -34,7 +34,7 @@ end
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
 nDatasets  = 1; % 10
-k_range    = 1:9; %5 8
+k_range    = 1:9; % 9
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name

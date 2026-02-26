@@ -97,7 +97,7 @@ function spectral_R2_values = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, ban
                 'HandleVisibility', 'off'); % HIDE from auto-legend
         end
         
-% 4. Plot y=x Line and Format Axes
+        % 4. Plot y=x Line and Format Axes
         x_flat = X_mat(:); y_flat = Y_mat(:);
         g_max = max([x_flat; y_flat]);
         

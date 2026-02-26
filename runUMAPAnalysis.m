@@ -190,7 +190,7 @@ if isempty(getCurrentTask())
               ['n=' num2str(n_neighbors) ', dist=' num2str(min_dist) ', (k=' num2str(num_sig_components) ')']}, ...
               'FontSize', 14, 'FontWeight', 'bold');
     colormap(turbo);
-    set(findall(fig1,'-property','FontSize'),'FontSize',20);
+    set(findall(fig1,'-property','FontSize'),'FontSize',26);
     saveas(fig1, fullfile(method_dir, ['UMAP_Embedding' file_suffix '.png']));
     
     %% Plot 1.1: UMAP Dim 1 vs. Dim 2 colored by Intensity of each latent variable
@@ -205,6 +205,8 @@ if isempty(getCurrentTask())
         nexttile;
         % We color by the i-th column of your h_f matrix
         scatter(umap_train_raw(:,1), umap_train_raw(:,2), 15, h_train(:,i), 'filled');
+        xlim([-10 10]);
+        xticks(-10:10:10);
         r2= round(R2_test_curve(end,i),2);
         peak_lbl = num2str(param.f_peak(i));
         title([sprintf('Z_{%s}', peak_lbl), ', R^2= ', num2str(r2)]); % Or use a name like "Freq 12Hz"
@@ -215,8 +217,8 @@ if isempty(getCurrentTask())
         axis square; grid on;
     end
     
-    title(t, 'UMAP colored by Intensity of each Latent Variable');
-    set(findall(fig11,'-property','FontSize'),'FontSize',16);
+    title(t, 'UMAP colored by Intensity of each Latent Variable','FontSize',26);
+    set(findall(fig11,'-property','FontSize'),'FontSize',24);
     saveas(fig11, fullfile(method_dir, ['UMAP_Embedding_perLatentVariable' file_suffix '.png']));
     %% Plot 2: Time Domain Reconstruction (Test Set)
     % Zero-lag correlation
