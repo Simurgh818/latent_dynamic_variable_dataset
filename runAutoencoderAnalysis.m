@@ -114,9 +114,9 @@ if isempty(getCurrentTask())
     % %% Plot 1: Mapping Correlation Bar Chart
     plotCTraces(bottleNeck, param, H_recon_test, method_dir, file_suffix);
     %% Plot 3: Detailed Reconstruction (Train & Test Split)
-    fig3 = figure('Name','True vs. AE Latents', 'Position', [100, 100, 1200, 110*param.N_F]);
+    fig3 = figure('Name','True vs. AE Latents', 'Position', [50, 100, 1200, 150*param.N_F]);
     tiledlayout(param.N_F, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-    sgtitle(['AE (k=' num2str(bottleNeck) ') True Latents (solid) vs. Reconstructed (dashed)']);
+    sgtitle(['AE (k=' num2str(bottleNeck) ') True Latents (solid) vs. Reconstructed (dashed)'],'FontSize',26);
     
     % Limits for plots
     vis_len_train = min(fs_new*2, size(H_train,1)); % 2 seconds
@@ -182,7 +182,7 @@ if isempty(getCurrentTask())
             hold off;
          end
     end
-    set(findall(fig3,'-property','FontSize'),'FontSize',16);
+    set(findall(fig3,'-property','FontSize'),'FontSize',22);
     saveas(fig3, fullfile(method_dir, ['AE_Split_Reconstruction' file_suffix '.png']));  
     
     %% Plot 4: FFT Analysis
