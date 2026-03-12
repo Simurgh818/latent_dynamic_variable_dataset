@@ -21,7 +21,7 @@ if ~exist(results_dir, 'dir')
 end
 file_suffix = sprintf('_k%d', k);
 num_f = size(h_train, 2);
-
+dpca_R2_scores = [];
 %% 2. Run dPCA (Single Condition)
 % Prepare X for dPCA: (Channels x Time x Trials) -> Trials=1
 X_dpca = zeros(size(eeg_train,1), size(eeg_train,2), 1);

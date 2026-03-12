@@ -22,6 +22,7 @@ end
 file_suffix = sprintf('_k%d', bottleNeck);
 h_f_colors = lines(param.N_F); 
 fs_new = param.fs;
+AE_R2_values = [];
 %% 2. Train Autoencoder (Unsupervised)
 batch_size = 100; % 80
 

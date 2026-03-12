@@ -12,7 +12,7 @@ function [R2_test_avg, MSE_test_avg, outPCA] = runPCAAnalysis(eeg_train, eeg_tes
 if ~exist(method_dir, 'dir'), mkdir(method_dir); end
 file_suffix = sprintf('_k%d', k);
 h_f_colors = lines(param.N_F); 
-
+pca_R2_scores = [];
 %% 2. Run PCA
 % We only calculate exactly k components
 [coeff, score, ~, ~, explained] = pca(eeg_train', 'NumComponents', k);

@@ -20,7 +20,7 @@ end
 % File naming suffix
 file_suffix = sprintf('_n%d_dist%.1f_k%d', n_neighbors, min_dist, num_sig_components);
 h_f_colors = lines(param.N_F);
-
+UMAP_R2_values = [];
 %% 3. Prepare Data (Transpose to Time x Neurons)
 % eeg_train = double(s_train)';     
 % eeg_test  = double(s_test)'; 

@@ -15,7 +15,7 @@ end
 % File suffix for saving
 file_suffix = sprintf('_k%d', num_comps);
 h_f_colors = lines(param.N_F); 
-
+ica_R2_scores = [];
 %% 2. Run ICA (EEGLAB)
 % Prepare EEGLAB Structure
 EEG = eeg_emptyset();

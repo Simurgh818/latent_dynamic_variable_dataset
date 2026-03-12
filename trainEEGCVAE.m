@@ -21,7 +21,8 @@ function [encNet, decNet, priorNet, info] = trainEEGCVAE(X_train, C_train, X_tes
     if ~isfield(cfg, 'batchSize'),         cfg.batchSize = 256; end
     if ~isfield(cfg, 'learnRate'),         cfg.learnRate = 1e-3; end
     if ~isfield(cfg, 'patience'),          cfg.patience = 15; end % Stop after 15 epochs of no improvement
-    
+    if ~isfield(cfg, 'beta'),              cfg.beta = 1.0; end % Default to standard CVAE/iVAE behavior
+
     numFeatures = size(X_train, 1);
     numClasses = size(C_train, 1);
     numObs = size(X_train, 2);
@@ -113,13 +114,14 @@ function [encNet, decNet, priorNet, info] = trainEEGCVAE(X_train, C_train, X_tes
             XBatch = X_shuffled(:, idxBatch);
             CBatch = C_shuffled(:, idxBatch);
             
-            [gradEnc, gradDec, gradPrior, loss] = dlfeval(@modelLoss, encNet, decNet, priorNet, XBatch, CBatch, cfg.method);
+            [gradEnc, gradDec, gradPrior, loss] = dlfeval(@modelLoss, encNet, decNet, priorNet, XBatch, CBatch, cfg.method, cfg.beta);
             
             [encNet, trailingAvgEnc, trailingAvgSqEnc] = adamupdate(encNet, gradEnc, trailingAvgEnc, trailingAvgSqEnc, epoch, cfg.learnRate);
             [decNet, trailingAvgDec, trailingAvgSqDec] = adamupdate(decNet, gradDec, trailingAvgDec, trailingAvgSqDec, epoch, cfg.learnRate);
             
             if cfg.method == "ivae"
-                [priorNet, trailingAvgPrior, trailingAvgSqPrior] = adamupdate(priorNet, gradPrior, trailingAvgPrior, trailingAvgSqPrior, epoch, cfg.learnRate);
+                [priorNet, trailingAvgPrior, trailingAvgSqPrior] = adamupdate(priorNet, gradPrior, trailingAvgPrior, trailingAvgSqPrior, epoch,...
+                    cfg.learnRate);
             end
             
             epochLoss = epochLoss + extractdata(loss);
@@ -129,7 +131,7 @@ function [encNet, decNet, priorNet, info] = trainEEGCVAE(X_train, C_train, X_tes
         info.lossHistory(epoch) = epochLoss / numBatches;
         
         % Evaluate Validation Loss (without gradients)
-        valLoss = computeValidationLoss(encNet, decNet, priorNet, X_test_dl, C_test_dl, cfg.method);
+        valLoss = computeValidationLoss(encNet, decNet, priorNet, X_test_dl, C_test_dl, cfg.method, cfg.beta);
         info.valLossHistory(epoch) = extractdata(valLoss);
         
         fprintf("Epoch %d/%d - Train Loss: %.4f | Val Loss: %.4f\n", ...
@@ -166,7 +168,7 @@ end
 % -------------------
 % Helper: Model Loss Function (For Training)
 % -------------------
-function [gradEnc, gradDec, gradPrior, loss] = modelLoss(encNet, decNet, priorNet, X, C, method)
+function [gradEnc, gradDec, gradPrior, loss] = modelLoss(encNet, decNet, priorNet, X, C, method, beta)
     XC = cat(1, X, C);
     [mu_q, logvar_q] = forward(encNet, XC);
     
@@ -189,7 +191,7 @@ function [gradEnc, gradDec, gradPrior, loss] = modelLoss(encNet, decNet, priorNe
     klDivergence = 0.5 * sum(logvar_p - logvar_q + (var_q + (mu_q - mu_p).^2)./var_p - 1, 1);
     klLoss = mean(klDivergence);
     
-    loss = mseLoss + klLoss;
+    loss = mseLoss + beta * klLoss;
     
     if method == "ivae"
         [gradEnc, gradDec, gradPrior] = dlgradient(loss, encNet.Learnables, decNet.Learnables, priorNet.Learnables);
@@ -202,7 +204,7 @@ end
 % -------------------
 % Helper: Validation Loss (No Gradients Computed)
 % -------------------
-function valLoss = computeValidationLoss(encNet, decNet, priorNet, X, C, method)
+function valLoss = computeValidationLoss(encNet, decNet, priorNet, X, C, method, beta)
     % Just do a standard forward pass without dlfeval tracking
     XC = cat(1, X, C);
     [mu_q, logvar_q] = forward(encNet, XC);
@@ -226,5 +228,5 @@ function valLoss = computeValidationLoss(encNet, decNet, priorNet, X, C, method)
     klDivergence = 0.5 * sum(logvar_p - logvar_q + (var_q + (mu_q - mu_p).^2)./var_p - 1, 1);
     klLoss = mean(klDivergence);
     
-    valLoss = mseLoss + klLoss;
+    valLoss = mseLoss + beta * klLoss;
 end
