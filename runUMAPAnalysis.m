@@ -196,10 +196,10 @@ if isempty(getCurrentTask())
     %% Plot 1.1: UMAP Dim 1 vs. Dim 2 colored by Intensity of each latent variable
     %  plot UMAP dim 1 vs. dim 2 for each latent variable 
     n_latents = size(h_train, 2);
-    fig11 = figure('Position', [100, 100, 1400, 800]);
+    fig11 = figure('Position', [100, 100, 1400, 900]);
     
     % Create a layout: one tile for each Latent Variable
-    t = tiledlayout(ceil(n_latents/4), 4, 'TileSpacing', 'compact', 'Padding', 'compact');
+    t = tiledlayout(ceil(n_latents/3), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
     
     for i = 1:n_latents
         nexttile;
@@ -217,8 +217,8 @@ if isempty(getCurrentTask())
         axis square; grid on;
     end
     
-    title(t, 'UMAP colored by Intensity of each Latent Variable','FontSize',26);
-    set(findall(fig11,'-property','FontSize'),'FontSize',24);
+    title(t, 'UMAP colored by Intensity of each Latent Variable','FontSize',30);
+    set(findall(fig11,'-property','FontSize'),'FontSize',28);
     saveas(fig11, fullfile(method_dir, ['UMAP_Embedding_perLatentVariable' file_suffix '.png']));
     %% Plot 2: Time Domain Reconstruction (Test Set)
     % Zero-lag correlation

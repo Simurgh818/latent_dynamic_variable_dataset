@@ -33,12 +33,12 @@ end
 %% Loop through experiments
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 1; % 10
-k_range    = 6:6; % 9
+nDatasets  = 10; % 10
+k_range    = 1:9; % 9
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = { 'AE'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
+methods = {'PCA', 'AE','dPCA', 'ICA'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
 
 EXP = struct();
 param = struct();
@@ -53,15 +53,15 @@ RESULTS.meta.description = "Dimensionality reduction benchmark";
 
 % Best practice: Leave 1-2 cores free for the OS/Main Thread.
 % For a 7-core system, 5 workers is a safe, high-performance choice.
-% target_workers = 5; 
-% current_pool = gcp('nocreate');
-% 
-% if isempty(current_pool)
-%     parpool(target_workers);
-% elseif current_pool.NumWorkers ~= target_workers
-%     delete(current_pool);
-%     parpool(target_workers);
-% end
+target_workers = 5; 
+current_pool = gcp('nocreate');
+
+if isempty(current_pool)
+    parpool(target_workers);
+elseif current_pool.NumWorkers ~= target_workers
+    delete(current_pool);
+    parpool(target_workers);
+end
 
 %% Loop through experiments
 for c = 1:numel(conditions)
@@ -469,7 +469,7 @@ for c = 1:numel(conditions)
     title(sprintf('R^2 vs k (%s)', cond));
     grid on;
     legend('Location','eastoutside');
-    set(gca, 'FontSize', 16);
+    set(gca, 'FontSize', 20);
 end
 
 
@@ -499,10 +499,10 @@ for c = 1:numel(conditions)
     title(sprintf('MSE^2 vs k (%s)', cond));
     grid on;
     legend('Location','eastoutside');
-    set(gca, 'FontSize', 16);
+    set(gca, 'FontSize', 20);
 end
 
-set(findall(gcf,'-property','FontSize'),'FontSize',16)
+set(findall(gcf,'-property','FontSize'),'FontSize',20)
 summary_trace_name = fullfile(local_results_dir, 'Main_Summary_Trace.png');
 saveas(fig1, summary_trace_name);
 %% ----------------------------------------------------------
@@ -558,7 +558,7 @@ if ~isempty(ki_target)
         title(sprintf('Zero-Lag Corr vs Frequency (k=%d, %s)', target_k, cond));
         grid on; 
         legend('Location','eastoutside'); 
-        set(gca, 'FontSize', 16);
+        set(gca, 'FontSize', 20);
         
         
         % --- Bottom Subplot: Spectral R^2 ---
@@ -599,10 +599,10 @@ if ~isempty(ki_target)
         title(sprintf('Spectral R^2 vs Frequency (k=%d, %s)', target_k, cond));
         grid on; 
         legend('Location','eastoutside'); 
-        set(gca, 'FontSize', 16);
+        set(gca, 'FontSize', 20);
     end
     
-    set(findall(fig2,'-property','FontSize'),'FontSize',16);
+    set(findall(fig2,'-property','FontSize'),'FontSize',20);
     summary_spectral_name = fullfile(local_results_dir, sprintf('Summary_FreqProfile_k%d.png', target_k));
     saveas(fig2, summary_spectral_name);
 else

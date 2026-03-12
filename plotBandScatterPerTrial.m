@@ -51,7 +51,7 @@ function spectral_R2_values = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, ban
     % --- PLOTTING ---
     fig = figure('Position',[50 50 1600 400], 'Visible', 'off'); 
     t = tiledlayout(1,nBands,'TileSpacing','compact','Padding','compact');
-    sgtitle(sprintf('True vs %s Reconstructed FFT Band Amplitudes (k=%d)', methodName, k),'FontSize',26);
+    sgtitle(sprintf('True vs %s Reconstructed FFT Band Amplitudes (k=%d)', methodName, k),'FontSize',32);
     
     for b = 1:nBands
         nexttile; hold on;
@@ -130,8 +130,8 @@ function spectral_R2_values = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, ban
         grid on; axis equal;
     end
     % --- APPLY SHARED AXIS LABELS ---
-    xlabel(t, 'True Band Amp.','FontSize',26);
-    ylabel(t, 'Recon. Band Amp.','FontSize',26);
+    xlabel(t, 'True Band Amp.','FontSize',30);
+    ylabel(t, 'Recon. Band Amp.','FontSize',30);
     % set(gcbf,'FontSize',26);
     % --- CONSTRUCT CUSTOM LEGEND ---
     % We create invisible "Dummy" plots just to generate the legend symbols
@@ -147,7 +147,7 @@ function spectral_R2_values = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, ban
     end
     
     legend(h_dummies, 'Location','eastoutside','Orientation','vertical',...
-        'NumColumns',1, 'TextColor','k','FontSize',24);
+        'NumColumns',1, 'TextColor','k','FontSize',30);
     
     if ~isempty(save_dir)
         saveas(fig, fullfile(save_dir, sprintf('%s_Scatter_BandAmp_Trials_k%d.png', methodName, k)));

@@ -93,9 +93,9 @@ function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, zer
     text(x0-5, y0+2.5, '2 a.u.', 'VerticalAlignment', 'bottom', ...
         'HorizontalAlignment', 'right', 'Rotation', 90);
     sgtitle([methodName ' (k=' num2str(k) ') Latent variables Z(t) and $\hat{z}(t)$'], ...
-        'Interpreter','latex','FontSize',26);
+        'Interpreter','latex','FontSize',30);
     % --- 6. Save and Close ---
-    set(findall(fig, '-property', 'FontSize'), 'FontSize', 24);
+    set(findall(fig, '-property', 'FontSize'), 'FontSize', 28);
     
     filename = sprintf('%s_TimeDomain%s.png', methodName, file_suffix);
     saveas(fig, fullfile(save_dir, filename));
