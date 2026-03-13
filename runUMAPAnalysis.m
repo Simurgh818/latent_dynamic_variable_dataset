@@ -9,72 +9,61 @@ function [R2_train_global, MSE_train_global, outUMAP] = runUMAPAnalysis( ...
 %   num_sig_components  : dimensionality of UMAP (n_components)
 %   results_dir         : Output directory
 
-
 %% 2. Setup and Directory
 method_name = 'UMAP';
 method_dir = fullfile(results_dir, method_name);
 if ~exist(method_dir, 'dir')
     mkdir(method_dir);
 end
-
-% File naming suffix
 file_suffix = sprintf('_n%d_dist%.1f_k%d', n_neighbors, min_dist, num_sig_components);
 h_f_colors = lines(param.N_F);
-UMAP_R2_values = [];
-%% 3. Prepare Data (Transpose to Time x Neurons)
-% eeg_train = double(s_train)';     
-% eeg_test  = double(s_test)'; 
 
+%% 3. Prepare Data (Transpose to Time x Neurons)
 % ToDO: changing the shape to promote learning across time
 eeg_train = double([s_train(:, 1:end-1) ; s_train(:, 2:end)])';
 eeg_test = double([s_test(:, 1:end-1) ; s_test(:, 2:end)])';
+
 % fix h_test and h_train size 
 h_train = h_train(1:end-1,:);
 h_test = h_test(1:end-1,:);
 rng(42,'twister');
+
 %% 4. Run UMAP (Train) & Transform (Test)
 disp(['Running UMAP (k=' num2str(num_sig_components) ') on Training Set...']);
 
 % WORKAROUND 1: The Meehan run_umap library requires n_components >= 2.
-% If num_sig_components is 1, we must request 2, then ignore the 2nd dim.
 umap_calc_components = max(2, num_sig_components);
 
-% 1. Compute PCA
-% 'score' contains the coordinates of your data in PCA space.
-% We only need the first 2 dimensions for the initialization.
+% 1. Compute PCA for initialization
 [~, score] = pca(eeg_train); 
 init_coords = score(:, 1:umap_calc_components);
 [~, score_test] = pca(eeg_test); 
 init_coords_test = score_test(:, 1:umap_calc_components);
 
-% 2. Normalize (Optional but Recommended)
-% UMAP usually prefers the initialization to be within a small range (e.g., -10 to 10).
-% You can scale it, though most implementations handle this automatically.
+% 2. Normalize 
 init_coords = 10 * (init_coords / max(abs(init_coords(:))));
 
-% Run UMAP on training data and keep the object (struct) to transform test data
-% WORKAROUND 2: 'check_duplicates', false prevents the library from asking 
-% "run_umap will remove duplicates..." which halts automation.
+% Run UMAP on training data 
 try
     [umap_train_raw, umap_struct] = run_umap(eeg_train, ...
         'n_neighbors', n_neighbors, ...
         'min_dist', min_dist, ...
         'n_components', umap_calc_components,...        
-        'method', 'MEX', ...              % CRITICAL: Explicitly set method
+        'method', 'MEX', ...              
         'verbose', 'none', ...
         'metric', 'euclidean', ...
         'randomize', true, ...
         'init', init_coords, ...
         'gui', false, ...
-        'check_duplicates', false, ...   % FIX: Don't ask to remove duplicates (prevents dialog crash)
-        'plot_output', 'none', ...       % FIX: Don't try to plot results (prevents Toolbar crash)
-        'save_template_file', false);    % Optimization: Don't save .mat template automatically
+        'check_duplicates', false, ...   
+        'plot_output', 'none', ...       
+        'save_template_file', false);    
 catch ME
     warning('UMAP Train failed: %s. Attempting fallback settings.', ME.message);
-    rethrow(ME); % Rethrow the error for debugging purposes
+    rethrow(ME); 
 end 
-disp('Projecting Test Set into UMAP space...');
 
+disp('Projecting Test Set into UMAP space...');
 % Transform test data using the learned training manifold
 try
     umap_test_raw = run_umap(eeg_test, ...
@@ -86,8 +75,8 @@ try
         'randomize', true, ...
         'init', init_coords_test, ...
         'gui', false, ...
-        'check_duplicates', false, ...       % FIX ADDED
-        'plot_output', 'none');              % FIX ADDED
+        'check_duplicates', false, ...       
+        'plot_output', 'none');              
 catch
     warning('Could not project test data via template. Running UMAP independently on Test.');
     umap_test_raw = run_umap(eeg_test, ...
@@ -99,40 +88,30 @@ catch
         'randomize', true, ...
         'init', init_coords_test, ...
         'gui', false, ...
-        'check_duplicates', false, ...       % FIX ADDED
-        'plot_output', 'none');              % FIX ADDED
+        'check_duplicates', false, ...       
+        'plot_output', 'none');              
 end
 
-
 % Extract only the requested number of components for analysis
-% If k=1, we take column 1. If k>=2, we take columns 1:k.
 umap_train = umap_train_raw(:, 1:num_sig_components);
 umap_test  = umap_test_raw(:, 1:num_sig_components);
 
 % Mapping components to latents
 C = umap_train;   % T x nComp
 H = h_train(1:size(C,1), :);
-
 [corr_UMAP, R_UMAP] = match_components_to_latents(C, H, 'UMAP',num_sig_components);
 
 %% 5. Reconstruction Loop (Train Mapping -> Test Eval)
-% We calculate metrics for k=1 to num_sig_components
 MSE_train_curve = zeros(1, param.N_F);
 R2_train_curve  = zeros(1, param.N_F);
 MSE_test_curve = zeros(1, param.N_F);
 R2_test_curve  = zeros(1, param.N_F);
-
 disp('Calculating Reconstruction Metrics...');
-% 1. Learn Map: UMAP_train -> H_train
-% Solve W such that: UMAP_train * W = H_train using all current components
-% We use lsqlin or simple pinv. lsqlin is safer for regularization.
 
-% W_k = zeros(umap_calc_components,param.N_F);
-% for f = 1:param.N_F
-%     W_k(:,f) = lsqlin(umap_test_raw, h_test(:,f));
-% end
+% 1. Learn Map: UMAP_train -> H_train
 W_k_train = umap_train_raw \ h_train;
 W_k = umap_test_raw \ h_test;
+
 % 2. Apply Map to Test: UMAP_test * W -> H_rec_test
 h_rec_train_final = umap_train_raw * W_k_train;
 h_rec_test_final = umap_test_raw * W_k;
@@ -142,44 +121,111 @@ for f = 1:param.N_F
     % MSE
     MSE_test_curve(1,f) = mean((h_test(:,f) - h_rec_test_final(:,f)).^2);
     MSE_train_curve(1,f) = mean((h_train(:,f) - h_rec_train_final(:,f)).^2);
+    
     % R2
     res_var = sum((h_test(:,f) - h_rec_test_final(:,f)).^2);
     tot_var = sum((h_test(:,f) - mean(h_test(:,f))).^2);
     R2_test_curve(1,f) = 1 - (res_var / tot_var);
+    
     res_var_train = sum((h_train(:,f) - h_rec_train_final(:,f)).^2);
     tot_var_train = sum((h_train(:,f) - mean(h_train(:,f))).^2);
     R2_train_curve(1,f) = 1 - (res_var_train / tot_var_train);
 end
 
-% Global outputs (vector of size num_sig_components for the main script loop)
-% We take the mean across all latent fields for the global metric
+% Global outputs
 MSE_test_global = mean(MSE_test_curve, 2); 
 R2_test_global  = mean(R2_test_curve, 2);
 MSE_train_global = mean(MSE_train_curve, 2); 
 R2_train_global  = mean(R2_train_curve, 2);
-% Normalized version for plotting
-h_rec_test_norm = h_rec_test_final; 
-for f = 1:param.N_F
-   h_rec_test_norm(:,f) = h_rec_test_final(:,f) ./ std(h_rec_test_final(:,f)); 
-   h_rec_train_norm(:,f) = h_rec_train_final(:,f) ./ std(h_rec_train_final(:,f)); 
-end
+
 fs_new = param.fs;
+
+%% 6. Zero-Lag Correlation (Moved to mathematical block)
+maxLag = 200; 
+lags = -maxLag:maxLag;
+zeroLagCorr = zeros(1, param.N_F);
+for f = 1:param.N_F
+    c = xcorr(h_test(:,f), h_rec_test_final(:,f), maxLag, 'coeff');
+    zeroLagCorr(f) = c(lags==0);
+end
+
+%% 7. Frequency & Spectral R2 Math (Runs on ALL workers!)
+T = size(h_test, 1);
+trial_dur = 1; 
+L = round(trial_dur * param.fs);
+nTrials = floor(T/L);
+f_axis = (0:L-1)*(param.fs/L);
+nHz = floor(L/2) + 1;
+f_plot = f_axis(1:nHz);
+
+Ht = zeros(L, param.N_F, nTrials);
+Hr = zeros(L, param.N_F, nTrials);
+R2_trials = zeros(L, param.N_F, nTrials);
+
+% --- FFT Calculation ---
+for tr = 1:nTrials
+    idx = (tr-1)*L + (1:L);
+    Ht(:,:,tr) = fft(h_test(idx, :));
+    Hr(:,:,tr) = fft(h_rec_test_final(idx, :));
+     for fidx = 1:param.N_F
+        num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
+        den = abs(Ht(:,fidx,tr)).^2 + eps;
+        R2_trials(:,fidx,tr) = 1 - num./den;
+     end
+end
+
+Ht_avg = mean(abs(Ht(1:nHz, :, :)), 3);
+Hr_avg = mean(abs(Hr(1:nHz, :, :)), 3);
+R2_avg = mean(R2_trials, 3);
+
+% --- Spectral R2 Calculation ---
+bands = struct('delta',[1 4], 'theta',[4 8], 'alpha',[8 13], 'beta',[13 30], 'gamma',[30 50]);
+band_names = fieldnames(bands);
+nBands = numel(band_names);
+
+UMAP_R2_scores = nan(param.N_F, 1);
+Ht_amp = abs(Ht(1:nHz,:,:));
+Hr_amp = abs(Hr(1:nHz,:,:));
+max_t = max(Ht_amp(:)); if max_t==0, max_t=1; end
+max_r = max(Hr_amp(:)); if max_r==0, max_r=1; end
+Ht_amp = Ht_amp ./ max_t; Hr_amp = Hr_amp ./ max_r;
+
+true_vals = cell(nBands,1);
+recon_vals = cell(nBands,1);
+
+for b = 1:nBands
+    f_range  = bands.(band_names{b});
+    idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
+    
+    true_vals{b}  = squeeze(mean(Ht_amp(idx_band,:,:), 1, 'omitnan'));
+    recon_vals{b} = squeeze(mean(Hr_amp(idx_band,:,:), 1, 'omitnan'));
+    
+    if b == 4, target_zs = [4, 5];
+    elseif b == 5, target_zs = 6;
+    else, target_zs = b; end
+    
+    for z = 1:param.N_F
+        if ismember(z, target_zs)
+            x_z = true_vals{b}(z,:);
+            y_z = recon_vals{b}(z,:);
+            R_coef = corrcoef(x_z, y_z);
+            if numel(R_coef) > 1, r_sq = R_coef(1,2)^2; else, r_sq = 0; end
+            UMAP_R2_scores(z) = r_sq;
+        end
+    end
+end
+
 %% ============================================================
-% PLOTTING SECTION (Using TEST Data)
+% PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
 if isempty(getCurrentTask())
-
     % Plot 1: UMAP Embedding (Training) colored by Latents
-    % We visualize the Training embedding because that's the manifold structure we learned
     cluster_idx = kmeans(h_train, param.N_F,'MaxIter', 1000, 'Replicates', 5, 'Display', 'off');
     
-    fig1 = figure('Position', [100, 100, 1200, 800]);
-    % If we only have 1 component, we can't do a 2D scatter properly vs another dim.
-    % We default to plotting the 2 components calculated (even if only 1 was requested/used).
+    fig1 = figure('Position', [100, 100, 1200, 800], 'Visible', 'off');
     plot_comps = min(size(umap_train_raw,2), max(2, num_sig_components)); 
-    
     t = tiledlayout(ceil((plot_comps-1)/3), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
-    % Plot Dim 1 vs others
+    
     for d = 2:plot_comps
         nexttile;
         gscatter(umap_train_raw(:,1), umap_train_raw(:,d), cluster_idx, [],[],10);
@@ -192,78 +238,50 @@ if isempty(getCurrentTask())
     colormap(turbo);
     set(findall(fig1,'-property','FontSize'),'FontSize',26);
     saveas(fig1, fullfile(method_dir, ['UMAP_Embedding' file_suffix '.png']));
+    close(fig1);
     
-    %% Plot 1.1: UMAP Dim 1 vs. Dim 2 colored by Intensity of each latent variable
-    %  plot UMAP dim 1 vs. dim 2 for each latent variable 
+    %% Plot 1.1: UMAP Dim 1 vs. Dim 2 colored by Intensity 
     n_latents = size(h_train, 2);
-    fig11 = figure('Position', [100, 100, 1400, 900]);
-    
-    % Create a layout: one tile for each Latent Variable
+    fig11 = figure('Position', [100, 100, 1400, 900], 'Visible', 'off');
     t = tiledlayout(ceil(n_latents/3), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
     
     for i = 1:n_latents
         nexttile;
-        % We color by the i-th column of your h_f matrix
         scatter(umap_train_raw(:,1), umap_train_raw(:,2), 15, h_train(:,i), 'filled');
-        xlim([-10 10]);
-        xticks(-10:10:10);
+        xlim([-10 10]); xticks(-10:10:10);
         r2= round(R2_test_curve(end,i),2);
         peak_lbl = num2str(param.f_peak(i));
-        title([sprintf('Z_{%s}', peak_lbl), ', R^2= ', num2str(r2)]); % Or use a name like "Freq 12Hz"
+        title([sprintf('Z_{%s}', peak_lbl), ', R^2= ', num2str(r2)]); 
         xlabel('UMAP 1'); ylabel('UMAP 2');
-        colormap(turbo); 
-        colorbar; % Shows the scale of the latent value
-        clim([-4 4]); % Set the colorbar range from -4 to 4
+        colormap(turbo); colorbar; clim([-4 4]); 
         axis square; grid on;
     end
-    
     title(t, 'UMAP colored by Intensity of each Latent Variable','FontSize',30);
     set(findall(fig11,'-property','FontSize'),'FontSize',28);
     saveas(fig11, fullfile(method_dir, ['UMAP_Embedding_perLatentVariable' file_suffix '.png']));
+    close(fig11);
+    
     %% Plot 2: Time Domain Reconstruction (Test Set)
-    % Zero-lag correlation
-    Z_true = h_test; 
-    Z_recon = h_rec_test_final; % Use non-normalized for correlation calc
-    maxLag = 200; lags = -maxLag:maxLag;
-    zeroLagCorr = zeros(1, param.N_F);
-    for f = 1:param.N_F
-        c = xcorr(Z_true(:,f), Z_recon(:,f), maxLag, 'coeff');
-        zeroLagCorr(f) = c(lags==0);
-    end
-      
     plotTimeDomainReconstruction(h_test, h_rec_test_final, param, 'UMAP', num_sig_components, zeroLagCorr, method_dir);
-
+    
     % Embedding Traces:
     plotCTraces(num_sig_components, param, umap_train_raw, method_dir, file_suffix);
-
+    
     %% Plot 4: Band Power Bar Chart & FFT     
     save_path_fft = fullfile(method_dir, ['UMAP_FFT_True_vs_Recon' file_suffix '.png']);
-    [outFSP] = plotFrequencySpectra(h_test, h_rec_test_final, 'UMAP', param, num_sig_components, save_path_fft);
+    plotFrequencySpectra(Ht_avg, Hr_avg, f_plot, 'UMAP', param, num_sig_components, save_path_fft);
     
-    Ht = outFSP.Ht;
-    Hr = outFSP.Hr;
-    Ht_avg = outFSP.Ht_avg;
-    Hr_avg = outFSP.Hr_avg;
-    R2_avg = outFSP.R2_avg;
-    f_axis = outFSP.f_axis;
-    f_plot = outFSP.f_plot;
-    nHz = outFSP.nHz;
-
     br2_path = fullfile(method_dir, ['UMAP_Bandwise_R2' file_suffix '.png']);
-    [outBR2P] = plotBandwiseR2(R2_avg, f_axis, param, num_sig_components, 'UMAP', br2_path);
-    bands = outBR2P.bands;
-    band_names = outBR2P.b_names; 
-    nBands = outBR2P.nBands;
+    plotBandwiseR2(R2_avg, f_axis, param, num_sig_components, 'UMAP', br2_path);
+    
     %% Plot 5: Coherence Analysis (Chronux)
-    % Multitaper params
     params_coh.Fs = fs_new; 
     params_coh.tapers = [3 5]; 
     params_coh.pad = 0;
-    params_coh.err = [0 0]; % No error bars for speed in heatmap
+    params_coh.err = [0 0]; 
+    movingwin = [1 0.05]; 
     
-    movingwin = [1 0.05]; % 1s window, 50ms step
-    
-    fig4 = figure('Position',[50 50 1000 600]);
+    fig4 = figure('Position',[50 50 1000 600], 'Visible', 'off');
     tiledlayout(2, ceil(param.N_F/2), 'TileSpacing', 'compact', 'Padding', 'compact');
     sgtitle(['UMAP Coherence Analysis (Test Set, k=' num2str(num_sig_components) ')']);
     
@@ -273,8 +291,7 @@ if isempty(getCurrentTask())
             [C,~,~,~,~,t_coh,f_coh] = cohgramc(h_train(:, i), h_rec_train_final(:, i), movingwin, params_coh);
             imagesc(t_coh, f_coh, C'); axis xy;
             xlabel('Time (s)'); ylabel('Freq (Hz)');
-            ylim([0 50]);
-            clim([0 1]); colorbar;
+            ylim([0 50]); clim([0 1]); colorbar;
         catch
             text(0.5,0.5,'Chronux Toolbox missing or error','HorizontalAlignment','center');
         end
@@ -282,37 +299,25 @@ if isempty(getCurrentTask())
     end
     set(findall(fig4,'-property','FontSize'),'FontSize',20);
     saveas(fig4, fullfile(method_dir, ['UMAP_Coherence' file_suffix '.png']));
-    
+    close(fig4);
     
     %% Plot 6: Scatter Mean Band Amplitudes
-    Ht_amp = abs(Ht_avg(1:nHz, :)); Hr_amp = abs(Hr_avg(1:nHz, :));
-    Ht_amp = Ht_amp ./ max(Ht_amp(:)); Hr_amp = Hr_amp ./ max(Hr_amp(:));
-    
-    mean_true = zeros(nBands, param.N_F); mean_recon = zeros(nBands, param.N_F);
-    std_true = zeros(nBands, param.N_F); std_recon = zeros(nBands, param.N_F);
-    
-    for b = 1:nBands
-        idx = f_plot >= bands.(band_names{b})(1) & f_plot <= bands.(band_names{b})(2);
-        mean_true(b,:) = mean(Ht_amp(idx,:), 1); mean_recon(b,:) = mean(Hr_amp(idx,:), 1);
-        std_true(b,:) = std(Ht_amp(idx,:), 0, 1); std_recon(b,:) = std(Hr_amp(idx,:), 0, 1);
-    end
-    flat_true = mean_true(:); flat_recon = mean_recon(:);
-    band_lbls = repelem(band_names, param.N_F);
-    
-    fig5 = figure('Position',[50 50 1400 300]);
+    fig5 = figure('Position',[50 50 1400 300], 'Visible', 'off');
     tiledlayout(1, nBands, 'TileSpacing', 'loose', 'Padding', 'compact');
     sgtitle(['UMAP Band Mean FFT Amplitudes (k=' num2str(num_sig_components) ')']);
-    colors = lines(nBands); markers = {'o','s','d','h','^'}; % ,'hexagram','<','>'
+    colors = lines(nBands); markers = {'o','s','d','h','^'};
     
     for b = 1:nBands    
         nexttile; hold on;
-        idx_b = strcmp(band_lbls, band_names{b});
-        x = flat_true(idx_b); y = flat_recon(idx_b);
+        x = mean(true_vals{b}, 2, 'omitnan');
+        y = mean(recon_vals{b}, 2, 'omitnan');
+        std_x = std(true_vals{b}, 0, 2, 'omitnan');
+        std_y = std(recon_vals{b}, 0, 2, 'omitnan');
         
         for m = 1:length(markers)
             if m>numel(x), break; end
             scatter(x(m), y(m), 70, 'filled', 'MarkerFaceColor', colors(b,:),'Marker', markers{m});
-            errorbar(x(m), y(m), std_true(b,m), std_recon(b,m), 'LineStyle', 'none', 'Color', colors(b,:));
+            errorbar(x(m), y(m), std_x(m), std_y(m), 'LineStyle', 'none', 'Color', colors(b,:));
         end
         plot([min(x) max(x)], [min(x) max(x)], 'Color', colors(b,:), 'LineWidth', 2);
         R = corrcoef(x,y); text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', colors(b,:));
@@ -320,16 +325,15 @@ if isempty(getCurrentTask())
     end
     set(findall(fig5,'-property','FontSize'),'FontSize',20);
     saveas(fig5, fullfile(method_dir, ['UMAP_Scatter_Mean' file_suffix '.png']));
-    
+    close(fig5);
     
     %% Plot 7: Scatter Per-Trial
-    
-    UMAP_R2_values = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, num_sig_components, "UMAP", method_dir);
+    plotBandScatterPerTrial(true_vals, recon_vals, UMAP_R2_scores, band_names, param, num_sig_components, "UMAP", method_dir);
 end
+
 %% Output Structure
 outUMAP = struct();
 outUMAP.umap_train = umap_train;
-% outUMAP.umap_test = umap_test;
 outUMAP.h_recon_test = h_rec_test_final;
 outUMAP.h_recon_train = h_rec_train_final;
 outUMAP.MSE_test_curve = MSE_test_curve;
@@ -344,8 +348,8 @@ outUMAP.n_neighbors = n_neighbors;
 outUMAP.min_dist = min_dist;
 outUMAP.corr_UMAP = corr_UMAP;
 outUMAP.R_full = R_UMAP; 
-outUMAP.zeroLagCorr = zeroLagCorr;
-outUMAP.spectral_R2 = UMAP_R2_values;
+outUMAP.zeroLagCorr = zeroLagCorr; % <--- Now guaranteed to exist!
+outUMAP.spectral_R2 = UMAP_R2_scores; % <--- Now guaranteed to exist!
 
 close All;
 end

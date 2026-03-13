@@ -12,7 +12,6 @@ function [R2_test_avg, MSE_test_avg, outPCA] = runPCAAnalysis(eeg_train, eeg_tes
 if ~exist(method_dir, 'dir'), mkdir(method_dir); end
 file_suffix = sprintf('_k%d', k);
 h_f_colors = lines(param.N_F); 
-pca_R2_scores = [];
 %% 2. Run PCA
 % We only calculate exactly k components
 [coeff, score, ~, ~, explained] = pca(eeg_train', 'NumComponents', k);
@@ -60,42 +59,90 @@ for f = 1:param.N_F
     zeroLagCorr_pca(f) = c(1,2);
 end
 
+%% 5. Frequency & Spectral R2 Math (Runs on ALL workers!)
+T = size(h_test, 1);
+num_f = size(h_test, 2);
+trial_dur = 1; 
+L = round(trial_dur * param.fs);
+nTrials = floor(T/L);
+f_axis = (0:L-1)*(param.fs/L);
+nHz = floor(L/2) + 1;
+f_plot = f_axis(1:nHz);
 
+Ht = zeros(L, num_f, nTrials);
+Hr = zeros(L, num_f, nTrials);
+R2_trials = zeros(L, param.N_F, nTrials);
+
+% --- FFT Calculation ---
+for tr = 1:nTrials
+    idx = (tr-1)*L + (1:L);
+    Ht(:,:,tr) = fft(h_test(idx, :));
+    Hr(:,:,tr) = fft(h_recon_test(idx, :));
+     for fidx = 1:param.N_F
+        num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
+        den = abs(Ht(:,fidx,tr)).^2 + eps;
+        R2_trials(:,fidx,tr) = 1 - num./den;
+     end
+end
+
+Ht_avg = mean(abs(Ht(1:nHz, :, :)), 3);
+Hr_avg = mean(abs(Hr(1:nHz, :, :)), 3);
+R2_avg = mean(R2_trials, 3);
+
+% --- Spectral R2 Calculation (Band Amplitude Scatter Logic) ---
+bands = struct('delta',[1 4], 'theta',[4 8], 'alpha',[8 13], 'beta',[13 30], 'gamma',[30 50]);
+band_names = fieldnames(bands);
+nBands = numel(band_names);
+
+pca_R2_scores = nan(num_f, 1);
+Ht_amp = abs(Ht(1:nHz,:,:));
+Hr_amp = abs(Hr(1:nHz,:,:));
+max_t = max(Ht_amp(:)); if max_t==0, max_t=1; end
+max_r = max(Hr_amp(:)); if max_r==0, max_r=1; end
+Ht_amp = Ht_amp ./ max_t; Hr_amp = Hr_amp ./ max_r;
+
+true_vals = cell(nBands,1);
+recon_vals = cell(nBands,1);
+
+for b = 1:nBands
+    f_range  = bands.(band_names{b});
+    idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
+    
+    true_vals{b}  = squeeze(mean(Ht_amp(idx_band,:,:), 1, 'omitnan'));
+    recon_vals{b} = squeeze(mean(Hr_amp(idx_band,:,:), 1, 'omitnan'));
+    
+    if b == 4, target_zs = [4, 5];
+    elseif b == 5, target_zs = 6;
+    else, target_zs = b; end
+    
+    for z = 1:num_f
+        if ismember(z, target_zs)
+            x_z = true_vals{b}(z,:);
+            y_z = recon_vals{b}(z,:);
+            R_coef = corrcoef(x_z, y_z);
+            if numel(R_coef) > 1, r_sq = R_coef(1,2)^2; else, r_sq = 0; end
+            pca_R2_scores(z) = r_sq;
+        end
+    end
+end
 %% ============================================================
-% PLOTTING SECTION
+% PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
-% Only plot if we aren't in a parallel worker (to save time)
 if isempty(getCurrentTask()) 
-    
-    % Time Domain Plots
     plotTimeDomainReconstruction(h_test, h_recon_test, param, 'PCA', k, zeroLagCorr_pca, method_dir);
-    
-    % PC Traces
     plotCTraces(k, param, score_test, method_dir, file_suffix);
     
-    % Cumulative Explained Variance (Scree Plot)
     save_path = fullfile(method_dir, ['PCA_ExplainedVariance' file_suffix '.png']);
     plotCumulativeVariance(explained, k, 'PCA', save_path);
     
-    % Frequency Analysis FFT
+    % Pass pre-calculated math into simplified plotting functions
     save_path_fft = fullfile(method_dir, ['PCA_FFT_True_vs_Recon' file_suffix '.png']);
-    [outFSP] = plotFrequencySpectra(h_test, h_recon_test, 'PCA', param, k, save_path_fft);
-
-    Ht = outFSP.Ht;
-    Hr = outFSP.Hr;
-    Ht_avg = outFSP.Ht_avg;
-    Hr_avg = outFSP.Hr_avg;
-    R2_avg = outFSP.R2_avg;
-    f_axis = outFSP.f_axis;
-    f_plot = outFSP.f_plot;
+    plotFrequencySpectra(Ht_avg, Hr_avg, f_plot, 'PCA', param, k, save_path_fft);
     
     br2_path = fullfile(method_dir, ['PCA_Bandwise_R2' file_suffix '.png']);
-    [outBR2P] = plotBandwiseR2(R2_avg, f_axis, param, k, 'PCA', br2_path);
-    bands = outBR2P.bands;
-    band_names = outBR2P.b_names; 
-
-    % Band Amplitude Scatter
-    pca_R2_scores = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, k, "PCA", method_dir);
+    plotBandwiseR2(R2_avg, f_axis, param, k, 'PCA', br2_path);
+    
+    plotBandScatterPerTrial(true_vals, recon_vals, pca_R2_scores, band_names, param, k, "PCA", method_dir);
 end
 
 %% 6. Final Output Structure

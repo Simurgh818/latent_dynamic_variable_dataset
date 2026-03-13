@@ -4,8 +4,8 @@ function [R2_dpca_avg, MSE_dpca_avg, outDPCA] = rundPCAAnalysis( ...
 % and computes performance metrics.
 %
 % Inputs:
-%   eeg_train             : nChannels x T
-%   h_train    : T x N_F
+%   eeg_train            : nChannels x T
+%   h_train              : T x N_F
 %   param                : struct (uses param.f_peak)
 %   k                    : scalar (Number of components to use)
 %   results_dir          : directory to save figures
@@ -20,16 +20,14 @@ if ~exist(results_dir, 'dir')
     mkdir(results_dir);
 end
 file_suffix = sprintf('_k%d', k);
-num_f = size(h_train, 2);
-dpca_R2_scores = [];
+num_f = size(h_test, 2);
+
 %% 2. Run dPCA (Single Condition)
 % Prepare X for dPCA: (Channels x Time x Trials) -> Trials=1
 X_dpca = zeros(size(eeg_train,1), size(eeg_train,2), 1);
 X_dpca(:,:,1) = eeg_train;
 
 % Run dPCA for exactly 'k' components
-% Note: If your dPCA library supports requesting specific k, this is fine.
-% If it returns more, we slice it later.
 [W, V, whichMarg] = dpca(X_dpca, k); 
 
 % Latent time series (Components x Time)
@@ -44,7 +42,6 @@ H = h_test(1:size(Z_dpca_T,1), :);
 % We use ALL k components to reconstruct the latents
 h_f_recon_dpca = zeros(size(h_test));
 h_f_recon_normalized_dpca = zeros(size(h_test));
-
 R2_feat  = zeros(1, num_f);
 MSE_feat = zeros(1, num_f);
 
@@ -87,10 +84,75 @@ end
 [explainedVar_frac, explainedVar_pct, explainedVar_cum] = ...
     dpca_explained_variance(X_dpca, W, V);
 
+%% 6. Frequency & Spectral R2 Math (Runs on ALL workers!)
+T = size(h_test, 1);
+trial_dur = 1; 
+L = round(trial_dur * param.fs);
+nTrials = floor(T/L);
+f_axis = (0:L-1)*(param.fs/L);
+nHz = floor(L/2) + 1;
+f_plot = f_axis(1:nHz);
+
+Ht = zeros(L, num_f, nTrials);
+Hr = zeros(L, num_f, nTrials);
+R2_trials = zeros(L, num_f, nTrials);
+
+% --- FFT Calculation ---
+for tr = 1:nTrials
+    idx = (tr-1)*L + (1:L);
+    Ht(:,:,tr) = fft(h_test(idx, :));
+    Hr(:,:,tr) = fft(h_f_recon_normalized_dpca(idx, :));
+     for fidx = 1:num_f
+        num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
+        den = abs(Ht(:,fidx,tr)).^2 + eps;
+        R2_trials(:,fidx,tr) = 1 - num./den;
+     end
+end
+
+Ht_avg = mean(abs(Ht(1:nHz, :, :)), 3);
+Hr_avg = mean(abs(Hr(1:nHz, :, :)), 3);
+R2_avg = mean(R2_trials, 3);
+
+% --- Spectral R2 Calculation ---
+bands = struct('delta',[1 4], 'theta',[4 8], 'alpha',[8 13], 'beta',[13 30], 'gamma',[30 50]);
+band_names = fieldnames(bands);
+nBands = numel(band_names);
+
+dpca_R2_scores = nan(num_f, 1);
+Ht_amp = abs(Ht(1:nHz,:,:));
+Hr_amp = abs(Hr(1:nHz,:,:));
+max_t = max(Ht_amp(:)); if max_t==0, max_t=1; end
+max_r = max(Hr_amp(:)); if max_r==0, max_r=1; end
+Ht_amp = Ht_amp ./ max_t; Hr_amp = Hr_amp ./ max_r;
+
+true_vals = cell(nBands,1);
+recon_vals = cell(nBands,1);
+
+for b = 1:nBands
+    f_range  = bands.(band_names{b});
+    idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
+    
+    true_vals{b}  = squeeze(mean(Ht_amp(idx_band,:,:), 1, 'omitnan'));
+    recon_vals{b} = squeeze(mean(Hr_amp(idx_band,:,:), 1, 'omitnan'));
+    
+    if b == 4, target_zs = [4, 5];
+    elseif b == 5, target_zs = 6;
+    else, target_zs = b; end
+    
+    for z = 1:num_f
+        if ismember(z, target_zs)
+            x_z = true_vals{b}(z,:);
+            y_z = recon_vals{b}(z,:);
+            R_coef = corrcoef(x_z, y_z);
+            if numel(R_coef) > 1, r_sq = R_coef(1,2)^2; else, r_sq = 0; end
+            dpca_R2_scores(z) = r_sq;
+        end
+    end
+end
+
 %% ============================================================
-%  PLOTTING SECTION
+%  PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
-% Only plot if running serially (main thread) and k is large enough
 if isempty(getCurrentTask())
     
     % 1. Time Domain Reconstruction
@@ -103,36 +165,25 @@ if isempty(getCurrentTask())
     % 3. Explained Variance
     save_path = fullfile(results_dir, ['dPCA_ExplainedVariance' file_suffix '.png']);
     plotCumulativeVariance(explainedVar_pct, k, 'dPCA', save_path);
-
-    % --- Frequency Analysis Prep ---
+    
+    % 4. Frequency Analysis FFT
     save_path_fft = fullfile(results_dir, ['dPCA_FFT_True_vs_Recon' file_suffix '.png']);
-    [outFSP] = plotFrequencySpectra(h_test, h_f_recon_normalized_dpca, 'dPCA', param, k, save_path_fft);
-
-    Ht = outFSP.Ht;
-    Hr = outFSP.Hr;
-    Ht_avg = outFSP.Ht_avg;
-    Hr_avg = outFSP.Hr_avg;
-    R2_avg = outFSP.R2_avg;
-    f_axis = outFSP.f_axis;
-    f_plot = outFSP.f_plot;
-
+    plotFrequencySpectra(Ht_avg, Hr_avg, f_plot, 'dPCA', param, k, save_path_fft);
+    
     % 5. Band-wise R2 Bar Chart
     br2_path = fullfile(results_dir, ['dPCA_Bandwise_R2' file_suffix '.png']);
-    [outBR2P] = plotBandwiseR2(R2_avg, f_axis, param, k, 'dPCA', br2_path);
-    bands = outBR2P.bands;
-    band_names = outBR2P.b_names; 
-
+    plotBandwiseR2(R2_avg, f_axis, param, k, 'dPCA', br2_path);
+    
     % 6. Scatter Plots
-    % (Keeping your scatter logic, simplified call)
-    dpca_R2_scores = plotBandScatterPerTrial(Ht, Hr, f_plot, bands, band_names, param, k, "dPCA", results_dir);
+    plotBandScatterPerTrial(true_vals, recon_vals, dpca_R2_scores, band_names, param, k, "dPCA", results_dir);
 end
 
-%% 6. Package Output
+%% 7. Package Output
 outDPCA = struct();
 outDPCA.W = W;
 outDPCA.V = V;
 outDPCA.Z_dpca = Z_dpca;
-outDPCA.h_recon_test = h_f_recon_normalized_dpca; % Normalized reconstruction
+outDPCA.h_recon_test = h_f_recon_normalized_dpca; 
 outDPCA.zeroLagCorr = zeroLagCorr_dpca;
 outDPCA.explainedVar_frac = explainedVar_frac;
 outDPCA.explainedVar_pct  = explainedVar_pct;
@@ -142,8 +193,8 @@ outDPCA.R_full = R_dPCA;
 outDPCA.R2_features = R2_feat;
 outDPCA.MSE_features = MSE_feat;
 outDPCA.zeroLagCorr = zeroLagCorr_dpca;
-outDPCA.spectral_R2 = dpca_R2_scores;   
-
+outDPCA.spectral_R2 = dpca_R2_scores; % <--- Now guaranteed to exist!
+   
 close all;
 end
 
