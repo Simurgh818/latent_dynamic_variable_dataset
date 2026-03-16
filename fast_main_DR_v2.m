@@ -33,12 +33,12 @@ end
 %% Loop through experiments
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 10; % 10
-k_range    = 1:9; % 9
+nDatasets  = 1; % 10
+k_range    = 6:6; % 9
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA', 'AE','dPCA', 'ICA'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
+methods = {'iVAE'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
 
 EXP = struct();
 param = struct();
@@ -53,15 +53,15 @@ RESULTS.meta.description = "Dimensionality reduction benchmark";
 
 % Best practice: Leave 1-2 cores free for the OS/Main Thread.
 % For a 7-core system, 5 workers is a safe, high-performance choice.
-target_workers = 5; 
-current_pool = gcp('nocreate');
-
-if isempty(current_pool)
-    parpool(target_workers);
-elseif current_pool.NumWorkers ~= target_workers
-    delete(current_pool);
-    parpool(target_workers);
-end
+% target_workers = 5; 
+% current_pool = gcp('nocreate');
+% 
+% if isempty(current_pool)
+%     parpool(target_workers);
+% elseif current_pool.NumWorkers ~= target_workers
+%     delete(current_pool);
+%     parpool(target_workers);
+% end
 
 %% Loop through experiments
 for c = 1:numel(conditions)
@@ -74,7 +74,7 @@ for c = 1:numel(conditions)
     % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
-    parfor d = 1:nDatasets
+    for d = 1:nDatasets
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         data = struct();
         
@@ -96,7 +96,8 @@ for c = 1:numel(conditions)
         % Extract local variables
         s_eeg_like      = loader.train_sim_eeg_vals;
         h_f             = loader.train_true_hF';
-        
+        f_peak          = loader.param.f_peak;
+
         % Recalculate parameters locally
         local_param = loader.param; 
         fs_orig         = 1 / loader.dt;
@@ -134,14 +135,35 @@ for c = 1:numel(conditions)
         h_f_norm_orig = h_f ./ std(h_f, 0, 1);
         H_train = h_f_norm_orig(1:idx_split, :);
         H_test  = h_f_norm_orig(idx_split+1:end, :);
+
+        % C label Matrix for iVAE (Multi-hot Pulse Trains)
+        nTime = size(eeg, 2); 
+        numClasses = length(f_peak);
+        C_full = zeros(numClasses, nTime);
+        
+        for i = 1:numClasses
+            % Calculate the period in samples based on the actual sampling rate
+            period_samples = round(data.fs_orig / f_peak(i)); 
+            
+            % Place a 1 at every peak (multiple of period_samples)
+            C_full(i, period_samples:period_samples:end) = 1;
+        end
+        
+        % Split C into Train and Test using the exact same split index
+        c_train = C_full(:, 1:idx_split);
+        c_test  = C_full(:, idx_split+1:end);
+
         
         data.eeg_train = eeg_train;
         data.eeg_test  = eeg_test;
         data.H_train   = H_train;
         data.H_test    = H_test;
+        data.c_train   = c_train; 
+        data.c_test    = c_test;  
         data.eeg_ds    = s_eeg_ds; 
         data.H_ds      = h_f_normalized_ds;
-        
+        data.f_peak    = f_peak;
+
         % --- 3. Method Loop ---
         dataset_res = struct();
         dataset_res.f_peak = local_param.f_peak;

@@ -1,7 +1,7 @@
 function plotFrequencySpectra(Ht_avg, Hr_avg, f_plot, method_name, param, k, save_path)
     num_f = size(Ht_avg, 2);
     
-    fig = figure('Position', [100, 100, 1000, 600], 'Visible', 'off');
+    fig = figure('Position', [100, 100, 1000, 800], 'Visible', 'off');
     tiledlayout(2, 1, 'TileSpacing', 'compact' , 'Padding', 'compact'); 
     colors = lines(num_f);
     
@@ -38,7 +38,7 @@ function plotFrequencySpectra(Ht_avg, Hr_avg, f_plot, method_name, param, k, sav
     max_val = max(Ht_avg(:));
     ylim([max_val/1000, max_val]); 
     
-    set(findall(fig,'-property','FontSize'),'FontSize',28);
+    set(findall(fig,'-property','FontSize'),'FontSize',26);
     saveas(fig, save_path);
     close(fig);
 end
