@@ -22,6 +22,7 @@ function [encNet, decNet, priorNet, info] = trainEEGCVAE(X_train, C_train, X_tes
     if ~isfield(cfg, 'learnRate'),         cfg.learnRate = 1e-3; end
     if ~isfield(cfg, 'patience'),          cfg.patience = 15; end % Stop after 15 epochs of no improvement
     if ~isfield(cfg, 'beta'),              cfg.beta = 1.0; end % Default to standard CVAE/iVAE behavior
+    if ~isfield(cfg, 'warmupEpochs'),      cfg.warmupEpochs = 20; end
 
     numFeatures = size(X_train, 1);
     numClasses = size(C_train, 1);
@@ -102,7 +103,15 @@ function [encNet, decNet, priorNet, info] = trainEEGCVAE(X_train, C_train, X_tes
     
     for epoch = 1:cfg.epochs
         epochLoss = 0;
-        
+        % Starts at 0 on epoch 1, reaches full cfg.beta at cfg.warmupEpochs
+        if cfg.warmupEpochs > 1
+            % Math: (epoch - 1) / (20 - 1) creates a fraction from 0.0 to 1.0
+            fraction = min(1, (epoch - 1) / (cfg.warmupEpochs - 1));
+            current_beta = cfg.beta * fraction;
+        else
+            current_beta = cfg.beta;
+        end
+
         % Shuffle training data
         idx = randperm(numObs);
         X_shuffled = X_dl(:, idx);
@@ -114,7 +123,7 @@ function [encNet, decNet, priorNet, info] = trainEEGCVAE(X_train, C_train, X_tes
             XBatch = X_shuffled(:, idxBatch);
             CBatch = C_shuffled(:, idxBatch);
             
-            [gradEnc, gradDec, gradPrior, loss] = dlfeval(@modelLoss, encNet, decNet, priorNet, XBatch, CBatch, cfg.method, cfg.beta);
+            [gradEnc, gradDec, gradPrior, loss] = dlfeval(@modelLoss, encNet, decNet, priorNet, XBatch, CBatch, cfg.method, current_beta);
             
             [encNet, trailingAvgEnc, trailingAvgSqEnc] = adamupdate(encNet, gradEnc, trailingAvgEnc, trailingAvgSqEnc, epoch, cfg.learnRate);
             [decNet, trailingAvgDec, trailingAvgSqDec] = adamupdate(decNet, gradDec, trailingAvgDec, trailingAvgSqDec, epoch, cfg.learnRate);
@@ -131,7 +140,7 @@ function [encNet, decNet, priorNet, info] = trainEEGCVAE(X_train, C_train, X_tes
         info.lossHistory(epoch) = epochLoss / numBatches;
         
         % Evaluate Validation Loss (without gradients)
-        valLoss = computeValidationLoss(encNet, decNet, priorNet, X_test_dl, C_test_dl, cfg.method, cfg.beta);
+        valLoss = computeValidationLoss(encNet, decNet, priorNet, X_test_dl, C_test_dl, cfg.method, current_beta);
         info.valLossHistory(epoch) = extractdata(valLoss);
         
         fprintf("Epoch %d/%d - Train Loss: %.4f | Val Loss: %.4f\n", ...
