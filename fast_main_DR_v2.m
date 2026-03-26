@@ -5,7 +5,7 @@ clear; clc; close all;
 % 1. Load & Prepare Data
 % ----------------------------------------------------------
 % Paths
-if exist('H:\', 'dir')
+if exist('I:\', 'dir')
     input_dir = ['C:' filesep 'Users' filesep 'sinad' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
@@ -38,7 +38,7 @@ k_range    = 6:6; % 9
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'iVAE'}; %'PCA', 'AE','dPCA', 'ICA','UMAP' 
+methods = {'UMAP'}; % 'iVAE' 'PCA', 'AE','dPCA', 'ICA','UMAP' 
 
 EXP = struct();
 param = struct();

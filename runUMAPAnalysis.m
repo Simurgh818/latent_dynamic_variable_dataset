@@ -220,15 +220,15 @@ end
 % ============================================================
 if isempty(getCurrentTask())
     % Plot 1: UMAP Embedding (Training) colored by Latents
-    cluster_idx = kmeans(h_train, param.N_F,'MaxIter', 1000, 'Replicates', 5, 'Display', 'off');
+    cluster_idx = kmeans(h_test, param.N_F,'MaxIter', 1000, 'Replicates', 5, 'Display', 'off');
     
     fig1 = figure('Position', [100, 100, 1200, 800], 'Visible', 'off');
-    plot_comps = min(size(umap_train_raw,2), max(2, num_sig_components)); 
+    plot_comps = min(size(umap_test_raw,2), max(2, num_sig_components)); 
     t = tiledlayout(ceil((plot_comps-1)/3), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
     
     for d = 2:plot_comps
         nexttile;
-        gscatter(umap_train_raw(:,1), umap_train_raw(:,d), cluster_idx, [],[],10);
+        gscatter(umap_test_raw(:,1), umap_test_raw(:,d), cluster_idx, [],[],10);
         xlabel('UMAP Dim 1'); ylabel(['UMAP Dim ' num2str(d)]);
         title(['Dim 1 vs. ' num2str(d)]); grid on; legend off;
     end
@@ -241,13 +241,13 @@ if isempty(getCurrentTask())
     close(fig1);
     
     %% Plot 1.1: UMAP Dim 1 vs. Dim 2 colored by Intensity 
-    n_latents = size(h_train, 2);
+    n_latents = size(h_test, 2);
     fig11 = figure('Position', [100, 100, 1400, 900], 'Visible', 'off');
     t = tiledlayout(ceil(n_latents/3), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
     
     for i = 1:n_latents
         nexttile;
-        scatter(umap_train_raw(:,1), umap_train_raw(:,2), 15, h_train(:,i), 'filled');
+        scatter(umap_test_raw(:,1), umap_test_raw(:,2), 15, h_test(:,i), 'filled');
         xlim([-10 10]); xticks(-10:10:10);
         r2= round(R2_test_curve(end,i),2);
         peak_lbl = num2str(param.f_peak(i));
@@ -265,7 +265,7 @@ if isempty(getCurrentTask())
     plotTimeDomainReconstruction(h_test, h_rec_test_final, param, 'UMAP', num_sig_components, zeroLagCorr, method_dir);
     
     % Embedding Traces:
-    plotCTraces(num_sig_components, param, umap_train_raw, method_dir, file_suffix);
+    plotCTraces(num_sig_components, param, umap_test_raw, method_dir, file_suffix);
     
     %% Plot 4: Band Power Bar Chart & FFT     
     save_path_fft = fullfile(method_dir, ['UMAP_FFT_True_vs_Recon' file_suffix '.png']);
@@ -288,7 +288,7 @@ if isempty(getCurrentTask())
     for i = 1:param.N_F
         nexttile;
         try
-            [C,~,~,~,~,t_coh,f_coh] = cohgramc(h_train(:, i), h_rec_train_final(:, i), movingwin, params_coh);
+            [C,~,~,~,~,t_coh,f_coh] = cohgramc(h_test(:, i), h_rec_test_final(:, i), movingwin, params_coh);
             imagesc(t_coh, f_coh, C'); axis xy;
             xlabel('Time (s)'); ylabel('Freq (Hz)');
             ylim([0 50]); clim([0 1]); colorbar;
