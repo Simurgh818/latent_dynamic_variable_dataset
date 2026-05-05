@@ -102,79 +102,8 @@ h_rec_test_final = umap_test_raw * W_k;
 
 fs_new = param.fs;
 
-%% 6. Zero-Lag Correlation (Moved to mathematical block)
-Corr = zeros(1, param.N_F);
-for f = 1:param.N_F
-    c  = corrcoef(h_test(:,f), h_rec_test_final(:,f));
-    Corr(f) = c(1,2);
-end
-
-%% 7. Frequency & Spectral R2 Math (Runs on ALL workers!)
-T = size(h_test, 1);
-trial_dur = 1; 
-L = round(trial_dur * param.fs);
-nTrials = floor(T/L);
-f_axis = (0:L-1)*(param.fs/L);
-nHz = floor(L/2) + 1;
-f_plot = f_axis(1:nHz);
-
-Ht = zeros(L, param.N_F, nTrials);
-Hr = zeros(L, param.N_F, nTrials);
-R2_trials = zeros(L, param.N_F, nTrials);
-
-% --- FFT Calculation ---
-for tr = 1:nTrials
-    idx = (tr-1)*L + (1:L);
-    Ht(:,:,tr) = fft(h_test(idx, :));
-    Hr(:,:,tr) = fft(h_rec_test_final(idx, :));
-     for fidx = 1:param.N_F
-        num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
-        den = abs(Ht(:,fidx,tr)).^2 + eps;
-        R2_trials(:,fidx,tr) = 1 - num./den;
-     end
-end
-
-Ht_avg = mean(abs(Ht(1:nHz, :, :)), 3);
-Hr_avg = mean(abs(Hr(1:nHz, :, :)), 3);
-R2_avg = mean(R2_trials, 3);
-
-% --- Spectral R2 Calculation ---
-bands = struct('delta',[1 4], 'theta',[4 8], 'alpha',[8 13], 'beta',[13 30], 'gamma',[30 50]);
-band_names = fieldnames(bands);
-nBands = numel(band_names);
-UMAP_R2_scores = nan(param.N_F, 1);
-
-Ht_amp = abs(Ht(1:nHz,:,:));
-Hr_amp = abs(Hr(1:nHz,:,:));
-
-max_t = max(Ht_amp(:)); if max_t==0, max_t=1; end
-max_r = max(Hr_amp(:)); if max_r==0, max_r=1; end
-Ht_amp = Ht_amp ./ max_t; Hr_amp = Hr_amp ./ max_r;
-
-true_vals = cell(nBands,1);
-recon_vals = cell(nBands,1);
-
-for b = 1:nBands
-    f_range  = bands.(band_names{b});
-    idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
-    
-    true_vals{b}  = squeeze(mean(Ht_amp(idx_band,:,:), 1, 'omitnan'));
-    recon_vals{b} = squeeze(mean(Hr_amp(idx_band,:,:), 1, 'omitnan'));
-    
-    if b == 4, target_zs = [4, 5];
-    elseif b == 5, target_zs = 6;
-    else, target_zs = b; end
-    
-    for z = 1:param.N_F
-        if ismember(z, target_zs)
-            x_z = true_vals{b}(z,:);
-            y_z = recon_vals{b}(z,:);
-            R_coef = corrcoef(x_z, y_z);
-            if numel(R_coef) > 1, r_sq = R_coef(1,2)^2; else, r_sq = 0; end
-            UMAP_R2_scores(z) = r_sq;
-        end
-    end
-end
+%% 6. Compute Performance Metrics
+[Corr, UMAP_R2_scores, freq_data] = computePerformanceMetrics(h_test, h_rec_test_final, param);
 
 %% ============================================================
 % PLOTTING SECTION (Safely skipped by parallel workers)
@@ -204,7 +133,7 @@ if isempty(getCurrentTask())
     
     %% Plot 1.1: UMAP Dim 1 vs. Dim 2 colored by Intensity 
     n_latents = size(h_test, 2);
-    fig11 = figure('Position', [100, 100, 1400, 900], 'Visible', 'off');
+    fig11 = figure('Position', [100, 100, 1600, 900], 'Visible', 'off');
     t = tiledlayout(ceil(n_latents/3), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
     
     for i = 1:n_latents
@@ -212,7 +141,6 @@ if isempty(getCurrentTask())
         scatter(umap_test_raw(:,1), umap_test_raw(:,2), 15, h_test(:,i), 'filled');
         xlim([-10 10]); xticks(-10:10:10);
         
-        % FIX: Using the newly calculated Pearson Corr instead of the deleted R2
         rho = round(Corr(i), 2);
         peak_lbl = num2str(param.f_peak(i));
         title([sprintf('Z_{%s}', peak_lbl), ', \rho = ', num2str(rho)]); 
@@ -234,10 +162,10 @@ if isempty(getCurrentTask())
     
     %% Plot 4: Band Power Bar Chart & FFT     
     save_path_fft = fullfile(method_dir, ['UMAP_FFT_True_vs_Recon' file_suffix '.png']);
-    plotFrequencySpectra(Ht_avg, Hr_avg, f_plot, 'UMAP', param, num_sig_components, save_path_fft);
+    plotFrequencySpectra(freq_data.Ht_avg, freq_data.Hr_avg, freq_data.f_plot, 'UMAP', param, num_sig_components, save_path_fft);
     
     br2_path = fullfile(method_dir, ['UMAP_Bandwise_R2' file_suffix '.png']);
-    plotBandwiseR2(R2_avg, f_axis, param, num_sig_components, 'UMAP', br2_path);
+    plotBandwiseR2(freq_data.R2_avg, freq_data.f_axis, param, num_sig_components, 'UMAP', br2_path);
     
     %% Plot 5: Coherence Analysis (Chronux)
     params_coh.Fs = fs_new; 
@@ -267,6 +195,7 @@ if isempty(getCurrentTask())
     close(fig4);
     
     %% Plot 6: Scatter Mean Band Amplitudes
+    nBands = numel(freq_data.band_names);
     fig5 = figure('Position',[50 50 1400 300], 'Visible', 'off');
     tiledlayout(1, nBands, 'TileSpacing', 'loose', 'Padding', 'compact');
     sgtitle(['UMAP Band Mean FFT Amplitudes (k=' num2str(num_sig_components) ')']);
@@ -274,10 +203,10 @@ if isempty(getCurrentTask())
     
     for b = 1:nBands    
         nexttile; hold on;
-        x = mean(true_vals{b}, 2, 'omitnan');
-        y = mean(recon_vals{b}, 2, 'omitnan');
-        std_x = std(true_vals{b}, 0, 2, 'omitnan');
-        std_y = std(recon_vals{b}, 0, 2, 'omitnan');
+        x = mean(freq_data.true_vals{b}, 2, 'omitnan');
+        y = mean(freq_data.recon_vals{b}, 2, 'omitnan');
+        std_x = std(freq_data.true_vals{b}, 0, 2, 'omitnan');
+        std_y = std(freq_data.recon_vals{b}, 0, 2, 'omitnan');
         
         for m = 1:length(markers)
             if m>numel(x), break; end
@@ -285,18 +214,22 @@ if isempty(getCurrentTask())
             errorbar(x(m), y(m), std_x(m), std_y(m), 'LineStyle', 'none', 'Color', colors(b,:));
         end
         plot([min(x) max(x)], [min(x) max(x)], 'Color', colors(b,:), 'LineWidth', 2);
-        R = corrcoef(x,y); text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', colors(b,:));
-        title(band_names{b}); grid on;
+        
+        R = corrcoef(x,y); 
+        if numel(R) > 1, r_sq = R(1,2)^2; else, r_sq = 0; end
+        text(mean(x), mean(y), sprintf('R^2=%.2f', r_sq), 'Color', colors(b,:));
+        
+        title(freq_data.band_names{b}); grid on;
     end
     set(findall(fig5,'-property','FontSize'),'FontSize',20);
     saveas(fig5, fullfile(method_dir, ['UMAP_Scatter_Mean' file_suffix '.png']));
     close(fig5);
     
     %% Plot 7: Scatter Per-Trial
-    plotBandScatterPerTrial(true_vals, recon_vals, UMAP_R2_scores, band_names, param, num_sig_components, "UMAP", method_dir);
+    plotBandScatterPerTrial(freq_data.true_vals, freq_data.recon_vals, UMAP_R2_scores, freq_data.band_names, param, num_sig_components, "UMAP", method_dir);
 end
 
-%% Output Structure (FIX: Removed all deleted curve/global variables)
+%% Output Structure 
 outUMAP = struct();
 outUMAP.umap_train = umap_train;
 outUMAP.h_recon_test = h_rec_test_final;
@@ -305,8 +238,8 @@ outUMAP.n_neighbors = n_neighbors;
 outUMAP.min_dist = min_dist;
 outUMAP.corr_UMAP = corr_UMAP;
 outUMAP.R_full = R_UMAP; 
-outUMAP.Corr = Corr; % <--- Now guaranteed to exist!
-outUMAP.spectral_R2 = UMAP_R2_scores; % <--- Now guaranteed to exist!
+outUMAP.Corr = Corr; 
+outUMAP.spectral_R2 = UMAP_R2_scores; 
 close All;
 
 end

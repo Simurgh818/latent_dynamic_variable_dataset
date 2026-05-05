@@ -69,91 +69,14 @@ for f = 1:param.N_F
     recon_R2_test(f)  = 1 - sum((H_test(:,f) - H_recon_test(:,f)).^2) / sum((H_test(:,f) - mean(H_test(:,f))).^2);
 end
 
-%% 4. Global Metrics & Pearson Correlation
+%% 4. Compute Performance Metrics
+[Corr_test, AE_R2_scores, freq_data] = computePerformanceMetrics(H_test, H_recon_test, param);
 
-Z_true_train = H_train;
-Z_true_test = H_test;
-Z_recon_train = H_recon_train;
-Z_recon_test = H_recon_test;
-               
+% We also calculate Corr_train here specifically for Plot 3 (Split Reconstruction)
 Corr_train = zeros(1, param.N_F);
-Corr_test = zeros(1, param.N_F);
-
 for f = 1:param.N_F
-    % Use corrcoef for true Pearson correlation (inherently mean-centered)
-    c_train = corrcoef(Z_true_train(:,f), Z_recon_train(:,f));
-    c_test  = corrcoef(Z_true_test(:,f), Z_recon_test(:,f));
-    
-    % corrcoef returns a 2x2 matrix; the off-diagonal is the correlation value
+    c_train = corrcoef(H_train(:,f), H_recon_train(:,f));
     Corr_train(f) = c_train(1,2);
-    Corr_test(f)  = c_test(1,2);
-end
-
-%% 5. Frequency & Spectral R2 Math (Runs on ALL workers!)
-T = size(H_test, 1);
-trial_dur = 1; 
-L = round(trial_dur * param.fs);
-nTrials = floor(T/L);
-f_axis = (0:L-1)*(param.fs/L);
-nHz = floor(L/2) + 1;
-f_plot = f_axis(1:nHz);
-
-Ht_ae = zeros(L, param.N_F, nTrials);
-Hr_ae = zeros(L, param.N_F, nTrials);
-R2_trials = zeros(L, param.N_F, nTrials);
-
-% --- FFT Calculation ---
-for tr = 1:nTrials
-    idx = (tr-1)*L + (1:L);
-    Ht_ae(:,:,tr) = fft(H_test(idx, :));
-    Hr_ae(:,:,tr) = fft(H_recon_test(idx, :));
-     for fidx = 1:param.N_F
-        num = abs(Ht_ae(:,fidx,tr) - Hr_ae(:,fidx,tr)).^2;
-        den = abs(Ht_ae(:,fidx,tr)).^2 + eps;
-        R2_trials(:,fidx,tr) = 1 - num./den;
-     end
-end
-
-Ht_avg_ae = mean(abs(Ht_ae(1:nHz, :, :)), 3);
-Hr_avg_ae = mean(abs(Hr_ae(1:nHz, :, :)), 3);
-R2_avg_ae = mean(R2_trials, 3);
-
-% --- Spectral R2 Calculation ---
-bands = struct('delta',[1 4], 'theta',[4 8], 'alpha',[8 13], 'beta',[13 30], 'gamma',[30 50]);
-band_names = fieldnames(bands);
-nBands = numel(band_names);
-AE_R2_scores = nan(param.N_F, 1);
-
-Ht_amp = abs(Ht_ae(1:nHz,:,:));
-Hr_amp = abs(Hr_ae(1:nHz,:,:));
-
-max_t = max(Ht_amp(:)); if max_t==0, max_t=1; end
-max_r = max(Hr_amp(:)); if max_r==0, max_r=1; end
-Ht_amp = Ht_amp ./ max_t; Hr_amp = Hr_amp ./ max_r;
-
-true_vals = cell(nBands,1);
-recon_vals = cell(nBands,1);
-
-for b = 1:nBands
-    f_range  = bands.(band_names{b});
-    idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
-    
-    true_vals{b}  = squeeze(mean(Ht_amp(idx_band,:,:), 1, 'omitnan'));
-    recon_vals{b} = squeeze(mean(Hr_amp(idx_band,:,:), 1, 'omitnan'));
-    
-    if b == 4, target_zs = [4, 5];
-    elseif b == 5, target_zs = 6;
-    else, target_zs = b; end
-    
-    for z = 1:param.N_F
-        if ismember(z, target_zs)
-            x_z = true_vals{b}(z,:);
-            y_z = recon_vals{b}(z,:);
-            R_coef = corrcoef(x_z, y_z);
-            if numel(R_coef) > 1, r_sq = R_coef(1,2)^2; else, r_sq = 0; end
-            AE_R2_scores(z) = r_sq;
-        end
-    end
 end
 
 %% ============================================================
@@ -209,40 +132,39 @@ if isempty(getCurrentTask())
     
     %% Plot 4: Frequency Analysis FFT
     save_path_fft = fullfile(method_dir, ['AE_FFT_True_vs_Recon' file_suffix '.png']);
-    plotFrequencySpectra(Ht_avg_ae, Hr_avg_ae, f_plot, 'AE', param, bottleNeck, save_path_fft);
+    plotFrequencySpectra(freq_data.Ht_avg, freq_data.Hr_avg, freq_data.f_plot, 'AE', param, bottleNeck, save_path_fft);
     
     %% Plot 5: Band R2
     br2_path = fullfile(method_dir, ['AE_Bandwise_R2' file_suffix '.png']);
-    plotBandwiseR2(R2_avg_ae, f_axis, param, bottleNeck, 'AE', br2_path);
+    plotBandwiseR2(freq_data.R2_avg, freq_data.f_axis, param, bottleNeck, 'AE', br2_path);
     
-    %% Plot 6: Band Power Bar Chart (Using original Ht/Hr for un-normalized power)
-    band_power_true = zeros(nBands, param.N_F);
-    band_power_recon = zeros(nBands, param.N_F);
-    band_power_true_std = zeros(nBands, param.N_F);
-    band_power_recon_std = zeros(nBands, param.N_F);
+    %% Plot 6: Band Amplitude Bar Chart (Adapted for new freq_data struct)
+    nBands = numel(freq_data.band_names);
+    band_amp_true = zeros(nBands, param.N_F);
+    band_amp_recon = zeros(nBands, param.N_F);
+    band_amp_true_std = zeros(nBands, param.N_F);
+    band_amp_recon_std = zeros(nBands, param.N_F);
     
     for b = 1:nBands
-        f_range = bands.(band_names{b});
-        idx = f_plot >= f_range(1) & f_plot <= f_range(2);
         for fidx = 1:param.N_F
-            trial_power_true = mean(abs(Ht_ae(idx,fidx,:)).^2, 1, 'omitnan');
-            trial_power_recon = mean(abs(Hr_ae(idx,fidx,:)).^2, 1, 'omitnan');
+            trial_amp_true = freq_data.true_vals{b}(fidx, :);
+            trial_amp_recon = freq_data.recon_vals{b}(fidx, :);
             
-            band_power_true(b,fidx) = mean(trial_power_true(:));
-            band_power_recon(b,fidx) = mean(trial_power_recon(:));
-            band_power_true_std(b,fidx) = std(trial_power_true(:));
-            band_power_recon_std(b,fidx) = std(trial_power_recon(:));
+            band_amp_true(b,fidx) = mean(trial_amp_true, 'omitnan');
+            band_amp_recon(b,fidx) = mean(trial_amp_recon, 'omitnan');
+            band_amp_true_std(b,fidx) = std(trial_amp_true, 0, 'omitnan');
+            band_amp_recon_std(b,fidx) = std(trial_amp_recon, 0, 'omitnan');
         end
     end
     
     fig5 = figure('Position',[100 100 1000 250*ceil(param.N_F/3)], 'Visible', 'off');
     tiledlayout(ceil(param.N_F/3), 3, 'TileSpacing', 'compact', 'Padding', 'compact');
-    sgtitle(['Band Power Comparison (Mean ± SD) for k = ' num2str(bottleNeck)]);
+    sgtitle(['Band Amplitude Comparison (Mean ± SD) for k = ' num2str(bottleNeck)]);
     
     for fidx = 1:param.N_F
         nexttile;
-        bar_data = [band_power_true(:,fidx), band_power_recon(:,fidx)];
-        bar_std = [band_power_true_std(:,fidx), band_power_recon_std(:,fidx)];
+        bar_data = [band_amp_true(:,fidx), band_amp_recon(:,fidx)];
+        bar_std = [band_amp_true_std(:,fidx), band_amp_recon_std(:,fidx)];
         bh = bar(bar_data); hold on;
         
         ngroups = size(bar_data,1); nbars = size(bar_data,2);
@@ -252,16 +174,16 @@ if isempty(getCurrentTask())
             errorbar(x, bar_data(:,i), bar_std(:,i), 'k', 'linestyle', 'none', 'LineWidth', 1);
         end
         bh(1).FaceColor = [0.3 0.6 0.9]; bh(2).FaceColor = [0.9 0.4 0.4];
-        set(gca, 'XTickLabel', band_names, 'XTickLabelRotation', 45);
+        set(gca, 'XTickLabel', freq_data.band_names, 'XTickLabelRotation', 45);
         title(['Z_{' num2str(param.f_peak(fidx)) '}']); 
         grid on;
     end
     legend({'True','Reconstructed'}, 'Location','northoutside','Orientation','horizontal');
     set(findall(fig5,'-property','FontSize'),'FontSize',16);
-    saveas(fig5, fullfile(method_dir, ['AE_Band_Power' file_suffix '.png']));
+    saveas(fig5, fullfile(method_dir, ['AE_Band_Amplitude' file_suffix '.png']));
     close(fig5);
     
-    %% Plot 7: Scatter Mean Band Amplitudes (Simplified using true_vals)
+    %% Plot 7: Scatter Mean Band Amplitudes 
     fig7 = figure('Position',[50 50 1200 300], 'Visible', 'off');
     tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
     sgtitle(['AE: True vs Reconstructed Band Mean FFT Amplitudes for k= ' num2str(bottleNeck)]);
@@ -271,13 +193,11 @@ if isempty(getCurrentTask())
     for b = 1:nBands    
         nexttile; hold on;
         
-        % We can reuse the true_vals and recon_vals generated in Section 5
-        x = mean(true_vals{b}, 2, 'omitnan'); % Mean across trials
-        y = mean(recon_vals{b}, 2, 'omitnan');
+        x = mean(freq_data.true_vals{b}, 2, 'omitnan'); 
+        y = mean(freq_data.recon_vals{b}, 2, 'omitnan');
+        std_x = std(freq_data.true_vals{b}, 0, 2, 'omitnan');
+        std_y = std(freq_data.recon_vals{b}, 0, 2, 'omitnan');
         
-        % Std across trials
-        std_x = std(true_vals{b}, 0, 2, 'omitnan');
-        std_y = std(recon_vals{b}, 0, 2, 'omitnan');
         for m = 1:length(markers)
             if m > numel(x), break; end
             scatter(x(m), y(m), 70, 'filled', 'MarkerFaceColor', colors(b,:),'Marker', markers{m});
@@ -285,29 +205,29 @@ if isempty(getCurrentTask())
         end
         plot(linspace(min(x),max(x)), linspace(min(x),max(x)), 'Color', colors(b,:), 'LineWidth', 2);
         R = corrcoef(x, y);
-        text(mean(x), mean(y), sprintf('R^2=%.2f', R(1,2)^2), 'Color', colors(b,:), 'FontSize', 12);
-        title([band_names{b} ' band']); grid on;
+        if numel(R) > 1, R2_val = R(1,2)^2; else, R2_val = 0; end
+        text(mean(x), mean(y), sprintf('R^2=%.2f', R2_val), 'Color', colors(b,:), 'FontSize', 12);
+        title([freq_data.band_names{b} ' band']); grid on;
     end
     set(findall(fig7,'-property','FontSize'),'FontSize',16);
     saveas(fig7, fullfile(method_dir, ['AE_Scatter_Mean' file_suffix '.png']));
     close(fig7);
     
     %% Plot 8: Scatter Per-Trial Band Amplitudes
-    plotBandScatterPerTrial(true_vals, recon_vals, AE_R2_scores, band_names, param, bottleNeck, "AE", method_dir);
+    plotBandScatterPerTrial(freq_data.true_vals, freq_data.recon_vals, AE_R2_scores, freq_data.band_names, param, bottleNeck, "AE", method_dir);
 end
 
 %% 6. Outputs and Summary Saves
 outAE = struct();
 outAE.net = net;
-outAE.h_recon_train     = H_recon_train;
-outAE.h_recon_test      = H_recon_test;
-
+outAE.h_recon_train    = H_recon_train;
+outAE.h_recon_test     = H_recon_test;
 outAE.component_R2     = recon_R2_test;
 outAE.results_dir      = method_dir;
 outAE.corr_AE          = corr_AE;
 outAE.R_full           = R_AE;
 outAE.Corr             = Corr_test;
-outAE.spectral_R2      = AE_R2_scores;  % Guaranteed to exist for parallel workers!
+outAE.spectral_R2      = AE_R2_scores; 
 close all;
 
 end
