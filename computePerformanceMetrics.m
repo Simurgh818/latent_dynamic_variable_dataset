@@ -31,19 +31,13 @@ function [Corr, spectral_R2_scores, freq_data] = computePerformanceMetrics(h_tes
 
     Ht = zeros(L, num_f, nTrials);
     Hr = zeros(L, num_f, nTrials);
-    R2_trials = zeros(L, num_f, nTrials);
-
     %% 3. FFT Calculation
     for tr = 1:nTrials
         idx = (tr-1)*L + (1:L);
         Ht(:,:,tr) = fft(h_test(idx, :));
         Hr(:,:,tr) = fft(h_recon_test(idx, :));
-         for fidx = 1:num_f
-            num = abs(Ht(:,fidx,tr) - Hr(:,fidx,tr)).^2;
-            den = abs(Ht(:,fidx,tr)).^2 + eps;
-            R2_trials(:,fidx,tr) = 1 - num./den;
-         end
     end
+    R2_trials = 1 - (abs(Ht - Hr).^2)./(abs(Ht).^2 + eps);
 
     Ht_avg = mean(abs(Ht(1:nHz, :, :)), 3);
     Hr_avg = mean(abs(Hr(1:nHz, :, :)), 3);

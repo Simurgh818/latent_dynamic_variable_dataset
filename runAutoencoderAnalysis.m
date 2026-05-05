@@ -54,8 +54,6 @@ H_test    = H_test(1:minLenTest,:);
 %% 3. Linear Mapping via lsqlin / matrix division
 H_recon_train = zeros(size(H_train));
 H_recon_test  = zeros(size(H_test));
-recon_R2_train = zeros(1,param.N_F);
-recon_R2_test  = zeros(1,param.N_F);
 
 for f = 1:param.N_F
     w = Z_train_c \ H_train(:,f);
@@ -63,10 +61,7 @@ for f = 1:param.N_F
     % Reconstruct
     H_recon_train(:,f) = Z_train_c * w;
     H_recon_test(:,f)  = Z_test_c * w;
-    
-    % Component-wise R^2
-    recon_R2_train(f) = 1 - sum((H_train(:,f) - H_recon_train(:,f)).^2) / sum((H_train(:,f) - mean(H_train(:,f))).^2);
-    recon_R2_test(f)  = 1 - sum((H_test(:,f) - H_recon_test(:,f)).^2) / sum((H_test(:,f) - mean(H_test(:,f))).^2);
+
 end
 
 %% 4. Compute Performance Metrics
