@@ -19,12 +19,13 @@ file_suffix = sprintf('_n%d_dist%.1f_k%d', n_neighbors, min_dist, num_sig_compon
 h_f_colors = lines(param.N_F);
 
 %% 3. Prepare Data (Transpose to Time x Neurons)
-% Reverting back to standard spatial features (Channels x Time -> Time x Channels)
-eeg_train = double(s_train)';
-eeg_test  = double(s_test)';
+% changing the shape to promote learning across time
+eeg_train = double([s_train(:, 1:end-1) ; s_train(:, 2:end)])';
+eeg_test = double([s_test(:, 1:end-1) ; s_test(:, 2:end)])';
 
-% We no longer need to chop off the last time point
-% h_train and h_test remain exactly as they were passed in
+% fix h_test and h_train size 
+h_train = h_train(1:end-1,:);
+h_test = h_test(1:end-1,:);
 rng(42,'twister');
 
 %% 4. Run UMAP (Train) & Transform (Test)
