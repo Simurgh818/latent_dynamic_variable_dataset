@@ -13,18 +13,18 @@ spectral_R2 = NaN; % Initialize spectral_R2 for cases where it's not defined
 % Run Analysis
 switch method
     case 'PCA'
-        [R2, MSE, outPCA] = runPCAAnalysis(data.eeg_train, data.eeg_test,...
+        [outPCA] = runPCAAnalysis(data.eeg_train, data.eeg_test,...
             data.H_train, data.H_test, local_param, k, method_dir);
                         
         out = outPCA;
         if isfield(outPCA, 'corr_PCA'), corr_table = outPCA.corr_PCA; end
         if isfield(outPCA, 'R_full'),   R_matrix   = outPCA.R_full;   end
         if isfield(outPCA, 'spectral_R2'), spectral_R2 = outPCA.spectral_R2; end
-        if isfield(outPCA, 'zeroLagCorr'), zeroLagCorr = outPCA.zeroLagCorr; end
+        if isfield(outPCA, 'Corr'), Corr = outPCA.Corr; end
 
    case 'dPCA'
         % Assuming rundPCAAnalysis also takes 'k' now and returns single-k result
-        [R2, MSE, outDPCA] = rundPCAAnalysis( ...
+        [outDPCA] = rundPCAAnalysis( ...
             data.eeg_train, data.eeg_test, data.H_train, data.H_test,...
             local_param, k, method_dir);       
         
@@ -32,41 +32,41 @@ switch method
         if isfield(outDPCA, 'corr_dPCA'), corr_table = outDPCA.corr_dPCA; end
         if isfield(outDPCA, 'R_full'),    R_matrix   = outDPCA.R_full;    end
         if isfield(outDPCA, 'spectral_R2'), spectral_R2 = outDPCA.spectral_R2; end
-        if isfield(outDPCA, 'zeroLagCorr'), zeroLagCorr = outDPCA.zeroLagCorr; end
+        if isfield(outDPCA, 'Corr'), Corr = outDPCA.Corr; end
 
    case 'ICA'
-        [R2, MSE, outICA] = runICAAnalysis(data.eeg_train, data.eeg_test, ...
+        [outICA] = runICAAnalysis(data.eeg_train, data.eeg_test, ...
              data.H_train, data.H_test, k, local_param, method_dir);
         out = outICA;
         if isfield(outICA, 'corr_ICA'), corr_table = outICA.corr_ICA; end
         if isfield(outICA, 'R_full'),   R_matrix   = outICA.R_full;   end
         if isfield(outICA, 'spectral_R2'), spectral_R2 = outICA.spectral_R2; end
-        if isfield(outICA, 'zeroLagCorr'), zeroLagCorr = outICA.zeroLagCorr; end
+        if isfield(outICA, 'Corr'), Corr = outICA.Corr; end
         
     case 'UMAP'
         n_neighbors = 3; min_dist = 0.99;
-        [R2, MSE, outUMAP] = runUMAPAnalysis( ...
+        [outUMAP] = runUMAPAnalysis( ...
             n_neighbors, min_dist, data.eeg_train, data.eeg_test, local_param, ...
             data.H_train, data.H_test, k, local_results_dir);
         out = outUMAP;
         if isfield(outUMAP, 'corr_UMAP'), corr_table = outUMAP.corr_UMAP; end
         if isfield(outUMAP, 'R_full'),    R_matrix   = outUMAP.R_full;    end
         if isfield(outUMAP, 'spectral_R2'), spectral_R2 = outUMAP.spectral_R2; end
-        if isfield(outUMAP, 'zeroLagCorr'), zeroLagCorr = outUMAP.zeroLagCorr; end
+        if isfield(outUMAP, 'Corr'), Corr = outUMAP.Corr; end
 
     case 'AE'
-        [R2, MSE, outAE] = runAutoencoderAnalysis(data.eeg_train, data.eeg_test,...
+        [outAE] = runAutoencoderAnalysis(data.eeg_train, data.eeg_test,...
             data.H_train, data.H_test, k, local_param, local_results_dir);
         out = outAE;
         if isfield(outAE, 'corr_AE'), corr_table = outAE.corr_AE; end
         if isfield(outAE, 'R_full'),  R_matrix   = outAE.R_full;  end
         if isfield(outAE, 'spectral_R2'), spectral_R2 = outAE.spectral_R2; end
-        if isfield(outAE, 'zeroLagCorr'), zeroLagCorr = outAE.zeroLagCorr; end
+        if isfield(outAE, 'Corr'), Corr = outAE.Corr; end
 
     case 'iVAE'
         % --- Define your Beta value ---
         beta_val = 0.1; 
-        [R2, MSE, outIVAE] = runIVaeAnalysis(data.eeg_train, data.c_train, ...
+        [outIVAE] = runIVaeAnalysis(data.eeg_train, data.c_train, ...
                                              data.eeg_test, data.c_test, ...
                                              data.H_train, data.H_test, ...
                                              k, local_param, local_results_dir, beta_val);
@@ -76,7 +76,7 @@ switch method
         if isfield(outIVAE, 'corr_IVAE'),   corr_table  = outIVAE.corr_IVAE;   end
         if isfield(outIVAE, 'R_full'),      R_matrix    = outIVAE.R_full;      end
         if isfield(outIVAE, 'spectral_R2'), spectral_R2 = outIVAE.spectral_R2; end
-        if isfield(outIVAE, 'zeroLagCorr'), zeroLagCorr = outIVAE.zeroLagCorr; end
+        if isfield(outIVAE, 'Corr'), Corr = outIVAE.Corr; end
 end
 
 % Process Correlation Table Metadata
@@ -93,11 +93,9 @@ entry.method  = string(method);
 entry.k       = k;
 entry.ki      = ki;
 entry.stats = struct();
-entry.stats.R2  = R2;
-entry.stats.MSE = MSE;
 entry.corr = corr_table;
 entry.R_matrix = R_matrix;
-entry.zeroLagCorr = zeroLagCorr;
+entry.Corr = Corr;
 entry.spectral_R2 = spectral_R2;
 entry.out  = out;
 

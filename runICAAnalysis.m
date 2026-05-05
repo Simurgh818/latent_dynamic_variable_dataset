@@ -1,4 +1,4 @@
-function [R2_test, MSE_test, outICA] = runICAAnalysis(eeg_train, eeg_test, h_train, h_test, num_comps, param, method_dir)
+function [outICA] = runICAAnalysis(eeg_train, eeg_test, h_train, h_test, num_comps, param, method_dir)
 % runICAAnalysis EEGLAB ICA + PCA whitening with detailed Frequency Analysis
 %
 % Inputs:
@@ -74,25 +74,13 @@ h_rec_test_raw  = icasig_test * W_map;
 h_rec_train = h_rec_train_raw ./ std(h_rec_train_raw, 0, 1);
 h_rec_test  = h_rec_test_raw  ./ std(h_rec_test_raw, 0, 1);
 
-% Calculate Metrics
-R2_test_global = zeros(1, param.N_F); 
-MSE_test_global = zeros(1, param.N_F); 
-for f = 1:param.N_F
-    MSE_test_global(f) = mean((h_test(:,f) - h_rec_test(:,f)).^2);
-    
-    res_var = sum((h_test(:,f) - h_rec_test(:,f)).^2);
-    tot_var = sum((h_test(:,f) - mean(h_test(:,f))).^2);
-    R2_test_global(f) = 1 - (res_var / tot_var);
-end
-
-R2_test = mean(R2_test_global);
-MSE_test = mean(MSE_test_global);
+%% Calculate Metric
 
 % Compute Zero-Lag Correlation for plotting
-zeroLagCorr_ica = zeros(1, param.N_F);
+Corr_ica = zeros(1, param.N_F);
 for f = 1:param.N_F
     c = corrcoef(h_test(:,f), h_rec_test(:,f));
-    zeroLagCorr_ica(f) = c(1,2);
+    Corr_ica(f) = c(1,2);
 end
 
 %% 4. Frequency & Spectral R2 Math (Runs on ALL workers!)
@@ -166,7 +154,7 @@ end
 % ============================================================
 if isempty(getCurrentTask())
     % Time domain plot
-    plotTimeDomainReconstruction(h_test, h_rec_test, param, 'ICA', num_comps, zeroLagCorr_ica, method_dir);
+    plotTimeDomainReconstruction(h_test, h_rec_test, param, 'ICA', num_comps, Corr_ica, method_dir);
     
     % Independent Component traces plot
     plotCTraces(num_comps, param, h_rec_test, method_dir, file_suffix);
@@ -254,11 +242,10 @@ outICA.icasig_train = icasig_train;
 outICA.icasig_test  = icasig_test;
 outICA.h_recon_train = h_rec_train;
 outICA.h_recon_test  = h_rec_test;
-outICA.MSE_train    = mean((h_test - h_rec_test).^2, 'all');
 outICA.method_dir   = method_dir;
 outICA.corr_ICA     = corr_ICA;
 outICA.R_full       = R_ICA; 
-outICA.zeroLagCorr  = zeroLagCorr_ica;
+outICA.Corr  = Corr_ica;
 outICA.spectral_R2  = ica_R2_scores;  % <--- Now guaranteed to exist!
 
 close all;

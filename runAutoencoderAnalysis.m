@@ -1,4 +1,4 @@
-function [R2_test, MSE_test, outAE] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, bottleNeck, param,  results_dir)
+function [outAE] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, bottleNeck, param,  results_dir)
 % runAutoencoderAnalysis Trains AE + Linear Mapping and generates diagnostic plots
 %
 % Inputs:
@@ -9,7 +9,6 @@ function [R2_test, MSE_test, outAE] = runAutoencoderAnalysis(X_train, X_test, H_
 %   results_dir         : Directory to save results
 %
 % Outputs:
-%   R2_test, MSE_test   : Global performance metrics on Test set
 %   outAE               : Structure containing networks, traces, and metrics
 
 %% 1. Setup and Directory
@@ -24,7 +23,6 @@ fs_new = param.fs;
 
 %% 2. Train Autoencoder (Unsupervised)
 batch_size = 100; % 80
-
 [net, ~] = trainEEGAutoencoder(X_train, X_test,  ...
     'encoderLayerSizes', [64,32], ...
     'bottleneckSize', bottleNeck, ...
@@ -71,25 +69,24 @@ for f = 1:param.N_F
     recon_R2_test(f)  = 1 - sum((H_test(:,f) - H_recon_test(:,f)).^2) / sum((H_test(:,f) - mean(H_test(:,f))).^2);
 end
 
-%% 4. Global Metrics & Zero-Lag Correlation
-R2_test  = 1 - sum((H_test(:) - H_recon_test(:)).^2) / sum((H_test(:) - mean(H_test(:))).^2);
-MSE_test = mean((H_test(:) - H_recon_test(:)).^2);
+%% 4. Global Metrics & Pearson Correlation
 
 Z_true_train = H_train;
 Z_true_test = H_test;
 Z_recon_train = H_recon_train;
 Z_recon_test = H_recon_test;
+               
+Corr_train = zeros(1, param.N_F);
+Corr_test = zeros(1, param.N_F);
 
-maxLag = 200;               
-lags   = -maxLag:maxLag;    
-
-zeroLagCorr_train = zeros(1, param.N_F);
-zeroLagCorr_test = zeros(1, param.N_F);
 for f = 1:param.N_F
-    c_train = xcorr(Z_true_train(:,f), Z_recon_train(:,f), maxLag, 'coeff');
-    c_test = xcorr(Z_true_test(:,f), Z_recon_test(:,f), maxLag, 'coeff');
-    zeroLagCorr_train(f) = c_train(lags==0);
-    zeroLagCorr_test(f) = c_test(lags==0);
+    % Use corrcoef for true Pearson correlation (inherently mean-centered)
+    c_train = corrcoef(Z_true_train(:,f), Z_recon_train(:,f));
+    c_test  = corrcoef(Z_true_test(:,f), Z_recon_test(:,f));
+    
+    % corrcoef returns a 2x2 matrix; the off-diagonal is the correlation value
+    Corr_train(f) = c_train(1,2);
+    Corr_test(f)  = c_test(1,2);
 end
 
 %% 5. Frequency & Spectral R2 Math (Runs on ALL workers!)
@@ -125,10 +122,11 @@ R2_avg_ae = mean(R2_trials, 3);
 bands = struct('delta',[1 4], 'theta',[4 8], 'alpha',[8 13], 'beta',[13 30], 'gamma',[30 50]);
 band_names = fieldnames(bands);
 nBands = numel(band_names);
-
 AE_R2_scores = nan(param.N_F, 1);
+
 Ht_amp = abs(Ht_ae(1:nHz,:,:));
 Hr_amp = abs(Hr_ae(1:nHz,:,:));
+
 max_t = max(Ht_amp(:)); if max_t==0, max_t=1; end
 max_r = max(Hr_amp(:)); if max_r==0, max_r=1; end
 Ht_amp = Ht_amp ./ max_t; Hr_amp = Hr_amp ./ max_r;
@@ -158,12 +156,11 @@ for b = 1:nBands
     end
 end
 
-
 %% ============================================================
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
 if isempty(getCurrentTask()) 
-
+    
     %% Plot 1 & 2: Component Traces
     plotCTraces(bottleNeck, param, H_recon_test, method_dir, file_suffix);
     
@@ -184,9 +181,9 @@ if isempty(getCurrentTask())
         xlim([0 fs_new]);
         if f==1, title('Training Set'); end
         legend('location', 'southeastoutside', 'Interpreter', 'latex');
-        rho_train = zeroLagCorr_train(f);
+        rho_train = Corr_train(f);
         text(0.02 * fs_new, 0.05 * max(H_train(:,f)), ...
-        sprintf('\\rho(0)=%.2f', rho_train), ...
+        sprintf('\\rho=%.2f', rho_train), ...
         'FontSize', 12, 'FontWeight', 'bold',...
         'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
         'Margin', 3, 'EdgeColor','k');
@@ -197,9 +194,9 @@ if isempty(getCurrentTask())
         plot(H_test(1:vis_len_test, f), '-',  'Color', h_f_colors(f,:), 'LineWidth', 1.5, 'DisplayName',[' $Z_{' num2str(param.f_peak(f)) '}$']);  
         plot(H_recon_test(1:vis_len_test, f), '--', 'Color', 'k', 'LineWidth', 1.5, 'DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$']);
         xlim([0 fs_new]);
-        rho_test = zeroLagCorr_test(f);
+        rho_test = Corr_test(f);
         text(0.02 * fs_new, 0.05 * max(H_test(:,f)), ...
-        sprintf('\\rho(0)=%.2f', rho_test), ...
+        sprintf('\\rho=%.2f', rho_test), ...
         'FontSize', 12, 'FontWeight', 'bold',...
         'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
         'Margin', 3, 'EdgeColor','k');
@@ -263,7 +260,7 @@ if isempty(getCurrentTask())
     set(findall(fig5,'-property','FontSize'),'FontSize',16);
     saveas(fig5, fullfile(method_dir, ['AE_Band_Power' file_suffix '.png']));
     close(fig5);
-
+    
     %% Plot 7: Scatter Mean Band Amplitudes (Simplified using true_vals)
     fig7 = figure('Position',[50 50 1200 300], 'Visible', 'off');
     tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
@@ -281,7 +278,6 @@ if isempty(getCurrentTask())
         % Std across trials
         std_x = std(true_vals{b}, 0, 2, 'omitnan');
         std_y = std(recon_vals{b}, 0, 2, 'omitnan');
-
         for m = 1:length(markers)
             if m > numel(x), break; end
             scatter(x(m), y(m), 70, 'filled', 'MarkerFaceColor', colors(b,:),'Marker', markers{m});
@@ -305,15 +301,13 @@ outAE = struct();
 outAE.net = net;
 outAE.h_recon_train     = H_recon_train;
 outAE.h_recon_test      = H_recon_test;
-outAE.R2_test          = R2_test;
-outAE.MSE_test         = MSE_test;
+
 outAE.component_R2     = recon_R2_test;
 outAE.results_dir      = method_dir;
 outAE.corr_AE          = corr_AE;
 outAE.R_full           = R_AE;
-outAE.zeroLagCorr      = zeroLagCorr_test;
+outAE.Corr             = Corr_test;
 outAE.spectral_R2      = AE_R2_scores;  % Guaranteed to exist for parallel workers!
-
 close all;
 
 end

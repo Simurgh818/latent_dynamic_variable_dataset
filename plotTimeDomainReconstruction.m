@@ -1,4 +1,4 @@
-function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, zeroLagCorr, save_dir)
+function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, Corr, save_dir)
 % plotTimeDomainReconstruction Generates time-series comparison plots
 %
 % Inputs:
@@ -7,7 +7,7 @@ function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, zer
 %   param       : Struct with .N_F, .f_peak, .fs
 %   methodName  : String (e.g., 'ICA', 'PCA')
 %   k           : Number of components used (integer)
-%   zeroLagCorr : Vector of correlation values (1 x N_F)
+%   Corr : Vector of correlation values (1 x N_F)
 %   save_dir    : Directory to save the PNG
 
     % --- 1. Parallel Safety Check ---
@@ -65,12 +65,12 @@ function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, zer
         legend('Show', 'Interpreter', 'latex', 'Location', 'eastoutside');
         
         % Add Correlation Text
-        if f <= length(zeroLagCorr)
-            rho = zeroLagCorr(f);
+        if f <= length(Corr)
+            rho = Corr(f);
             % Position text relative to the max amplitude of the current trace
             y_pos = 0.5 * max(abs(h_true(:, f)));
             text(0.02 * param.fs, y_pos, ...
-                sprintf('\\rho(0)=%.2f', rho), ...
+                sprintf('\\rho=%.2f', rho), ...
                 'FontSize', 12, 'FontWeight', 'bold', ...
                 'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
                 'Margin', 3, 'EdgeColor', 'k');

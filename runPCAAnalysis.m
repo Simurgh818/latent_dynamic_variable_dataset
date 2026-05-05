@@ -1,4 +1,4 @@
-function [R2_test_avg, MSE_test_avg, outPCA] = runPCAAnalysis(eeg_train, eeg_test, h_train, h_test, param, k, method_dir)
+function [outPCA] = runPCAAnalysis(eeg_train, eeg_test, h_train, h_test, param, k, method_dir)
 % runPCAAnalysis Performs PCA and reconstruction for a SPECIFIC k components.
 %
 % Inputs:
@@ -23,7 +23,7 @@ score_test = (eeg_test' - mean(eeg_train', 1)) * coeff;
 [corr_PCA, R_PCA] = match_components_to_latents(score_test, h_test, 'PCA', k);
 
 %% 3. Reconstruction & Normalization
-% Train regression weights: ICs * W = Latents
+% Train regression weights: PCs * W = Latents
 W = score(:, 1:k) \ h_train;
 
 % Reconstruct
@@ -36,27 +36,12 @@ h_recon_train = h_recon_train_raw ./ std(h_recon_train_raw, 0, 1);
 h_recon_test  = h_recon_test_raw  ./ std(h_recon_test_raw, 0, 1);
 
 %% 4. Compute Performance Metrics (for this specific k)
-R2_feat_test = zeros(1, param.N_F);
-MSE_feat_test = zeros(1, param.N_F);
 
-for f = 1:param.N_F
-    % Test Metrics
-    res_var_t = sum((h_test(:,f) - h_recon_test(:,f)).^2);
-    tot_var_t = sum((h_test(:,f) - mean(h_test(:,f))).^2);
-    
-    R2_feat_test(f)  = 1 - (res_var_t / tot_var_t);
-    MSE_feat_test(f) = mean((h_test(:,f) - h_recon_test(:,f)).^2);
-end
-
-% Averages to return to the main script's k-loop
-R2_test_avg  = mean(R2_feat_test);
-MSE_test_avg = mean(MSE_feat_test);
-
-% Zero-Lag Correlation for plotting
-zeroLagCorr_pca = zeros(1, param.N_F);
+% Correlation for plotting
+Corr_pca = zeros(1, param.N_F);
 for f = 1:param.N_F
     c = corrcoef(h_test(:,f), h_recon_test(:,f));
-    zeroLagCorr_pca(f) = c(1,2);
+    Corr_pca(f) = c(1,2);
 end
 
 %% 5. Frequency & Spectral R2 Math (Runs on ALL workers!)
@@ -129,7 +114,7 @@ end
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
 if isempty(getCurrentTask()) 
-    plotTimeDomainReconstruction(h_test, h_recon_test, param, 'PCA', k, zeroLagCorr_pca, method_dir);
+    plotTimeDomainReconstruction(h_test, h_recon_test, param, 'PCA', k, Corr_pca, method_dir);
     plotCTraces(k, param, score_test, method_dir, file_suffix);
     
     save_path = fullfile(method_dir, ['PCA_ExplainedVariance' file_suffix '.png']);
@@ -149,13 +134,11 @@ end
 outPCA = struct();
 outPCA.h_recon_train = h_recon_train; % Required for snippet logic
 outPCA.h_recon_test  = h_recon_test;
-outPCA.R2_features   = R2_feat_test;  % Per-latent R2
-outPCA.MSE_features  = MSE_feat_test; % Per-latent MSE
 outPCA.corr_PCA      = corr_PCA;      % Table of matches
 outPCA.R_full        = R_PCA;         % Full corr matrix
 outPCA.explained     = explained;
 outPCA.method_dir    = method_dir;
-outPCA.zeroLagCorr = zeroLagCorr_pca;
+outPCA.Corr = Corr_pca;
 outPCA.spectral_R2 = pca_R2_scores;    
 
 close all;

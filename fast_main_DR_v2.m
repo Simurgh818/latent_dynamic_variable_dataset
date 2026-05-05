@@ -33,12 +33,12 @@ end
 %% Loop through experiments
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 10; % 10
-k_range    = 1:9; % 9
+nDatasets  = 1; % 10
+k_range    = 1:7; % 9
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA', 'AE', 'ICA'}; % 'iVAE' 'PCA', 'AE','dPCA', 'ICA','UMAP' 
+methods = {'PCA', 'ICA'}; % 'iVAE' 'PCA', 'AE','dPCA', 'ICA','UMAP' 
 
 EXP = struct();
 param = struct();
@@ -53,15 +53,16 @@ RESULTS.meta.description = "Dimensionality reduction benchmark";
 
 % Best practice: Leave 1-2 cores free for the OS/Main Thread.
 % For a 7-core system, 5 workers is a safe, high-performance choice.
-target_workers = 5; 
-current_pool = gcp('nocreate');
 
-if isempty(current_pool)
-    parpool(target_workers);
-elseif current_pool.NumWorkers ~= target_workers
-    delete(current_pool);
-    parpool(target_workers);
-end
+% target_workers = 5; 
+% current_pool = gcp('nocreate');
+% 
+% if isempty(current_pool)
+%     parpool(target_workers);
+% elseif current_pool.NumWorkers ~= target_workers
+%     delete(current_pool);
+%     parpool(target_workers);
+% end
 
 %% Loop through experiments
 for c = 1:numel(conditions)
@@ -74,7 +75,7 @@ for c = 1:numel(conditions)
     % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
-    parfor d = 1:nDatasets
+    for d = 1:nDatasets
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         data = struct();
         
@@ -176,11 +177,9 @@ for c = 1:numel(conditions)
             method_dir = fullfile(local_results_dir, method);
             if ~exist(method_dir, 'dir'), mkdir(method_dir); end
             
-            dataset_res.(method).R2   = nan(1, nK);
-            dataset_res.(method).MSE  = nan(1, nK);
             dataset_res.(method).CORR = cell(1, nK);
             dataset_res.(method).R_matrices = cell(1, nK);
-            dataset_res.(method).zeroLagCorr = nan(local_param.N_F, nK);
+            dataset_res.(method).Corr = nan(local_param.N_F, nK);
             dataset_res.(method).spectral_R2 = nan(local_param.N_F, nK);
 
             for ki = 1:nK
@@ -190,12 +189,10 @@ for c = 1:numel(conditions)
                     method, data, local_param, k, ki, cond, dataset_name, method_dir,...
                     local_results_dir);
                 
-                % Store basic stats
-                dataset_res.(method).R2(ki)  = entry.stats.R2;
-                dataset_res.(method).MSE(ki) = entry.stats.MSE;                             
+                % Store basic stats                           
                 dataset_res.(method).CORR{ki} = entry.corr;
                 dataset_res.(method).R_matrices{ki} = entry.R_matrix;
-                dataset_res.(method).zeroLagCorr(:,ki) = entry.zeroLagCorr;
+                dataset_res.(method).Corr(:,ki) = entry.Corr;
                 dataset_res.(method).spectral_R2(:,ki) = entry.spectral_R2;
                 
                 if ki== nK
@@ -343,29 +340,21 @@ for c = 1:numel(conditions)
     for m = 1:numel(methods)
         method = methods{m};
 
-        R2_all  = nan(nDatasets, nK);
-        MSE_all = nan(nDatasets, nK);
+
         spectral_R2_all = nan(nDatasets, length(param.f_peak), nK);
-        zeroLagCorr_all = nan(nDatasets, length(param.f_peak), nK);
+        Corr_all = nan(nDatasets, length(param.f_peak), nK);
 
         for d = 1:nDatasets
-            R2_all(d,:)  = EXP.(cond).dataset(d).analysis.(method).R2;
-            MSE_all(d,:) = EXP.(cond).dataset(d).analysis.(method).MSE;
-            zeroLagCorr_all(d, :, :) = EXP.(cond).dataset(d).analysis.(method).zeroLagCorr;
+            Corr_all(d, :, :) = EXP.(cond).dataset(d).analysis.(method).Corr;
             spectral_R2_all(d, :, :) = EXP.(cond).dataset(d).analysis.(method).spectral_R2;
         end
 
-        % Global basic stats
-        STATS.(cond).(method).R2.mean  = mean(R2_all, 1, 'omitnan');
-        STATS.(cond).(method).R2.std   = std(R2_all, 0, 1, 'omitnan');
-        STATS.(cond).(method).MSE.mean = mean(MSE_all, 1, 'omitnan');
-        STATS.(cond).(method).MSE.std  = std(MSE_all, 0, 1, 'omitnan');
 
         % Per-latent detailed stats (Mean and Std across datasets)
-        STATS.(cond).(method).spectral_R2.mean  = squeeze(mean(spectral_R2_all, 1, 'omitnan'));
-        STATS.(cond).(method).spectral_R2.std   = squeeze(std(spectral_R2_all, 0, 1, 'omitnan'));
-        STATS.(cond).(method).zeroLagCorr.mean  = squeeze(mean(zeroLagCorr_all, 1, 'omitnan'));
-        STATS.(cond).(method).zeroLagCorr.std   = squeeze(std(zeroLagCorr_all, 0, 1, 'omitnan'));
+        STATS.(cond).(method).Corr.mean  = squeeze(mean(Corr_all, 1, 'omitnan'));
+        STATS.(cond).(method).Corr.std   = squeeze(std(Corr_all, 0, 1, 'omitnan'));
+        STATS.(cond).(method).spectral_R2.mean = squeeze(mean(spectral_R2_all, 1, 'omitnan'));
+        STATS.(cond).(method).spectral_R2.std  = squeeze(std(spectral_R2_all, 0, 1, 'omitnan'));
     end
 end
 
@@ -423,11 +412,11 @@ for c = 1:numel(conditions)
         ylabel('Correlation');
         xticks(param.f_peak);
         ylim([0 1]);
-        title(sprintf('Latent–Component Corr (k=%d, %s)', k, cond));
+        title(sprintf('Latent Variable–Component Corr (k=%d, %s)', k, cond));
         grid on;
         legend('Location','eastoutside');
         set(gca, 'FontSize', 16);
-        corr_figure_name = fullfile(local_results_dir, sprintf('Latent–Component Corr %s k_%d.png', cond, k));
+        corr_figure_name = fullfile(local_results_dir, sprintf('Latent Variable–Component Corr %s k_%d.png', cond, k));
         saveas(fig0, corr_figure_name);
     end
 end
@@ -460,77 +449,48 @@ save(fullfile(local_results_dir, "Component_latentVariable_Corr.mat"), ...
      "all_corr_tables", "results");
 
 %% ----------------------------------------------------------
-% 4. Plot R^2 and MSE vs # components
+% 4. Plot Mean Latent Correlation vs # components (k)
 % ----------------------------------------------------------
-fig1 = figure;
-tiledlayout(2,1);
+fig1 = figure('Position', [100, 100, 1000, 600]);
 
-% R2
-nexttile;
 for c = 1:numel(conditions)
     cond = conditions{c};
-
     hold on;
     colors = lines(numel(methods));
-
+    
     for m = 1:numel(methods)
         method = methods{m};
-        mu = STATS.(cond).(method).R2.mean;
-        sd = STATS.(cond).(method).R2.std;
-
-        errorbar(k_range, mu, sd, '-o', ...
-            'LineWidth',2, ...
-            'Color',colors(m,:), ...
-            'DisplayName',method);
+        
+        % STATS.(cond).(method).Corr.mean is size [nLatents x nK]
+        % We average across the latents (Dimension 1) to get a [1 x nK] vector
+        mu_k = mean(STATS.(cond).(method).Corr.mean, 1, 'omitnan');
+        
+        % Calculate the standard deviation across the 6 latents
+        sd_k = std(STATS.(cond).(method).Corr.mean, 0, 1, 'omitnan');
+        
+        errorbar(k_range, mu_k, sd_k, '-o', ...
+            'LineWidth', 2, ...
+            'Color', colors(m,:), ...
+            'DisplayName', method);
     end
-
-    xlabel('Number of Components');
+    
+    xlabel('Number of Components (k)');
     xticks(linspace(min(k_range), max(k_range), nK));
-    ylabel('R^2');
+    ylabel('Mean Correlation (\rho)');
     ylim([0 1]);
-    title(sprintf('R^2 vs k (%s)', cond));
+    title(sprintf('Mean Latent Correlation vs k (%s)', cond));
     grid on;
-    legend('Location','eastoutside');
-    set(gca, 'FontSize', 20);
-end
-
-
-% MSE
-nexttile;
-for c = 1:numel(conditions)
-    cond = conditions{c};
-
-    hold on;
-    colors = lines(numel(methods));
-
-    for m = 1:numel(methods)
-        method = methods{m};
-        mu = STATS.(cond).(method).MSE.mean;
-        sd = STATS.(cond).(method).MSE.std;
-
-        errorbar(k_range, mu, sd, '-o', ...
-            'LineWidth',2, ...
-            'Color',colors(m,:), ...
-            'DisplayName',method);
-    end
-
-    xlabel('Number of Components');
-    xticks(linspace(min(k_range), max(k_range), nK));
-    ylabel('MSE^2');
-    ylim([0 1]);
-    title(sprintf('MSE^2 vs k (%s)', cond));
-    grid on;
-    legend('Location','eastoutside');
+    legend('Location', 'eastoutside');
     set(gca, 'FontSize', 20);
 end
 
 set(findall(gcf,'-property','FontSize'),'FontSize',20)
-summary_trace_name = fullfile(local_results_dir, 'Main_Summary_Trace.png');
+summary_trace_name = fullfile(local_results_dir, 'Main_Summary_Corr_vs_k.png');
 saveas(fig1, summary_trace_name);
 %% ----------------------------------------------------------
-% 5. Plot Zero-Lag Corr and Spectral R^2 vs Peak Frequency (for k=6)
+% 5. Plot Corr and Spectral R^2 vs Peak Frequency (for k=6)
 % ----------------------------------------------------------
-target_k = 6;
+target_k = 7;
 ki_target = find(k_range == target_k);
 
 if ~isempty(ki_target)
@@ -548,8 +508,8 @@ if ~isempty(ki_target)
             method = methods{m};
             
             % Extract mean and std
-            mu = STATS.(cond).(method).zeroLagCorr.mean;
-            sd = STATS.(cond).(method).zeroLagCorr.std;
+            mu = STATS.(cond).(method).Corr.mean;
+            sd = STATS.(cond).(method).Corr.std;
             if size(mu, 2) > 1
                 mu = mu(:, ki_target);
                 sd = sd(:, ki_target);
@@ -574,10 +534,10 @@ if ~isempty(ki_target)
         end
         
         xlabel('Peak Frequency (Hz)');
-        ylabel('Zero-Lag Correlation');
+        ylabel('Correlation');
         xticks(param.f_peak);
         ylim([0 1]); % Adjusted back to [0 1] for general safety
-        title(sprintf('Zero-Lag Corr vs Frequency (k=%d, %s)', target_k, cond));
+        title(sprintf('Correlation vs Frequency (k=%d, %s)', target_k, cond));
         grid on; 
         legend('Location','eastoutside'); 
         set(gca, 'FontSize', 20);
@@ -628,7 +588,7 @@ if ~isempty(ki_target)
     summary_spectral_name = fullfile(local_results_dir, sprintf('Summary_FreqProfile_k%d.png', target_k));
     saveas(fig2, summary_spectral_name);
 else
-    disp('k=6 is not in your current k_range. Skipping the frequency profile plot.');
+    sprintf('k=%d is not in your current k_range. Skipping the frequency profile plot.',target_k);
 end
 %% ---------------------------------------------------------------------
 %  HELPER FUNCTIONS
