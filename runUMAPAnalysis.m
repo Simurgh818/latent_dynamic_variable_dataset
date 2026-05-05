@@ -1,4 +1,4 @@
-function [R2_train_global, MSE_train_global, outUMAP] = runUMAPAnalysis( ...
+function [outUMAP] = runUMAPAnalysis( ...
         n_neighbors, min_dist, s_train, s_test, param, ...
         h_train, h_test, num_sig_components, results_dir)
 % runUMAPAnalysis UMAP reduction + Linear Mapping + Detailed Plotting
@@ -19,13 +19,12 @@ file_suffix = sprintf('_n%d_dist%.1f_k%d', n_neighbors, min_dist, num_sig_compon
 h_f_colors = lines(param.N_F);
 
 %% 3. Prepare Data (Transpose to Time x Neurons)
-% ToDO: changing the shape to promote learning across time
-eeg_train = double([s_train(:, 1:end-1) ; s_train(:, 2:end)])';
-eeg_test = double([s_test(:, 1:end-1) ; s_test(:, 2:end)])';
+% Reverting back to standard spatial features (Channels x Time -> Time x Channels)
+eeg_train = double(s_train)';
+eeg_test  = double(s_test)';
 
-% fix h_test and h_train size 
-h_train = h_train(1:end-1,:);
-h_test = h_test(1:end-1,:);
+% We no longer need to chop off the last time point
+% h_train and h_test remain exactly as they were passed in
 rng(42,'twister');
 
 %% 4. Run UMAP (Train) & Transform (Test)
@@ -53,10 +52,7 @@ try
         'verbose', 'none', ...
         'metric', 'euclidean', ...
         'randomize', true, ...
-        'init', init_coords, ...
-        'gui', false, ...
-        'check_duplicates', false, ...   
-        'plot_output', 'none', ...       
+        'init', init_coords, ...      
         'save_template_file', false);    
 catch ME
     warning('UMAP Train failed: %s. Attempting fallback settings.', ME.message);
@@ -73,10 +69,7 @@ try
         'verbose', 'none', ...
         'metric', 'euclidean', ...
         'randomize', true, ...
-        'init', init_coords_test, ...
-        'gui', false, ...
-        'check_duplicates', false, ...       
-        'plot_output', 'none');              
+        'init', init_coords_test);              
 catch
     warning('Could not project test data via template. Running UMAP independently on Test.');
     umap_test_raw = run_umap(eeg_test, ...
@@ -86,10 +79,7 @@ catch
         'method', 'MEX', ...   
         'metric', 'euclidean', ...
         'randomize', true, ...
-        'init', init_coords_test, ...
-        'gui', false, ...
-        'check_duplicates', false, ...       
-        'plot_output', 'none');              
+        'init', init_coords_test);              
 end
 
 % Extract only the requested number of components for analysis
@@ -102,12 +92,6 @@ H = h_train(1:size(C,1), :);
 [corr_UMAP, R_UMAP] = match_components_to_latents(C, H, 'UMAP',num_sig_components);
 
 %% 5. Reconstruction Loop (Train Mapping -> Test Eval)
-MSE_train_curve = zeros(1, param.N_F);
-R2_train_curve  = zeros(1, param.N_F);
-MSE_test_curve = zeros(1, param.N_F);
-R2_test_curve  = zeros(1, param.N_F);
-disp('Calculating Reconstruction Metrics...');
-
 % 1. Learn Map: UMAP_train -> H_train
 W_k_train = umap_train_raw \ h_train;
 W_k = umap_test_raw \ h_test;
@@ -116,37 +100,13 @@ W_k = umap_test_raw \ h_test;
 h_rec_train_final = umap_train_raw * W_k_train;
 h_rec_test_final = umap_test_raw * W_k;
 
-% 3. Calculate Test Metrics
-for f = 1:param.N_F
-    % MSE
-    MSE_test_curve(1,f) = mean((h_test(:,f) - h_rec_test_final(:,f)).^2);
-    MSE_train_curve(1,f) = mean((h_train(:,f) - h_rec_train_final(:,f)).^2);
-    
-    % R2
-    res_var = sum((h_test(:,f) - h_rec_test_final(:,f)).^2);
-    tot_var = sum((h_test(:,f) - mean(h_test(:,f))).^2);
-    R2_test_curve(1,f) = 1 - (res_var / tot_var);
-    
-    res_var_train = sum((h_train(:,f) - h_rec_train_final(:,f)).^2);
-    tot_var_train = sum((h_train(:,f) - mean(h_train(:,f))).^2);
-    R2_train_curve(1,f) = 1 - (res_var_train / tot_var_train);
-end
-
-% Global outputs
-MSE_test_global = mean(MSE_test_curve, 2); 
-R2_test_global  = mean(R2_test_curve, 2);
-MSE_train_global = mean(MSE_train_curve, 2); 
-R2_train_global  = mean(R2_train_curve, 2);
-
 fs_new = param.fs;
 
 %% 6. Zero-Lag Correlation (Moved to mathematical block)
-maxLag = 200; 
-lags = -maxLag:maxLag;
-zeroLagCorr = zeros(1, param.N_F);
+Corr = zeros(1, param.N_F);
 for f = 1:param.N_F
-    c = xcorr(h_test(:,f), h_rec_test_final(:,f), maxLag, 'coeff');
-    zeroLagCorr(f) = c(lags==0);
+    c  = corrcoef(h_test(:,f), h_rec_test_final(:,f));
+    Corr(f) = c(1,2);
 end
 
 %% 7. Frequency & Spectral R2 Math (Runs on ALL workers!)
@@ -182,10 +142,11 @@ R2_avg = mean(R2_trials, 3);
 bands = struct('delta',[1 4], 'theta',[4 8], 'alpha',[8 13], 'beta',[13 30], 'gamma',[30 50]);
 band_names = fieldnames(bands);
 nBands = numel(band_names);
-
 UMAP_R2_scores = nan(param.N_F, 1);
+
 Ht_amp = abs(Ht(1:nHz,:,:));
 Hr_amp = abs(Hr(1:nHz,:,:));
+
 max_t = max(Ht_amp(:)); if max_t==0, max_t=1; end
 max_r = max(Hr_amp(:)); if max_r==0, max_r=1; end
 Ht_amp = Ht_amp ./ max_t; Hr_amp = Hr_amp ./ max_r;
@@ -219,6 +180,7 @@ end
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
 if isempty(getCurrentTask())
+    
     % Plot 1: UMAP Embedding (Training) colored by Latents
     cluster_idx = kmeans(h_test, param.N_F,'MaxIter', 1000, 'Replicates', 5, 'Display', 'off');
     
@@ -249,9 +211,12 @@ if isempty(getCurrentTask())
         nexttile;
         scatter(umap_test_raw(:,1), umap_test_raw(:,2), 15, h_test(:,i), 'filled');
         xlim([-10 10]); xticks(-10:10:10);
-        r2= round(R2_test_curve(end,i),2);
+        
+        % FIX: Using the newly calculated Pearson Corr instead of the deleted R2
+        rho = round(Corr(i), 2);
         peak_lbl = num2str(param.f_peak(i));
-        title([sprintf('Z_{%s}', peak_lbl), ', R^2= ', num2str(r2)]); 
+        title([sprintf('Z_{%s}', peak_lbl), ', \rho = ', num2str(rho)]); 
+        
         xlabel('UMAP 1'); ylabel('UMAP 2');
         colormap(turbo); colorbar; clim([-4 4]); 
         axis square; grid on;
@@ -262,7 +227,7 @@ if isempty(getCurrentTask())
     close(fig11);
     
     %% Plot 2: Time Domain Reconstruction (Test Set)
-    plotTimeDomainReconstruction(h_test, h_rec_test_final, param, 'UMAP', num_sig_components, zeroLagCorr, method_dir);
+    plotTimeDomainReconstruction(h_test, h_rec_test_final, param, 'UMAP', num_sig_components, Corr, method_dir);
     
     % Embedding Traces:
     plotCTraces(num_sig_components, param, umap_test_raw, method_dir, file_suffix);
@@ -331,25 +296,17 @@ if isempty(getCurrentTask())
     plotBandScatterPerTrial(true_vals, recon_vals, UMAP_R2_scores, band_names, param, num_sig_components, "UMAP", method_dir);
 end
 
-%% Output Structure
+%% Output Structure (FIX: Removed all deleted curve/global variables)
 outUMAP = struct();
 outUMAP.umap_train = umap_train;
 outUMAP.h_recon_test = h_rec_test_final;
 outUMAP.h_recon_train = h_rec_train_final;
-outUMAP.MSE_test_curve = MSE_test_curve;
-outUMAP.R2_test_curve = R2_test_curve;
-outUMAP.MSE_train_curve = MSE_train_curve;
-outUMAP.R2_train_curve = R2_train_curve;
-outUMAP.MSE_test_global = MSE_test_global; 
-outUMAP.R2_test_global = R2_test_global;
-outUMAP.MSE_train_global = MSE_train_global; 
-outUMAP.R2_train_global = R2_train_global;
 outUMAP.n_neighbors = n_neighbors;
 outUMAP.min_dist = min_dist;
 outUMAP.corr_UMAP = corr_UMAP;
 outUMAP.R_full = R_UMAP; 
-outUMAP.zeroLagCorr = zeroLagCorr; % <--- Now guaranteed to exist!
+outUMAP.Corr = Corr; % <--- Now guaranteed to exist!
 outUMAP.spectral_R2 = UMAP_R2_scores; % <--- Now guaranteed to exist!
-
 close All;
+
 end

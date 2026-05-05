@@ -34,11 +34,11 @@ end
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
 nDatasets  = 1; % 10
-k_range    = 1:7; % 9
+k_range    = 1:2; % 9
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA', 'ICA'}; % 'iVAE' 'PCA', 'AE','dPCA', 'ICA','UMAP' 
+methods = {'PCA'}; % 'iVAE' 'PCA', 'AE','dPCA', 'ICA','UMAP' 
 
 EXP = struct();
 param = struct();
@@ -490,7 +490,7 @@ saveas(fig1, summary_trace_name);
 %% ----------------------------------------------------------
 % 5. Plot Corr and Spectral R^2 vs Peak Frequency (for k=6)
 % ----------------------------------------------------------
-target_k = 7;
+target_k = 6;
 ki_target = find(k_range == target_k);
 
 if ~isempty(ki_target)
