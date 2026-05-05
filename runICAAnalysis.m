@@ -75,14 +75,14 @@ h_rec_train = h_rec_train_raw ./ std(h_rec_train_raw, 0, 1);
 h_rec_test  = h_rec_test_raw  ./ std(h_rec_test_raw, 0, 1);
 
 %% 4. Compute Performance Metrics
-[Corr_ica, ica_R2_scores, freq_data] = computePerformanceMetrics(h_test, h_rec_test, param);
+[avg_comp_corr_ica, ica_R2_scores, freq_data] = computePerformanceMetrics(h_test, h_rec_test, param);
 
 %% ============================================================
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
 if isempty(getCurrentTask())
     % Time domain plot
-    plotTimeDomainReconstruction(h_test, h_rec_test, param, 'ICA', num_comps, Corr_ica, method_dir);
+    plotTimeDomainReconstruction(h_test, h_rec_test, param, 'ICA', num_comps, avg_comp_corr_ica, method_dir);
     
     % Independent Component traces plot
     plotCTraces(num_comps, param, h_rec_test, method_dir, file_suffix);
@@ -155,8 +155,8 @@ outICA.h_recon_train = h_rec_train;
 outICA.h_recon_test  = h_rec_test;
 outICA.method_dir   = method_dir;
 outICA.corr_ICA     = corr_ICA;
-outICA.R_full       = R_ICA; 
-outICA.Corr  = Corr_ica;
+outICA.Comp_latent_matching_matrix       = R_ICA; 
+outICA.avg_comp_corr  = avg_comp_corr_ica;
 outICA.spectral_R2  = ica_R2_scores;
 close all;
 end

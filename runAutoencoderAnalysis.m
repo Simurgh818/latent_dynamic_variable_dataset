@@ -70,13 +70,13 @@ for f = 1:param.N_F
 end
 
 %% 4. Compute Performance Metrics
-[Corr_test, AE_R2_scores, freq_data] = computePerformanceMetrics(H_test, H_recon_test, param);
+[avg_comp_corr_test, AE_R2_scores, freq_data] = computePerformanceMetrics(H_test, H_recon_test, param);
 
-% We also calculate Corr_train here specifically for Plot 3 (Split Reconstruction)
-Corr_train = zeros(1, param.N_F);
+% We also calculate avg_comp_corr_train here specifically for Plot 3 (Split Reconstruction)
+avg_comp_corr_train = zeros(1, param.N_F);
 for f = 1:param.N_F
     c_train = corrcoef(H_train(:,f), H_recon_train(:,f));
-    Corr_train(f) = c_train(1,2);
+    avg_comp_corr_train(f) = c_train(1,2);
 end
 
 %% ============================================================
@@ -104,7 +104,7 @@ if isempty(getCurrentTask())
         xlim([0 fs_new]);
         if f==1, title('Training Set'); end
         legend('location', 'southeastoutside', 'Interpreter', 'latex');
-        rho_train = Corr_train(f);
+        rho_train = avg_comp_corr_train(f);
         text(0.02 * fs_new, 0.05 * max(H_train(:,f)), ...
         sprintf('\\rho=%.2f', rho_train), ...
         'FontSize', 12, 'FontWeight', 'bold',...
@@ -117,7 +117,7 @@ if isempty(getCurrentTask())
         plot(H_test(1:vis_len_test, f), '-',  'Color', h_f_colors(f,:), 'LineWidth', 1.5, 'DisplayName',[' $Z_{' num2str(param.f_peak(f)) '}$']);  
         plot(H_recon_test(1:vis_len_test, f), '--', 'Color', 'k', 'LineWidth', 1.5, 'DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$']);
         xlim([0 fs_new]);
-        rho_test = Corr_test(f);
+        rho_test = avg_comp_corr_test(f);
         text(0.02 * fs_new, 0.05 * max(H_test(:,f)), ...
         sprintf('\\rho=%.2f', rho_test), ...
         'FontSize', 12, 'FontWeight', 'bold',...
@@ -225,8 +225,8 @@ outAE.h_recon_test     = H_recon_test;
 outAE.component_R2     = recon_R2_test;
 outAE.results_dir      = method_dir;
 outAE.corr_AE          = corr_AE;
-outAE.R_full           = R_AE;
-outAE.Corr             = Corr_test;
+outAE.Comp_latent_matching_matrix           = R_AE;
+outAE.avg_comp_corr             = avg_comp_corr_test;
 outAE.spectral_R2      = AE_R2_scores; 
 close all;
 

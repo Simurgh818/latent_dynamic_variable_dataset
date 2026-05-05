@@ -42,11 +42,11 @@ end
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
 nDatasets  = 1; % 10
-k_range    = 1:6; % 9
+k_range    = 6:6; % 9
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA'}; % 'iVAE' 'PCA', 'AE','dPCA', 'ICA','UMAP' 
+methods = {'UMAP'}; % 'iVAE' 'PCA', 'AE','dPCA', 'ICA','UMAP' 
 
 EXP = struct();
 param = struct();
@@ -149,9 +149,9 @@ for c = 1:numel(conditions)
             method_dir = fullfile(local_results_dir, method);
             if ~exist(method_dir, 'dir'), mkdir(method_dir); end
             
-            dataset_res.(method).CORR = cell(1, nK);
-            dataset_res.(method).R_matrices = cell(1, nK);
-            dataset_res.(method).Corr = nan(local_param.N_F, nK);
+            dataset_res.(method).direct_Component_Corr = cell(1, nK);
+            dataset_res.(method).Comp_latent_matching_matrix = cell(1, nK);
+            dataset_res.(method).avg_comp_corr = nan(local_param.N_F, nK);
             dataset_res.(method).spectral_R2 = nan(local_param.N_F, nK);
 
             for ki = 1:nK
@@ -162,9 +162,9 @@ for c = 1:numel(conditions)
                     local_results_dir);
                 
                 % Store basic stats                           
-                dataset_res.(method).CORR{ki} = entry.corr;
-                dataset_res.(method).R_matrices{ki} = entry.R_matrix;
-                dataset_res.(method).Corr(:,ki) = entry.Corr;
+                dataset_res.(method).direct_Component_Corr{ki} = entry.direct_Component_Corr;
+                dataset_res.(method).Comp_latent_matching_matrix{ki} = entry.Comp_latent_matching_matrix;
+                dataset_res.(method).avg_comp_corr(:,ki) = entry.avg_comp_corr;
                 dataset_res.(method).spectral_R2(:,ki) = entry.spectral_R2;
                 
                 if ki== nK
@@ -172,7 +172,7 @@ for c = 1:numel(conditions)
                 end
                 
                 % --- Fix for Duplicate Variable Names ---
-                current_corr_table = entry.corr; 
+                current_corr_table = entry.direct_Component_Corr; 
                 
                 if ~isempty(current_corr_table)
                     nRows = height(current_corr_table);
@@ -281,7 +281,7 @@ for c = 1:numel(conditions)
             % Generate Heatmaps (now safe in serial)
             for ki = 1:nK
                 k = k_range(ki);
-                R = EXP.(cond).dataset(d).analysis.(method).R_matrices{ki};
+                R = EXP.(cond).dataset(d).analysis.(method).Comp_latent_matching_matrix{ki};
                 
                 if isempty(R), continue; end
                 
@@ -314,17 +314,17 @@ for c = 1:numel(conditions)
 
 
         spectral_R2_all = nan(nDatasets, length(param.f_peak), nK);
-        Corr_all = nan(nDatasets, length(param.f_peak), nK);
+        avg_comp_corr_all = nan(nDatasets, length(param.f_peak), nK);
 
         for d = 1:nDatasets
-            Corr_all(d, :, :) = EXP.(cond).dataset(d).analysis.(method).Corr;
+            avg_comp_corr_all(d, :, :) = EXP.(cond).dataset(d).analysis.(method).avg_comp_corr;
             spectral_R2_all(d, :, :) = EXP.(cond).dataset(d).analysis.(method).spectral_R2;
         end
 
 
         % Per-latent detailed stats (Mean and Std across datasets)
-        STATS.(cond).(method).Corr.mean  = squeeze(mean(Corr_all, 1, 'omitnan'));
-        STATS.(cond).(method).Corr.std   = squeeze(std(Corr_all, 0, 1, 'omitnan'));
+        STATS.(cond).(method).avg_comp_corr.mean  = squeeze(mean(avg_comp_corr_all, 1, 'omitnan'));
+        STATS.(cond).(method).avg_comp_corr.std   = squeeze(std(avg_comp_corr_all, 0, 1, 'omitnan'));
         STATS.(cond).(method).spectral_R2.mean = squeeze(mean(spectral_R2_all, 1, 'omitnan'));
         STATS.(cond).(method).spectral_R2.std  = squeeze(std(spectral_R2_all, 0, 1, 'omitnan'));
     end
@@ -343,7 +343,7 @@ for c = 1:numel(conditions)
             corr_mat = nan(nDatasets, size(param.f_peak,2));
 
             for d = 1:nDatasets
-                tbl = EXP.(cond).dataset(d).analysis.(method).CORR{ki};
+                tbl = EXP.(cond).dataset(d).analysis.(method).direct_Component_Corr{ki};
 
                 if isempty(tbl)
                     continue
@@ -433,12 +433,12 @@ for c = 1:numel(conditions)
     for m = 1:numel(methods)
         method = methods{m};
         
-        % STATS.(cond).(method).Corr.mean is size [nLatents x nK]
+        % STATS.(cond).(method).avg_comp_corr.mean is size [nLatents x nK]
         % We average across the latents (Dimension 1) to get a [1 x nK] vector
-        mu_k = mean(STATS.(cond).(method).Corr.mean, 1, 'omitnan');
+        mu_k = mean(STATS.(cond).(method).avg_comp_corr.mean, 1, 'omitnan');
         
         % Calculate the standard deviation across the 6 latents
-        sd_k = std(STATS.(cond).(method).Corr.mean, 0, 1, 'omitnan');
+        sd_k = std(STATS.(cond).(method).avg_comp_corr.mean, 0, 1, 'omitnan');
         
         errorbar(k_range, mu_k, sd_k, '-o', ...
             'LineWidth', 2, ...
@@ -480,8 +480,8 @@ if ~isempty(ki_target)
             method = methods{m};
             
             % Extract mean and std
-            mu = STATS.(cond).(method).Corr.mean;
-            sd = STATS.(cond).(method).Corr.std;
+            mu = STATS.(cond).(method).avg_comp_corr.mean;
+            sd = STATS.(cond).(method).avg_comp_corr.std;
             if size(mu, 2) > 1
                 mu = mu(:, ki_target);
                 sd = sd(:, ki_target);

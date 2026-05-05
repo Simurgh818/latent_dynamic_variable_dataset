@@ -37,13 +37,13 @@ h_recon_test  = h_recon_test_raw  ./ std(h_recon_test_raw, 0, 1);
 
 %% 4. Compute Performance Metrics
 
-[Corr, pca_R2_scores, freq_data] = computePerformanceMetrics(h_test, h_recon_test, param);
+[avg_comp_corr, pca_R2_scores, freq_data] = computePerformanceMetrics(h_test, h_recon_test, param);
 
 %% ============================================================
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
 if isempty(getCurrentTask()) 
-    plotTimeDomainReconstruction(h_test, h_recon_test, param, 'PCA', k, Corr, method_dir);
+    plotTimeDomainReconstruction(h_test, h_recon_test, param, 'PCA', k, avg_comp_corr, method_dir);
     plotCTraces(k, param, score_test, method_dir, file_suffix);
     
     save_path = fullfile(method_dir, ['PCA_ExplainedVariance' file_suffix '.png']);
@@ -66,10 +66,10 @@ outPCA = struct();
 outPCA.h_recon_train = h_recon_train; % Required for snippet logic
 outPCA.h_recon_test  = h_recon_test;
 outPCA.corr_PCA      = corr_PCA;      % Table of matches
-outPCA.R_full        = R_PCA;         % Full corr matrix
+outPCA.Comp_latent_matching_matrix        = R_PCA;         % Full corr matrix
 outPCA.explained     = explained;
 outPCA.method_dir    = method_dir;
-outPCA.Corr = Corr;
+outPCA.avg_comp_corr = avg_comp_corr;
 outPCA.spectral_R2 = pca_R2_scores;    
 
 close all;
