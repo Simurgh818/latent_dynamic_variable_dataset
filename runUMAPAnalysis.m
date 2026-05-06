@@ -31,56 +31,62 @@ rng(42,'twister');
 %% 4. Run UMAP (Train) & Transform (Test)
 disp(['Running UMAP (k=' num2str(num_sig_components) ') on Training Set...']);
 
-% WORKAROUND 1: The Meehan run_umap library requires n_components >= 2.
 umap_calc_components = max(2, num_sig_components);
 
 % 1. Compute PCA for initialization
 [~, score] = pca(eeg_train); 
 init_coords = score(:, 1:umap_calc_components);
-[~, score_test] = pca(eeg_test); 
-init_coords_test = score_test(:, 1:umap_calc_components);
-
-% 2. Normalize 
 init_coords = 10 * (init_coords / max(abs(init_coords(:))));
 
-% Run UMAP on training data 
+% Run UMAP on training data (We no longer need 'save_template_file')
 try
-    [umap_train_raw, umap_struct] = run_umap(eeg_train, ...
+    [umap_train_raw, ~] = run_umap(eeg_train, ...
         'n_neighbors', n_neighbors, ...
         'min_dist', min_dist, ...
         'n_components', umap_calc_components,...        
         'method', 'MEX', ...              
         'verbose', 'none', ...
         'metric', 'euclidean', ...
-        'randomize', true, ...
-        'init', init_coords, ...      
-        'save_template_file', false);    
+        'init', init_coords);    
 catch ME
-    warning('UMAP Train failed: %s. Attempting fallback settings.', ME.message);
-    rethrow(ME); 
+    warning('UMAP Train failed: %s', ME.message);
+    umap_train_raw = nan(size(eeg_train, 1), umap_calc_components);
 end 
 
-disp('Projecting Test Set into UMAP space...');
-% Transform test data using the learned training manifold
+disp('Manually Projecting Test Set via KNN Interpolation...');
+% =========================================================================
+% MANUAL UMAP PROJECTION
+% We approximate the UMAP transform by finding the nearest neighbors in the 
+% high-dimensional EEG space, and averaging their coordinates in the UMAP space.
+% =========================================================================
+
+% We use the same number of neighbors for interpolation
+k_interp = max(3, n_neighbors); 
+
 try
-    umap_test_raw = run_umap(eeg_test, ...
-        'template', umap_struct, ...
-        'method', 'MEX', ...              
-        'n_components', umap_calc_components,...
-        'verbose', 'none', ...
-        'metric', 'euclidean', ...
-        'randomize', true, ...
-        'init', init_coords_test);              
-catch
-    warning('Could not project test data via template. Running UMAP independently on Test.');
-    umap_test_raw = run_umap(eeg_test, ...
-        'n_neighbors', n_neighbors, ...
-        'min_dist', min_dist, ...
-        'n_components', umap_calc_components, ...
-        'method', 'MEX', ...   
-        'metric', 'euclidean', ...
-        'randomize', true, ...
-        'init', init_coords_test);              
+    % 1. Find the K nearest training points for every test point
+    [idx, D] = knnsearch(eeg_train, eeg_test, 'K', k_interp);
+    
+    umap_test_raw = zeros(size(eeg_test, 1), umap_calc_components);
+    
+    % 2. Calculate the weighted average of their UMAP coordinates
+    for i = 1:size(eeg_test, 1)
+        dists = D(i, :);
+        
+        % Convert distances to weights (closer = higher weight)
+        % Add small epsilon (1e-6) to prevent division by zero if points are identical
+        weights = 1 ./ (dists + 1e-6); 
+        weights = weights / sum(weights); % Normalize to sum to 1
+        
+        % Get the UMAP coordinates of these specific training points
+        neighbor_coords = umap_train_raw(idx(i, :), :);
+        
+        % The test point's embedding is the weighted average
+        umap_test_raw(i, :) = weights * neighbor_coords;
+    end
+catch ME
+    warning('Manual KNN Projection failed: %s', ME.message);
+    umap_test_raw = nan(size(eeg_test, 1), umap_calc_components);
 end
 
 % Extract only the requested number of components for analysis
@@ -154,7 +160,7 @@ if isempty(getCurrentTask())
     plotBandwiseR2(freq_data.R2_avg, freq_data.f_axis, param, num_sig_components, 'UMAP', br2_path);
     
     %% Plot 5: Coherence Analysis (Chronux)
-    params_coh.Fs = fs_new; 
+    params_coh.Fs = param.fs; 
     params_coh.tapers = [3 5]; 
     params_coh.pad = 0;
     params_coh.err = [0 0]; 
@@ -223,8 +229,8 @@ outUMAP.h_recon_train = h_rec_train_final;
 outUMAP.n_neighbors = n_neighbors;
 outUMAP.min_dist = min_dist;
 outUMAP.Comp_latent_matching_corr = Comp_latent_matching_corr;
-outUMAP.direct_Component_Corr = direct_Component_Corr_umap;
 outUMAP.Comp_latent_matching_matrix = R_UMAP; 
+outUMAP.direct_Component_Corr = direct_Component_Corr_umap;
 outUMAP.spectral_R2 = UMAP_R2_scores; 
 close All;
 

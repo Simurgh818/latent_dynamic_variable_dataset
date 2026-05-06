@@ -30,7 +30,7 @@ function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, Cor
 
     % --- 3. Create Figure ---
     % Invisible figure is faster and doesn't steal focus
-    fig = figure('Position',[50 50 1200 150*num_vars], 'Visible', 'off');
+    fig = figure('Position',[50 50 1200 150*num_vars+100], 'Visible', 'off');
     tiledlayout(num_vars, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
        
     % --- 4. Plot Loop ---
@@ -90,7 +90,7 @@ function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, Cor
     
     % Y-bar (2 units)
     line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2, 'HandleVisibility', 'off');
-    text(x0-5, y0+2.5, '2 a.u.', 'VerticalAlignment', 'bottom', ...
+    text(x0-5, y0+5, '2 a.u.', 'VerticalAlignment', 'bottom', ...
         'HorizontalAlignment', 'right', 'Rotation', 90);
     sgtitle([methodName ' (k=' num2str(k) ') Latent variables Z(t) and $\hat{z}(t)$'], ...
         'Interpreter','latex','FontSize',30);

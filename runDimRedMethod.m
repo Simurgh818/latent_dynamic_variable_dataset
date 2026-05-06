@@ -44,7 +44,7 @@ switch method
         if isfield(outICA, 'direct_Component_Corr'), direct_Component_Corr = outICA.direct_Component_Corr; end
         
     case 'UMAP'
-        n_neighbors = 3; min_dist = 0.99;
+        n_neighbors = 3; min_dist = 0.9;
         [outUMAP] = runUMAPAnalysis( ...
             n_neighbors, min_dist, data.eeg_train, data.eeg_test, local_param, ...
             data.H_train, data.H_test, k, local_results_dir);
