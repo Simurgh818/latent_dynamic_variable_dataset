@@ -48,24 +48,16 @@ minLenTest = min(size(Z_test_c,1), size(H_test,1));
 Z_test_c  = Z_test_c(1:minLenTest,:);
 H_test    = H_test(1:minLenTest,:);
 
-% Matching components to latents
-[corr_AE, R_AE] = match_components_to_latents(Z_test_c, H_test, 'AE', bottleNeck);
-
-%% 3. Linear Mapping via lsqlin / matrix division
-H_recon_train = zeros(size(H_train));
-H_recon_test  = zeros(size(H_test));
-
-for f = 1:param.N_F
-    w = Z_train_c \ H_train(:,f);
-    
-    % Reconstruct
-    H_recon_train(:,f) = Z_train_c * w;
-    H_recon_test(:,f)  = Z_test_c * w;
-
-end
-
 %% 4. Compute Performance Metrics
-[avg_comp_corr_test, AE_R2_scores, freq_data] = computePerformanceMetrics(H_test, H_recon_test, param);
+[H_recon_train, H_recon_test, Comp_latent_matching_corr, R_AE, direct_Component_Corr_ae, AE_R2_scores, freq_data] = ...
+    computePerformanceMetrics(Z_train_c, Z_test_c, H_train, H_test, 'AE', bottleNeck, param);
+
+% Separate Train Correlation for Plot 3
+direct_Component_Corr_train_ae = zeros(1, param.N_F);
+for f = 1:param.N_F
+    c_train = corrcoef(H_train(:,f), H_recon_train(:,f));
+    direct_Component_Corr_train_ae(f) = c_train(1,2);
+end
 
 % We also calculate avg_comp_corr_train here specifically for Plot 3 (Split Reconstruction)
 avg_comp_corr_train = zeros(1, param.N_F);
@@ -99,7 +91,7 @@ if isempty(getCurrentTask())
         xlim([0 fs_new]);
         if f==1, title('Training Set'); end
         legend('location', 'southeastoutside', 'Interpreter', 'latex');
-        rho_train = avg_comp_corr_train(f);
+        rho_train = direct_Component_Corr_train_ae(f);
         text(0.02 * fs_new, 0.05 * max(H_train(:,f)), ...
         sprintf('\\rho=%.2f', rho_train), ...
         'FontSize', 12, 'FontWeight', 'bold',...
@@ -111,8 +103,8 @@ if isempty(getCurrentTask())
         set(gca, 'XColor', 'none', 'YColor', 'none'); box on
         plot(H_test(1:vis_len_test, f), '-',  'Color', h_f_colors(f,:), 'LineWidth', 1.5, 'DisplayName',[' $Z_{' num2str(param.f_peak(f)) '}$']);  
         plot(H_recon_test(1:vis_len_test, f), '--', 'Color', 'k', 'LineWidth', 1.5, 'DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$']);
-        xlim([0 fs_new]);
-        rho_test = avg_comp_corr_test(f);
+        xlim([0 fs_new]);    
+        rho_test = direct_Component_Corr_ae(f);
         text(0.02 * fs_new, 0.05 * max(H_test(:,f)), ...
         sprintf('\\rho=%.2f', rho_test), ...
         'FontSize', 12, 'FontWeight', 'bold',...
@@ -217,11 +209,10 @@ outAE = struct();
 outAE.net = net;
 outAE.h_recon_train    = H_recon_train;
 outAE.h_recon_test     = H_recon_test;
-outAE.component_R2     = recon_R2_test;
 outAE.results_dir      = method_dir;
-outAE.corr_AE          = corr_AE;
+outAE.Comp_latent_matching_corr = Comp_latent_matching_corr;
+outAE.direct_Component_Corr  = direct_Component_Corr_ae;
 outAE.Comp_latent_matching_matrix           = R_AE;
-outAE.avg_comp_corr             = avg_comp_corr_test;
 outAE.spectral_R2      = AE_R2_scores; 
 close all;
 

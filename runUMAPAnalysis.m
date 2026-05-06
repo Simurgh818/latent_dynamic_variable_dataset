@@ -87,24 +87,9 @@ end
 umap_train = umap_train_raw(:, 1:num_sig_components);
 umap_test  = umap_test_raw(:, 1:num_sig_components);
 
-% Mapping components to latents
-C = umap_train;   % T x nComp
-H = h_train(1:size(C,1), :);
-[corr_UMAP, R_UMAP] = match_components_to_latents(C, H, 'UMAP',num_sig_components);
-
-%% 5. Reconstruction Loop (Train Mapping -> Test Eval)
-% 1. Learn Map: UMAP_train -> H_train
-W_k_train = umap_train_raw \ h_train;
-W_k = umap_test_raw \ h_test;
-
-% 2. Apply Map to Test: UMAP_test * W -> H_rec_test
-h_rec_train_final = umap_train_raw * W_k_train;
-h_rec_test_final = umap_test_raw * W_k;
-
-fs_new = param.fs;
-
 %% 6. Compute Performance Metrics
-[avg_comp_corr, UMAP_R2_scores, freq_data] = computePerformanceMetrics(h_test, h_rec_test_final, param);
+[h_rec_train_final, h_rec_test_final, Comp_latent_matching_corr, R_UMAP, direct_Component_Corr_umap, UMAP_R2_scores, freq_data] = ...
+    computePerformanceMetrics(umap_train, umap_test, h_train, h_test, 'UMAP', num_sig_components, param);
 
 %% ============================================================
 % PLOTTING SECTION (Safely skipped by parallel workers)
@@ -142,7 +127,7 @@ if isempty(getCurrentTask())
         scatter(umap_test_raw(:,1), umap_test_raw(:,2), 15, h_test(:,i), 'filled');
         xlim([-10 10]); xticks(-10:10:10);
         
-        rho = round(avg_comp_corr(i), 2);
+        rho = round(direct_Component_Corr_umap(i), 2);
         peak_lbl = num2str(param.f_peak(i));
         title([sprintf('Z_{%s}', peak_lbl), ', \rho = ', num2str(rho)]); 
         
@@ -156,7 +141,7 @@ if isempty(getCurrentTask())
     close(fig11);
     
     %% Plot 2: Time Domain Reconstruction (Test Set)
-    plotTimeDomainReconstruction(h_test, h_rec_test_final, param, 'UMAP', num_sig_components, avg_comp_corr, method_dir);
+    plotTimeDomainReconstruction(h_test, h_rec_test_final, param, 'UMAP', num_sig_components, direct_Component_Corr_umap, method_dir);
     
     % Embedding Traces:
     plotCTraces(num_sig_components, param, umap_test_raw, method_dir, file_suffix);
@@ -237,9 +222,9 @@ outUMAP.h_recon_test = h_rec_test_final;
 outUMAP.h_recon_train = h_rec_train_final;
 outUMAP.n_neighbors = n_neighbors;
 outUMAP.min_dist = min_dist;
-outUMAP.corr_UMAP = corr_UMAP; 
+outUMAP.Comp_latent_matching_corr = Comp_latent_matching_corr;
+outUMAP.direct_Component_Corr = direct_Component_Corr_umap;
 outUMAP.Comp_latent_matching_matrix = R_UMAP; 
-outUMAP.avg_comp_corr = avg_comp_corr; 
 outUMAP.spectral_R2 = UMAP_R2_scores; 
 close All;
 

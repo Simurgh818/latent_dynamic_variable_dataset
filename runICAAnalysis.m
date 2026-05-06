@@ -58,32 +58,17 @@ catch ME
     icasig_test = transform(Mdl, eeg_test');
 end
 
-% Mapping components to latents
-C = icasig_test;   
-H = h_test(1:size(C,1), :);
-[corr_ICA, R_ICA] = match_components_to_latents(C, H, 'ICA', num_comps);
-
-%% 3. Linear Mapping ICs -> Latent Fields
-W_map = icasig_train \ h_train;
-
-% Reconstruct Data (Raw)
-h_rec_train_raw = icasig_train * W_map;
-h_rec_test_raw  = icasig_test * W_map;
-
-% --- NORMALIZATION STEP (MATCHING PCA/dPCA) ---
-h_rec_train = h_rec_train_raw ./ std(h_rec_train_raw, 0, 1);
-h_rec_test  = h_rec_test_raw  ./ std(h_rec_test_raw, 0, 1);
-
 %% 4. Compute Performance Metrics
-[avg_comp_corr_ica, ica_R2_scores, freq_data] = computePerformanceMetrics(h_test, h_rec_test, param);
+[h_rec_train, h_rec_test, Comp_latent_matching_corr, R_ICA, direct_Component_Corr_ica, ica_R2_scores, freq_data] = ...
+    computePerformanceMetrics(icasig_train, icasig_test, h_train, h_test, 'ICA', num_comps, param);
 
 %% ============================================================
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
 if isempty(getCurrentTask())
     % Time domain plot
-    plotTimeDomainReconstruction(h_test, h_rec_test, param, 'ICA', num_comps, avg_comp_corr_ica, method_dir);
-    
+    plotTimeDomainReconstruction(h_test, h_rec_test, param, 'ICA', num_comps, direct_Component_Corr_ica, method_dir);
+
     % Independent Component traces plot
     plotCTraces(num_comps, param, h_rec_test, method_dir, file_suffix);
     
@@ -154,9 +139,9 @@ outICA.icasig_test  = icasig_test;
 outICA.h_recon_train = h_rec_train;
 outICA.h_recon_test  = h_rec_test;
 outICA.method_dir   = method_dir;
-outICA.corr_ICA     = corr_ICA;
+outICA.Comp_latent_matching_corr = Comp_latent_matching_corr;
+outICA.direct_Component_Corr = direct_Component_Corr_ica;
 outICA.Comp_latent_matching_matrix       = R_ICA; 
-outICA.avg_comp_corr  = avg_comp_corr_ica;
 outICA.spectral_R2  = ica_R2_scores;
 close all;
 end

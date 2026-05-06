@@ -19,31 +19,18 @@ h_f_colors = lines(param.N_F);
 % Project test data
 score_test = (eeg_test' - mean(eeg_train', 1)) * coeff;
 
-% Match components to latents (Limited to this k)
-[corr_PCA, R_PCA] = match_components_to_latents(score_test, h_test, 'PCA', k);
+% Ensure we only pass the first 'k' components
+score_train_k = score(:, 1:k);
+score_test_k  = score_test(:, 1:k);
 
-%% 3. Reconstruction & Normalization
-% Train regression weights: PCs * W = Latents
-W = score(:, 1:k) \ h_train;
-
-% Reconstruct
-h_recon_train_raw = score(:, 1:k) * W;
-h_recon_test_raw  = score_test(:, 1:k) * W;
-
-% --- Normalization ---
-% We normalize the reconstruction so std=1, matching the true latents
-h_recon_train = h_recon_train_raw ./ std(h_recon_train_raw, 0, 1);
-h_recon_test  = h_recon_test_raw  ./ std(h_recon_test_raw, 0, 1);
-
-%% 4. Compute Performance Metrics
-
-[avg_comp_corr, pca_R2_scores, freq_data] = computePerformanceMetrics(h_test, h_recon_test, param);
+[h_recon_train, h_recon_test, Comp_latent_matching_corr_pca, R_PCA, direct_Component_Corr_pca, pca_R2_scores, freq_data] = ...
+    computePerformanceMetrics(score_train_k, score_test_k, h_train, h_test, 'PCA', k, param);
 
 %% ============================================================
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
 if isempty(getCurrentTask()) 
-    plotTimeDomainReconstruction(h_test, h_recon_test, param, 'PCA', k, avg_comp_corr, method_dir);
+    plotTimeDomainReconstruction(h_test, h_recon_test, param, 'PCA', k, direct_Component_Corr_pca, method_dir);
     plotCTraces(k, param, score_test, method_dir, file_suffix);
     
     save_path = fullfile(method_dir, ['PCA_ExplainedVariance' file_suffix '.png']);
@@ -65,11 +52,11 @@ end
 outPCA = struct();
 outPCA.h_recon_train = h_recon_train; % Required for snippet logic
 outPCA.h_recon_test  = h_recon_test;
-outPCA.corr_PCA      = corr_PCA;      % Table of matches
+outPCA.Comp_latent_matching_corr      = Comp_latent_matching_corr_pca;      % Table of matches
 outPCA.Comp_latent_matching_matrix        = R_PCA;         % Full corr matrix
 outPCA.explained     = explained;
 outPCA.method_dir    = method_dir;
-outPCA.avg_comp_corr = avg_comp_corr;
+outPCA.direct_Component_Corr = direct_Component_Corr_pca; 
 outPCA.spectral_R2 = pca_R2_scores;    
 
 close all;
