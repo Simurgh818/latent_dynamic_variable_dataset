@@ -156,7 +156,7 @@ for c = 1:numel(conditions)
 
             for ki = 1:nK
                 k = k_range(ki);
-              
+                fprintf('   -> Running %s with k = %d ...\n', method, k);
                 entry = runDimRedMethod( ...
                     method, data, local_param, k, ki, cond, dataset_name, method_dir,...
                     local_results_dir);

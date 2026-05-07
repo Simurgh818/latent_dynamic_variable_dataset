@@ -65,7 +65,7 @@ end
 %% ============================================================
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
-if isempty(getCurrentTask())
+if (isempty(getCurrentTask()) & num_comps==6)
     % Time domain plot
     plotTimeDomainReconstruction(h_test, h_rec_test, param, 'ICA', num_comps, direct_Component_Corr_ica, method_dir);
 

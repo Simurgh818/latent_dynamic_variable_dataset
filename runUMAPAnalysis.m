@@ -100,8 +100,7 @@ umap_test  = umap_test_raw(:, 1:num_sig_components);
 %% ============================================================
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
-if isempty(getCurrentTask())
-    
+if (isempty(getCurrentTask()) & num_sig_components==6)    
     % Plot 1: UMAP Embedding (Training) colored by Latents
     cluster_idx = kmeans(h_test, param.N_F,'MaxIter', 1000, 'Replicates', 5, 'Display', 'off');
     

@@ -69,7 +69,7 @@ end
 %% ============================================================
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
-if isempty(getCurrentTask()) 
+if (isempty(getCurrentTask()) & bottleNeck==6)
     
     %% Plot 1 & 2: Component Traces
     plotCTraces(bottleNeck, param, H_recon_test, method_dir, file_suffix);
