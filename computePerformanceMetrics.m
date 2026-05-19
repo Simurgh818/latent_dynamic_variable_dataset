@@ -88,8 +88,13 @@ function [h_recon_train, h_recon_test, corr_table, R_matrix, direct_Component_Co
         f_range  = bands.(band_names{b});
         idx_band = f_plot >= f_range(1) & f_plot <= f_range(2);
         
-        true_vals{b}  = squeeze(mean(Ht_amp(idx_band,:,:), 1, 'omitnan'));
-        recon_vals{b} = squeeze(mean(Hr_amp(idx_band,:,:), 1, 'omitnan'));
+        % Get the mean (leaves a 1 x num_f x nTrials matrix)
+        tmp_t = mean(Ht_amp(idx_band,:,:), 1, 'omitnan');
+        tmp_r = mean(Hr_amp(idx_band,:,:), 1, 'omitnan');
+        
+        % Explicitly reshape to [num_f x nTrials] so it never becomes a flat row!
+        true_vals{b}  = reshape(tmp_t, [num_f, nTrials]);
+        recon_vals{b} = reshape(tmp_r, [num_f, nTrials]);
         
         if b == 4, target_zs = [4, 5];
         elseif b == 5, target_zs = 6;
@@ -97,10 +102,17 @@ function [h_recon_train, h_recon_test, corr_table, R_matrix, direct_Component_Co
         
         for z = 1:num_f
             if ismember(z, target_zs)
-                x_z = true_vals{b}(z,:);
-                y_z = recon_vals{b}(z,:);
-                R_coef = corrcoef(x_z, y_z);
-                if numel(R_coef) > 1, r_sq = R_coef(1,2)^2; else, r_sq = 0; end
+                
+                % --- ADD THIS SAFEGUARD ---
+                if isempty(true_vals{b}) || size(true_vals{b}, 1) < z
+                    r_sq = 0;
+                else
+                    x_z = true_vals{b}(z,:);
+                    y_z = recon_vals{b}(z,:);
+                    R_coef = corrcoef(x_z, y_z);
+                    if numel(R_coef) > 1, r_sq = R_coef(1,2)^2; else, r_sq = 0; end
+                end
+                
                 spectral_R2_scores(z) = r_sq;
             end
         end
