@@ -19,11 +19,11 @@ fs=1/param.dt;
 fc = fs/4;
 % param.tau_F = repmat(1/(2*pi*fc), 1, param.N_F);
 param.tau_F = [1, 0.85, 0.75, 0.5, 0.25, 0.125] ;
-param.T = 1000; % Total simulation time (in seconds), min duration at 1000 sec
+param.T = 10; % Total simulation time (in seconds), min duration at 1000 sec
 
 num_latents = length(param.tau_F);
 zeta_latents = [0.1 0.3 0.1 0.25 0.2 0.4]; %0.4 0.45 0.5 Increased from 0.15 to 0.5 for less sharp peaks [0.15 0.2 0.25 0.4 0.5 0.4 0.3 0.15];
-T = 1000;     % Duration, in seconds
+T = param.T;     % Duration, in seconds
 dt = param.dt;   % time step, in seconds
 
 % 1 second window = fs samples (since fs is samples per second)
@@ -103,7 +103,7 @@ if exist('H:\', 'dir')
     output_dir = ['C:' filesep 'Users' filesep 'sinad' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Shared Code' filesep 'simEEG']; % filesep 'diffDuration'
+    'Article Paper' filesep 'simEEG']; % filesep 'diffDuration'
 
     realEEG_path = ['H:\' filesep 'My Drive' filesep 'Data' ...
         filesep 'New Data' filesep 'EEG epoched' filesep 'BLT'];
@@ -117,7 +117,7 @@ elseif exist('G:\', 'dir')
     output_dir = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Shared Code' filesep 'simEEG']; % filesep 'diffDuration'
+    'Article Paper' filesep 'simEEG']; % filesep 'diffDuration'
 
     realEEG_path = ['G:\' filesep 'My Drive' filesep 'Data' ...
         filesep 'New Data' filesep 'EEG epoched' filesep 'BLT'];
@@ -260,12 +260,12 @@ for i_spat = 1:num_spatial_realizations
 
     file_out_path = fullfile(output_dir,sprintf('simEEG_set2_spat%02d_dur%d.mat', i_spat, T));
 
-    save(file_out_path, "train_sim_eeg_vals", "train_true_hF", "test_sim_eeg_vals", "dt","param")
+    % save(file_out_path, "train_sim_eeg_vals", "train_true_hF", "test_sim_eeg_vals", "dt","param")
     
     file_out_path_key = fullfile(output_dir, sprintf('simEEG_set2_spat%02d_dur%d_key.mat', i_spat, T)); 
-    save(file_out_path_key, "test_sim_eeg_vals", "test_true_hF", ...
-        "pos_src_locs", "neg_src_locs", "src_widths", "src_pks",...
-        "select_comps", "spatial_comps", "gain_par", "bias_par");
+    % save(file_out_path_key, "test_sim_eeg_vals", "test_true_hF", ...
+    %     "pos_src_locs", "neg_src_locs", "src_widths", "src_pks",...
+    %     "select_comps", "spatial_comps", "gain_par", "bias_par");
     
     % 2. Calculate PSD
     [pxx, f_psd] = pwelch(sim_eeg_vals', win_len, n_overlap, [], fs);
@@ -297,7 +297,7 @@ for i_spat = 1:num_spatial_realizations
     xticks(param.f_peak) 
     legend('Location','northeast');
     set(findall(fig1,'-property','FontSize'),'FontSize',16);
-    saveas(gcf, fullfile(output_folder, sprintf('PSD_Set2_Spat%02d_dur%d.png', i_spat,T)));
+    % saveas(gcf, fullfile(output_folder, sprintf('PSD_Set2_Spat%02d_dur%d.png', i_spat,T)));
 
     % Set 3: nonlinear
     % select_comps = [1 2 4 7];
