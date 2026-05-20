@@ -48,17 +48,26 @@ function [h_recon_train, h_recon_test, corr_table, R_matrix, direct_Component_Co
     T = size(h_test, 1);
     trial_dur = 1; 
     L = round(trial_dur * param.fs);
-    nTrials = floor(T/L);
+    
     f_axis = (0:L-1)*(param.fs/L);
     nHz = floor(L/2) + 1;
     f_plot = f_axis(1:nHz);
+    
+    % --- FFT Calculation with 50% Overlap ---
+    % Define overlap step (e.g., 50% overlap)
+    step = floor(L / 2); 
+    nTrials = floor((T - L) / step) + 1; % Number of trials increases significantly
     
     Ht = zeros(L, num_f, nTrials);
     Hr = zeros(L, num_f, nTrials);
     
     %% 5. FFT Calculation
+       
     for tr = 1:nTrials
-        idx = (tr-1)*L + (1:L);
+        % Start index jumps by 'step' instead of 'L'
+        start_idx = (tr-1)*step + 1;
+        idx = start_idx : (start_idx + L - 1);
+        
         Ht(:,:,tr) = fft(h_test(idx, :));
         Hr(:,:,tr) = fft(h_recon_test(idx, :));
     end
