@@ -55,7 +55,7 @@ function [h_recon_train, h_recon_test, corr_table, R_matrix, direct_Component_Co
     
     % --- FFT Calculation with 50% Overlap ---
     % Define overlap step (e.g., 50% overlap)
-    step = floor(L / 2); 
+    step = floor(L / 6); 
     nTrials = floor((T - L) / step) + 1; % Number of trials increases significantly
     
     Ht = zeros(L, num_f, nTrials);
@@ -118,11 +118,18 @@ function [h_recon_train, h_recon_test, corr_table, R_matrix, direct_Component_Co
                 else
                     x_z = true_vals{b}(z,:);
                     y_z = recon_vals{b}(z,:);
-                    R_coef = corrcoef(x_z, y_z);
-                    if numel(R_coef) > 1, r_sq = R_coef(1,2)^2; else, r_sq = 0; end
+                    
+                    % 1. Calculate the R2 for every individual trial
+                    r_sq_array = 1 - (abs(x_z - y_z).^2)./(abs(x_z).^2 + eps);
+                    
+                    % 2. Take the average across all trials
+                    r_sq = mean(r_sq_array, 'omitnan');
                 end
                 
+                % Store the scalar value
                 spectral_R2_scores(z) = r_sq;
+                
+                
             end
         end
     end

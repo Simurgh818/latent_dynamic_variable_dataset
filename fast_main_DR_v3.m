@@ -40,7 +40,7 @@ nDatasets  = 1;
 k_range    = 6; % Only run k=6
 nK         = numel(k_range);
 methods    = {'PCA', 'AE'}; % Only run PCA and AE
-durations  = [10, 60, 360, 8640]; % Data lengths in seconds
+durations  = [10, 60, 360, 8640]; %  Data lengths in seconds
 nDurations = numel(durations);
 % -----------------------------
 
@@ -65,7 +65,7 @@ for c = 1:numel(conditions)
     cond = conditions{c};
     fprintf('\n=== Running condition: %s ===\n', cond);
     duration_results = cell(1, nDurations);
-    parfor dur_idx = 1:nDurations
+    parfor dur_idx = 1:nDurations % parfor
         dur = durations(dur_idx);
         fprintf('\n   --- Processing Duration: %d seconds ---\n', dur);
         
