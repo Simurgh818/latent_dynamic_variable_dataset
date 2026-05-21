@@ -34,7 +34,7 @@ end
 
 %% Loop through experiments
 conditions = {'set4'}; 
-nDatasets  = 1; 
+nDatasets  = 5; 
 
 % --- TARGETED RUN PARETERS ---
 k_range    = 6; % Only run k=6
@@ -221,10 +221,17 @@ for c = 1:numel(conditions)
     for m = 1:numel(methods)
         method = methods{m};
         
+        % Global Means (Averaged across all latents)
         mean_corr = nan(1, nDurations);
         std_corr  = nan(1, nDurations);
         mean_r2   = nan(1, nDurations);
         std_r2    = nan(1, nDurations);
+        
+        % Per-Latent Means (For the Frequency Profile Plot)
+        corr_per_latent_mean = nan(nDurations, param.N_F);
+        corr_per_latent_std  = nan(nDurations, param.N_F);
+        r2_per_latent_mean   = nan(nDurations, param.N_F);
+        r2_per_latent_std    = nan(nDurations, param.N_F);
         
         for dur_idx = 1:nDurations
             corr_all = nan(nDatasets, param.N_F);
@@ -237,18 +244,28 @@ for c = 1:numel(conditions)
                 r2_all(d, :)   = analysis.(method).spectral_R2(:, 1);
             end
             
-            % Calculate mean and standard deviation across ALL latents AND datasets for this duration
+            % Global metrics (collapsed across latents)
             mean_corr(dur_idx) = mean(corr_all(:), 'omitnan');
             std_corr(dur_idx)  = std(corr_all(:), 'omitnan');
-            
             mean_r2(dur_idx)   = mean(r2_all(:), 'omitnan');
             std_r2(dur_idx)    = std(r2_all(:), 'omitnan');
+            
+            % Per-latent metrics
+            corr_per_latent_mean(dur_idx, :) = mean(corr_all, 1, 'omitnan');
+            corr_per_latent_std(dur_idx, :)  = std(corr_all, 0, 1, 'omitnan');
+            r2_per_latent_mean(dur_idx, :)   = mean(r2_all, 1, 'omitnan');
+            r2_per_latent_std(dur_idx, :)    = std(r2_all, 0, 1, 'omitnan');
         end
         
         STATS.(cond).(method).corr_mean = mean_corr;
         STATS.(cond).(method).corr_std  = std_corr;
         STATS.(cond).(method).r2_mean   = mean_r2;
         STATS.(cond).(method).r2_std    = std_r2;
+        
+        STATS.(cond).(method).corr_per_latent_mean = corr_per_latent_mean;
+        STATS.(cond).(method).corr_per_latent_std  = corr_per_latent_std;
+        STATS.(cond).(method).r2_per_latent_mean   = r2_per_latent_mean;
+        STATS.(cond).(method).r2_per_latent_std    = r2_per_latent_std;
     end
 end
 
@@ -256,59 +273,85 @@ end
 save(fullfile(baseFolder, "RESULTS_DataLength_Benchmark.mat"), "EXP", "STATS", "-v7.3");
 
 %% ----------------------------------------------------------
-% FINAL PLOTS: Performance vs. Data Length
+% FINAL PLOTS
 % ----------------------------------------------------------
+colors = lines(numel(methods));
+
+% === FIGURE 1: Global Performance vs. Data Length ===
 fig1 = figure('Position', [100, 100, 1400, 600]);
 tiledlayout(1, 2, 'Padding', 'compact');
-colors = lines(numel(methods));
-main_title = sprintf('Performance vs. Data Length (k=%d, %s)', k_range(1), conditions{1});
-sgtitle(main_title, 'FontSize', 24, 'FontWeight', 'bold');
+sgtitle(sprintf('Performance vs. Data Length (k=%d, %s)', k_range(1), conditions{1}), 'FontSize', 24, 'FontWeight', 'bold');
 
-% --- Subplot 1: Data Length vs Correlation ---
+% Subplot 1: Data Length vs Correlation
 nexttile; hold on;
 for m = 1:numel(methods)
     method = methods{m};
-    
-    mu_dur = STATS.(conditions{1}).(method).corr_mean;
-    sd_dur = STATS.(conditions{1}).(method).corr_std;
-    
-    errorbar(durations, mu_dur, sd_dur, '-o', ...
-        'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors(m,:), 'DisplayName', method);
+    errorbar(durations, STATS.(conditions{1}).(method).corr_mean, STATS.(conditions{1}).(method).corr_std, ...
+        '-o', 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors(m,:), 'DisplayName', method);
 end
-set(gca, 'XScale', 'log'); % Log scale to handle 10 vs 8640 cleanly
-xticks(durations);
-xticklabels(string(durations));
-xlabel('Data Length (seconds)');
-ylabel('Mean Correlation (\rho)');
-ylim([0 1]);
-title('Latent Component Correlation');
-grid on; legend('Location', 'best');
-set(gca, 'FontSize', 18);
+set(gca, 'XScale', 'log'); 
+xticks(durations); xticklabels(string(durations));
+xlabel('Data Length (seconds)'); ylabel('Mean Correlation (\rho)');
+ylim([0 1]); title('Latent Component Correlation');
+grid on; legend('Location', 'best'); set(gca, 'FontSize', 18);
 
-% --- Subplot 2: Data Length vs Spectral R^2 ---
+% Subplot 2: Data Length vs Spectral R^2
 nexttile; hold on;
 for m = 1:numel(methods)
     method = methods{m};
-    
-    mu_r2 = STATS.(conditions{1}).(method).r2_mean;
-    sd_r2 = STATS.(conditions{1}).(method).r2_std;
-    
-    errorbar(durations, mu_r2, sd_r2, '-o', ...
-        'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors(m,:), 'DisplayName', method);
+    errorbar(durations, STATS.(conditions{1}).(method).r2_mean, STATS.(conditions{1}).(method).r2_std, ...
+        '-o', 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors(m,:), 'DisplayName', method);
 end
 set(gca, 'XScale', 'log');
-xticks(durations);
-xticklabels(string(durations));
-xlabel('Data Length (seconds)');
-ylabel('Mean Spectral R^2');
-ylim([0 1]);
-title('Spectral R^2');
-grid on; legend('Location', 'best');
-set(gca, 'FontSize', 18);
+xticks(durations); xticklabels(string(durations));
+xlabel('Data Length (seconds)'); ylabel('Mean Spectral R^2');
+ylim([0 1]); title('Spectral R^2');
+grid on; legend('Location', 'best'); set(gca, 'FontSize', 18);
 
-% Save Figure
-summary_duration_name = fullfile(baseFolder, sprintf('DataLength_vs_Performance_k%d.png', k_range(1)));
-saveas(fig1, summary_duration_name);
+saveas(fig1, fullfile(baseFolder, sprintf('DataLength_vs_Performance_k%d.png', k_range(1))));
+
+% === FIGURE 2: Spectral R2 Frequency Profile per Duration ===
+% Only create the grid if we have a reasonable number of durations to plot
+if nDurations > 1 && nDurations <= 6
+    fig2 = figure('Position', [150, 150, 1600, 900]);
+    nCols = ceil(sqrt(nDurations));
+    nRows = ceil(nDurations / nCols);
+    t = tiledlayout(nRows, nCols, 'Padding', 'compact', 'TileSpacing', 'compact');
+    sgtitle('Spectral R^2 vs. Peak Frequency across Data Lengths', 'FontSize', 24, 'FontWeight', 'bold');
+
+    for dur_idx = 1:nDurations
+        nexttile; hold on;
+        
+        for m = 1:numel(methods)
+            method = methods{m};
+            mu = STATS.(conditions{1}).(method).r2_per_latent_mean(dur_idx, :);
+            sd = STATS.(conditions{1}).(method).r2_per_latent_std(dur_idx, :);
+
+            % Ensure column vectors for plotting
+            x_col = reshape(double(param.f_peak), [], 1);
+            y_col = reshape(double(mu), [], 1);
+            e_col = reshape(double(sd), [], 1);
+
+            errorbar(x_col, y_col, e_col, '-o', 'LineWidth', 2, ...
+                     'Color', colors(m,:), 'DisplayName', method);
+        end
+        
+        xlabel('Peak Frequency (Hz)');
+        ylabel('Spectral R^2');
+        xticks(param.f_peak);
+        ylim([0 1]);
+        title(sprintf('Duration: %d sec', durations(dur_idx)));
+        grid on; 
+        
+        % Only put the legend on the first tile to save space
+        if dur_idx == 1
+            legend('Location', 'best');
+        end
+        set(gca, 'FontSize', 16);
+    end
+
+    saveas(fig2, fullfile(baseFolder, sprintf('FreqProfile_vs_DataLength_k%d.png', k_range(1))));
+end
 
 %% ---------------------------------------------------------------------
 %  HELPER FUNCTIONS

@@ -19,7 +19,7 @@ fs=1/param.dt;
 fc = fs/4;
 % param.tau_F = repmat(1/(2*pi*fc), 1, param.N_F);
 param.tau_F = [1, 0.85, 0.75, 0.5, 0.25, 0.125] ;
-param.T = 10; % Total simulation time (in seconds), min duration at 1000 sec
+param.T = 8640; % Total simulation time (in seconds), min duration at 1000 sec
 
 num_latents = length(param.tau_F);
 zeta_latents = [0.1 0.3 0.1 0.25 0.2 0.4]; %0.4 0.45 0.5 Increased from 0.15 to 0.5 for less sharp peaks [0.15 0.2 0.25 0.4 0.5 0.4 0.3 0.15];
@@ -145,7 +145,7 @@ if ~exist(output_folder, 'dir')
 end
 
 %% get full component images 
-num_spatial_realizations = 1; % 10
+num_spatial_realizations = 5; % 10
 
 for i_spat = 1:num_spatial_realizations
 
@@ -391,7 +391,8 @@ for i_spat = 1:num_spatial_realizations
     % Plot reference multiplied by the scaling factor
     loglog(f_valid, ref_1of * scaling_factor, 'k--', 'LineWidth', 3, 'DisplayName', '1/f Reference');
     
-    title(sprintf('Welch PSD: Set 4 (Nonlinear) - Spat %02d', i_spat));
+    % title(sprintf('Welch PSD: Set 4 (Nonlinear) - Spat %02d', i_spat));
+    title(sprintf('Welch PSD: Synthetic EEG'));
     xlabel('Frequency (Hz)');
     ylabel('Power (uV/Hz)');
     grid on;
@@ -452,12 +453,12 @@ scaling_factor_rEEG = avg_data_power_rEEG / avg_ref_power_rEEG;
 
 loglog(f_valid_rEEG, ref_1of_rEEG * scaling_factor_rEEG, 'k--', 'LineWidth', 3,'DisplayName','1/f'); % Thick Black Dashed Line
 
-title(sprintf('Welch PSD: BLT Subject BOS2'));
+title(sprintf('Welch PSD: Baseline Tactile Subject 1'));
 xlabel('Frequency (Hz)');
 ylabel('Power (uV/Hz)');
 grid on;
 xlim([f_psd_rEEG(2) 50]); % Optional: Zoom in to relevant frequencies if needed
-xticks([1, 4, 8, 10, 13, 20, 30, 50]) 
+xticks([param.f_peak]);
 legend('Location','northeast');
 set(findall(fig1,'-property','FontSize'),'FontSize',16);
 %% Parsimonious plots: just show the electrodes, color by component
