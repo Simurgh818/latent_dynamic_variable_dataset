@@ -9,20 +9,20 @@ if exist('I:\', 'dir')
     input_dir = ['C:' filesep 'Users' filesep 'sinad' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Article Paper' filesep 'simEEG']; 
+    'Method Paper' filesep 'simEEG']; 
     baseFolder = ['C:' filesep 'Users' filesep 'sinad' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Article Paper' filesep 'Results'];
+    'Method Paper' filesep 'Results'];
 elseif exist('G:\', 'dir')
     input_dir = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Article Paper' filesep 'simEEG'];
+    'Method Paper' filesep 'simEEG'];
     baseFolder = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
-    'Article Paper' filesep 'Results'];
+    'Method Paper' filesep 'Results'];
 elseif ismac && exist('/Users/asederberg6/Library/CloudStorage/OneDrive-GeorgiaInstituteofTechnology', 'dir')
     one_drive_dir = '/Users/asederberg6/Library/CloudStorage/OneDrive-GeorgiaInstituteofTechnology';
     path_to_files = '/Users/asederberg6/Library/CloudStorage/OneDrive-GeorgiaInstituteofTechnology/Dabiri, Sina''s files - Dr. Sederberg MaTRIX Lab';
@@ -34,12 +34,12 @@ end
 
 %% Loop through experiments
 conditions = {'set4'}; 
-nDatasets  = 5; 
+nDatasets  = 1; 
 
 % --- TARGETED RUN PARETERS ---
 k_range    = 6; % Only run k=6
 nK         = numel(k_range);
-methods    = {'PCA', 'AE'}; % Only run PCA and AE
+methods    = {'PCA'}; % Only run PCA and AE
 durations  = [10, 60, 360, 8640]; %  Data lengths in seconds
 nDurations = numel(durations);
 % -----------------------------
@@ -280,7 +280,7 @@ colors = lines(numel(methods));
 % === FIGURE 1: Global Performance vs. Data Length ===
 fig1 = figure('Position', [100, 100, 1400, 600]);
 tiledlayout(1, 2, 'Padding', 'compact');
-sgtitle(sprintf('Performance vs. Data Length (k=%d, %s)', k_range(1), conditions{1}), 'FontSize', 24, 'FontWeight', 'bold');
+sgtitle(sprintf('Performance vs. Data Length (k=%d)', k_range(1)), 'FontSize', 24, 'FontWeight', 'bold');
 
 % Subplot 1: Data Length vs Correlation
 nexttile; hold on;

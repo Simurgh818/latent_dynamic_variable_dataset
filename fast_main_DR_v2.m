@@ -41,12 +41,12 @@ end
 %% Loop through experiments
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 10; % 10
-k_range    = 1:8; % 9
+nDatasets  = 1; % 10
+k_range    = 1:6; % 9
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA', 'ICA', 'UMAP', 'AE'}; % 'iVAE' 'PCA', 'AE','dPCA', 'ICA','UMAP' 
+methods = {'PCA','AE'}; % , 'ICA', 'UMAP', 'AE' 'iVAE' 'PCA', 'AE','dPCA', 'ICA','UMAP' 
 
 EXP = struct();
 param = struct();
@@ -384,7 +384,7 @@ for c = 1:numel(conditions)
         ylabel('Correlation');
         xticks(param.f_peak);
         ylim([0 1]);
-        title(sprintf('Latent Variable–Component Corr (k=%d, %s)', k, cond));
+        title(sprintf('Latent Variable–Component Corr (k=%d)', k));
         grid on;
         legend('Location','eastoutside');
         set(gca, 'FontSize', 16);
@@ -458,7 +458,7 @@ for c = 1:numel(conditions)
     xticks(linspace(min(k_range), max(k_range), nK));
     ylabel('Mean Correlation (\rho)');
     ylim([0 1]);
-    title(sprintf('Mean Latent Correlation vs k (%s)', cond));
+    title(sprintf('Mean Latent Correlation vs k'));
     grid on;
     legend('Location', 'eastoutside');
     set(gca, 'FontSize', 20);
@@ -517,7 +517,7 @@ if ~isempty(ki_target)
         ylabel('Correlation');
         xticks(param.f_peak);
         ylim([0 1]); % Adjusted back to [0 1] for general safety
-        title(sprintf('Correlation vs Frequency (k=%d, %s)', target_k, cond));
+        title(sprintf('Correlation vs Frequency (k=%d)', target_k));
         grid on; 
         legend('Location','eastoutside'); 
         set(gca, 'FontSize', 20);
@@ -558,7 +558,7 @@ if ~isempty(ki_target)
         ylabel('Spectral R^2');
         xticks(param.f_peak);
         ylim([0 1]); % Widened slightly to account for negative R2 error bars
-        title(sprintf('Spectral R^2 vs Frequency (k=%d, %s)', target_k, cond));
+        title(sprintf('Spectral R^2 vs Frequency (k=%d)', target_k));
         grid on; 
         legend('Location','eastoutside'); 
         set(gca, 'FontSize', 20);
