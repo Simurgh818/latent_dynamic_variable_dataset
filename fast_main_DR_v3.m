@@ -34,7 +34,7 @@ end
 
 %% Loop through experiments
 conditions = {'set4'}; 
-nDatasets  = 5; 
+nDatasets  = 2; 
 
 % --- TARGETED RUN PARETERS ---
 k_range    = 6; % Only run k=6
