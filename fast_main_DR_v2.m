@@ -41,8 +41,8 @@ end
 %% Loop through experiments
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 1; % 10
-k_range    = 1:6; % 9
+nDatasets  = 10; % 10
+k_range    = 1:8; % 9
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
@@ -62,15 +62,15 @@ RESULTS.meta.description = "Dimensionality reduction benchmark";
 % Best practice: Leave 1-2 cores free for the OS/Main Thread.
 % For a 7-core system, 5 workers is a safe, high-performance choice.
 
-% target_workers = 5; 
-% current_pool = gcp('nocreate');
-% 
-% if isempty(current_pool)
-%     parpool(target_workers);
-% elseif current_pool.NumWorkers ~= target_workers
-%     delete(current_pool);
-%     parpool(target_workers);
-% end
+target_workers = 5; 
+current_pool = gcp('nocreate');
+
+if isempty(current_pool)
+    parpool(target_workers);
+elseif current_pool.NumWorkers ~= target_workers
+    delete(current_pool);
+    parpool(target_workers);
+end
 
 %% Loop through experiments
 for c = 1:numel(conditions)
@@ -83,7 +83,7 @@ for c = 1:numel(conditions)
     % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
-    for d = 1:nDatasets
+    parfor d = 1:nDatasets
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         data = struct();
         
@@ -103,8 +103,8 @@ for c = 1:numel(conditions)
         loader = load(fullfile(input_dir, [eegFilename '.mat']));
         
         % Extract local variables
-        s_eeg_like      = double(loader.train_sim_eeg_vals);
-        h_f             = double(loader.train_true_hF');
+        s_eeg_like      = double(loader.sim_eeg_vals);
+        h_f             = double(loader.all_h_F');
         f_peak          = loader.param.f_peak;
 
         % Recalculate parameters locally

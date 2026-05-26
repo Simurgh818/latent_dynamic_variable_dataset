@@ -55,7 +55,7 @@ function [h_recon_train, h_recon_test, corr_table, R_matrix, direct_Component_Co
     
     % --- FFT Calculation with 50% Overlap ---
     % Define overlap step (e.g., 50% overlap)
-    step = floor(L / 6); 
+    step = floor(L / 9); 
     nTrials = floor((T - L) / step) + 1; % Number of trials increases significantly
     
     Ht = zeros(L, num_f, nTrials);

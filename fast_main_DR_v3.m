@@ -34,13 +34,13 @@ end
 
 %% Loop through experiments
 conditions = {'set4'}; 
-nDatasets  = 1; 
+nDatasets  = 5; 
 
 % --- TARGETED RUN PARETERS ---
 k_range    = 6; % Only run k=6
 nK         = numel(k_range);
-methods    = {'PCA'}; % Only run PCA and AE
-durations  = [10, 60, 360, 8640]; %  Data lengths in seconds
+methods    = {'PCA','AE'}; % Only run PCA and AE
+durations  = [10, 60, 360, 8640]; %  Data lengths in seconds 
 nDurations = numel(durations);
 % -----------------------------
 
@@ -95,8 +95,8 @@ for c = 1:numel(conditions)
             loader = load(fullfile(input_dir, [eegFilename '.mat']));
             
             % Extract local variables
-            s_eeg_like      = double(loader.train_sim_eeg_vals);
-            h_f             = double(loader.train_true_hF');
+            s_eeg_like      = double(loader.sim_eeg_vals);
+            h_f             = double(loader.all_h_F');
             f_peak          = loader.param.f_peak;
             % Recalculate parameters locally
             local_param = loader.param; 
