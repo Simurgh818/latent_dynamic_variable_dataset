@@ -39,7 +39,7 @@ nDatasets  = 5;
 % --- TARGETED RUN PARETERS ---
 k_range    = 6; % Only run k=6
 nK         = numel(k_range);
-methods    = {'PCA'}; % Only run PCA and AE
+methods    = {'PCA','AE','ICA'}; % Only run PCA and AE
 durations  = [10, 60, 360, 8640]; %  Data lengths in seconds 
 nDurations = numel(durations);
 % -----------------------------

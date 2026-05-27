@@ -46,7 +46,7 @@ k_range    = 1:8; % 9
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA','AE'}; % , 'ICA', 'UMAP', 'AE' 'iVAE' 'PCA', 'AE','dPCA', 'ICA','UMAP' 
+methods = {'PCA', 'AE', 'ICA'}; % , 'ICA', 'UMAP', 'AE' 'iVAE' 'PCA', 'AE','dPCA', 'ICA','UMAP' 
 
 EXP = struct();
 param = struct();
@@ -570,6 +570,80 @@ if ~isempty(ki_target)
 else
     sprintf('k=%d is not in your current k_range. Skipping the frequency profile plot.',target_k);
 end
+%% ----------------------------------------------------------
+% 6. Plot Matching Correlation vs k (Per Latent Variable)
+% ----------------------------------------------------------
+for c = 1:numel(conditions)
+    cond = conditions{c};
+    
+    % Initialize figure and layout based on number of latents
+    fig3 = figure('Position', [100, 100, 1600, 900]);
+    nLatents = length(param.f_peak);
+    nCols = ceil(sqrt(nLatents));
+    nRows = ceil(nLatents / nCols);
+    tiledlayout(nRows, nCols, 'Padding', 'compact', 'TileSpacing', 'compact');
+
+    sgtitle(sprintf('Matching Correlation vs k per Latent Variable (%s)', cond), ...
+        'FontSize', 24, 'FontWeight', 'bold');
+    
+    colors = lines(numel(methods));
+    
+    % Initialize a sub-struct in RESULTS for these specific metrics
+    RESULTS.stats_per_latent.(cond) = struct();
+    
+    for f = 1:nLatents
+        nexttile; hold on;
+        peak_freq = param.f_peak(f);
+        
+        for m = 1:numel(methods)
+            method = methods{m};
+            
+            % Extract the mean and std across all k for this specific latent (f)
+            mu_k = zeros(1, nK);
+            sd_k = zeros(1, nK);
+            for ki = 1:nK
+                mu_k(ki) = CORR_STATS.(cond).(method)(ki).mean(f);
+                sd_k(ki) = CORR_STATS.(cond).(method)(ki).std(f);
+            end
+            
+            % Plot the trajectory for this method
+            errorbar(k_range, mu_k, sd_k, '-o', ...
+                'LineWidth', 2.5, 'MarkerSize', 6, ...
+                'Color', colors(m,:), 'DisplayName', method);
+            
+            % --- Save to RESULTS structure ---
+            % Format the field name (replace dots with underscores for valid struct keys)
+            latent_name = sprintf('Z_%gHz', peak_freq);
+            latent_name = strrep(latent_name, '.', '_'); 
+            
+            RESULTS.stats_per_latent.(cond).(method).(latent_name).k = k_range;
+            RESULTS.stats_per_latent.(cond).(method).(latent_name).corr_mean = mu_k;
+            RESULTS.stats_per_latent.(cond).(method).(latent_name).corr_std = sd_k;
+        end
+        
+        % Format the subplot
+        xlabel('Number of Components (k)');
+        ylabel('Matching Correlation (\rho)');
+        xticks(linspace(min(k_range), max(k_range), nK));
+        xlim([1, max(k_range)]);
+        ylim([0 1]);
+        title(sprintf('Latent: %g Hz', peak_freq));
+        grid on;
+        
+        % Add legend only to the first subplot to save space
+        if f == 1
+            legend('Location', 'best');
+        end
+        set(gca, 'FontSize', 16);
+    end
+    
+    % Save the figure
+    fig_name = fullfile(local_results_dir, sprintf('Matching_Corr_vs_k_Per_Latent_%s.png', cond));
+    saveas(fig3, fig_name);
+end
+
+% Re-save RESULTS.mat to capture the newly added stats_per_latent structure
+save(fullfile(local_results_dir, "RESULTS.mat"), "RESULTS", "-v7.3");
 %% ---------------------------------------------------------------------
 %  HELPER FUNCTIONS
 % ---------------------------------------------------------------------

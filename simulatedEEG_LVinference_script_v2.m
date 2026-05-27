@@ -11,7 +11,7 @@ param.dt = 0.002; % 5e-3 for 200 Hz fs, 2e-3 for 500 Hz fs
 fs=1/param.dt;
 fc = fs/4;
 param.tau_F = [1, 0.85, 0.75, 0.5, 0.25, 0.125] ;
-param.T = 8640; % Total simulation time (in seconds), max duration at 8640 sec
+param.T = 1000; % Total simulation time (in seconds), max duration at 8640 sec
 
 num_latents = length(param.tau_F);
 zeta_latents = [0.1 0.3 0.1 0.25 0.2 0.4]; %0.4 0.45 0.5 Increased from 0.15 to 0.5 for less sharp peaks [0.15 0.2 0.25 0.4 0.5 0.4 0.3 0.15];
@@ -74,7 +74,8 @@ else
 end
 
 input_dir = fullfile(base_dir, 'Shared Code', 'latent_dynamic_variable_dataset');
-output_dir = fullfile(base_dir, 'Method Paper', 'simEEG');
+% output_dir = fullfile(base_dir, 'Method Paper', 'simEEG');
+output_dir = fullfile(base_dir, 'Shared Code', 'simEEG');
 
 % Setup Output Folder for PSD Plots
 output_folder = fullfile(input_dir, 'PSD_Output');
@@ -96,7 +97,7 @@ num_channels = length(eeg_loc_x);
 [bp_b, bp_a] = butter(4, [0.1 100]/(fs/2), 'bandpass');
 
 %% 5. Generate Full Component Images & Synthetic EEG
-num_spatial_realizations = 5; % # of datasets 
+num_spatial_realizations = 10; % # of datasets 
 for i_spat = 1:num_spatial_realizations
     % Source locations and parameters
     pos_src_locs = rand(num_latents, 2)*1.5 - 0.75;
