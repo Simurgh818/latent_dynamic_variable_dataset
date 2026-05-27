@@ -34,12 +34,12 @@ end
 
 %% Loop through experiments
 conditions = {'set4'}; 
-nDatasets  = 2; 
+nDatasets  = 5; 
 
 % --- TARGETED RUN PARETERS ---
 k_range    = 6; % Only run k=6
 nK         = numel(k_range);
-methods    = {'PCA','AE'}; % Only run PCA and AE
+methods    = {'PCA'}; % Only run PCA and AE
 durations  = [10, 60, 360, 8640]; %  Data lengths in seconds 
 nDurations = numel(durations);
 % -----------------------------
@@ -222,55 +222,78 @@ for c = 1:numel(conditions)
         method = methods{m};
         
         % Global Means (Averaged across all latents)
-        mean_corr = nan(1, nDurations);
-        std_corr  = nan(1, nDurations);
-        mean_r2   = nan(1, nDurations);
-        std_r2    = nan(1, nDurations);
+        mean_matching_corr = nan(1, nDurations);
+        std_matching_corr  = nan(1, nDurations);
+        mean_r2            = nan(1, nDurations);
+        std_r2             = nan(1, nDurations);
         
-        % Per-Latent Means (For the Frequency Profile Plot)
-        corr_per_latent_mean = nan(nDurations, param.N_F);
-        corr_per_latent_std  = nan(nDurations, param.N_F);
-        r2_per_latent_mean   = nan(nDurations, param.N_F);
-        r2_per_latent_std    = nan(nDurations, param.N_F);
+        % Per-Latent Means (For the new Figure 3)
+        matching_corr_per_latent_mean = nan(nDurations, param.N_F);
+        matching_corr_per_latent_std  = nan(nDurations, param.N_F);
+        r2_per_latent_mean            = nan(nDurations, param.N_F);
+        r2_per_latent_std             = nan(nDurations, param.N_F);
         
         for dur_idx = 1:nDurations
-            corr_all = nan(nDatasets, param.N_F);
-            r2_all   = nan(nDatasets, param.N_F);
+            matching_corr_all = nan(nDatasets, param.N_F);
+            r2_all            = nan(nDatasets, param.N_F);
             
             for d = 1:nDatasets
                 analysis = EXP.(cond).duration(dur_idx).dataset(d).analysis;
-                % Pull the 1st column (since we only ran ki=1 for k=6)
-                corr_all(d, :) = analysis.(method).direct_Component_Corr(:, 1);
-                r2_all(d, :)   = analysis.(method).spectral_R2(:, 1);
+                
+                % --- PULL FROM MATCHING TABLE (ki=1 for k=6) ---
+                match_table = analysis.(method).Comp_latent_matching_corr{1};
+                
+                % Dynamically find the correlation column name
+                colNames = match_table.Properties.VariableNames;
+                if ismember('corr_value', colNames)
+                    match_vals = match_table.corr_value;
+               
+                end
+                
+                % Store values
+                matching_corr_all(d, :) = match_vals;
+                r2_all(d, :)            = analysis.(method).spectral_R2(:, 1);
             end
             
             % Global metrics (collapsed across latents)
-            mean_corr(dur_idx) = mean(corr_all(:), 'omitnan');
-            std_corr(dur_idx)  = std(corr_all(:), 'omitnan');
-            mean_r2(dur_idx)   = mean(r2_all(:), 'omitnan');
-            std_r2(dur_idx)    = std(r2_all(:), 'omitnan');
+            mean_matching_corr(dur_idx) = mean(matching_corr_all(:), 'omitnan');
+            std_matching_corr(dur_idx)  = std(matching_corr_all(:), 'omitnan');
+            mean_r2(dur_idx)            = mean(r2_all(:), 'omitnan');
+            std_r2(dur_idx)             = std(r2_all(:), 'omitnan');
             
             % Per-latent metrics
-            corr_per_latent_mean(dur_idx, :) = mean(corr_all, 1, 'omitnan');
-            corr_per_latent_std(dur_idx, :)  = std(corr_all, 0, 1, 'omitnan');
-            r2_per_latent_mean(dur_idx, :)   = mean(r2_all, 1, 'omitnan');
-            r2_per_latent_std(dur_idx, :)    = std(r2_all, 0, 1, 'omitnan');
+            matching_corr_per_latent_mean(dur_idx, :) = mean(matching_corr_all, 1, 'omitnan');
+            matching_corr_per_latent_std(dur_idx, :)  = std(matching_corr_all, 0, 1, 'omitnan');
+            r2_per_latent_mean(dur_idx, :)            = mean(r2_all, 1, 'omitnan');
+            r2_per_latent_std(dur_idx, :)             = std(r2_all, 0, 1, 'omitnan');
         end
         
-        STATS.(cond).(method).corr_mean = mean_corr;
-        STATS.(cond).(method).corr_std  = std_corr;
-        STATS.(cond).(method).r2_mean   = mean_r2;
-        STATS.(cond).(method).r2_std    = std_r2;
+        STATS.(cond).(method).matching_corr_mean = mean_matching_corr;
+        STATS.(cond).(method).matching_corr_std  = std_matching_corr;
+        STATS.(cond).(method).r2_mean            = mean_r2;
+        STATS.(cond).(method).r2_std             = std_r2;
         
-        STATS.(cond).(method).corr_per_latent_mean = corr_per_latent_mean;
-        STATS.(cond).(method).corr_per_latent_std  = corr_per_latent_std;
-        STATS.(cond).(method).r2_per_latent_mean   = r2_per_latent_mean;
-        STATS.(cond).(method).r2_per_latent_std    = r2_per_latent_std;
+        STATS.(cond).(method).matching_corr_per_latent_mean = matching_corr_per_latent_mean;
+        STATS.(cond).(method).matching_corr_per_latent_std  = matching_corr_per_latent_std;
+        STATS.(cond).(method).r2_per_latent_mean            = r2_per_latent_mean;
+        STATS.(cond).(method).r2_per_latent_std             = r2_per_latent_std;
     end
 end
 
+%% ---------------------------------------------------------------------
+% SAVE RESULTS STRUCTURE
+% ---------------------------------------------------------------------
+RESULTS.PerLatent = struct();
+for m = 1:numel(methods)
+    method = methods{m};
+    RESULTS.PerLatent.(method).duration = durations;
+    RESULTS.PerLatent.(method).f_peak = param.f_peak;
+    RESULTS.PerLatent.(method).matching_corr_mean = STATS.(conditions{1}).(method).matching_corr_per_latent_mean;
+    RESULTS.PerLatent.(method).matching_corr_std = STATS.(conditions{1}).(method).matching_corr_per_latent_std;
+end
+
 % Save comprehensive outputs
-save(fullfile(baseFolder, "RESULTS_DataLength_Benchmark.mat"), "EXP", "STATS", "-v7.3");
+save(fullfile(baseFolder, "RESULTS_DataLength_Benchmark.mat"), "EXP", "STATS", "RESULTS", "-v7.3");
 
 %% ----------------------------------------------------------
 % FINAL PLOTS
@@ -282,17 +305,17 @@ fig1 = figure('Position', [100, 100, 1400, 600]);
 tiledlayout(1, 2, 'Padding', 'compact');
 sgtitle(sprintf('Performance vs. Data Length (k=%d)', k_range(1)), 'FontSize', 24, 'FontWeight', 'bold');
 
-% Subplot 1: Data Length vs Correlation
+% Subplot 1: Data Length vs Matching Correlation
 nexttile; hold on;
 for m = 1:numel(methods)
     method = methods{m};
-    errorbar(durations, STATS.(conditions{1}).(method).corr_mean, STATS.(conditions{1}).(method).corr_std, ...
+    errorbar(durations, STATS.(conditions{1}).(method).matching_corr_mean, STATS.(conditions{1}).(method).matching_corr_std, ...
         '-o', 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors(m,:), 'DisplayName', method);
 end
 set(gca, 'XScale', 'log'); 
 xticks(durations); xticklabels(string(durations));
-xlabel('Data Length (seconds)'); ylabel('Mean Correlation (\rho)');
-ylim([0 1]); title('Latent Component Correlation');
+xlabel('Data Length (seconds)'); ylabel('Mean Max Correlation (\rho)');
+ylim([0 1]); title('Global Latent Matching Correlation');
 grid on; legend('Location', 'best'); set(gca, 'FontSize', 18);
 
 % Subplot 2: Data Length vs Spectral R^2
@@ -311,47 +334,79 @@ grid on; legend('Location', 'best'); set(gca, 'FontSize', 18);
 saveas(fig1, fullfile(baseFolder, sprintf('DataLength_vs_Performance_k%d.png', k_range(1))));
 
 % === FIGURE 2: Spectral R2 Frequency Profile per Duration ===
-% Only create the grid if we have a reasonable number of durations to plot
 if nDurations > 1 && nDurations <= 6
     fig2 = figure('Position', [150, 150, 1600, 900]);
     nCols = ceil(sqrt(nDurations));
     nRows = ceil(nDurations / nCols);
-    t = tiledlayout(nRows, nCols, 'Padding', 'compact', 'TileSpacing', 'compact');
+    t2 = tiledlayout(nRows, nCols, 'Padding', 'compact', 'TileSpacing', 'compact');
     sgtitle('Spectral R^2 vs. Peak Frequency across Data Lengths', 'FontSize', 24, 'FontWeight', 'bold');
-
+    
     for dur_idx = 1:nDurations
         nexttile; hold on;
-        
         for m = 1:numel(methods)
             method = methods{m};
             mu = STATS.(conditions{1}).(method).r2_per_latent_mean(dur_idx, :);
             sd = STATS.(conditions{1}).(method).r2_per_latent_std(dur_idx, :);
-
-            % Ensure column vectors for plotting
+            
             x_col = reshape(double(param.f_peak), [], 1);
             y_col = reshape(double(mu), [], 1);
             e_col = reshape(double(sd), [], 1);
-
             errorbar(x_col, y_col, e_col, '-o', 'LineWidth', 2, ...
                      'Color', colors(m,:), 'DisplayName', method);
         end
         
-        xlabel('Peak Frequency (Hz)');
-        ylabel('Spectral R^2');
-        xticks(param.f_peak);
-        ylim([0 1]);
+        xlabel('Peak Frequency (Hz)'); ylabel('Spectral R^2');
+        xticks(param.f_peak); ylim([0 1]);
         title(sprintf('Duration: %d sec', durations(dur_idx)));
         grid on; 
-        
-        % Only put the legend on the first tile to save space
-        if dur_idx == 1
-            legend('Location', 'best');
-        end
+        if dur_idx == 1, legend('Location', 'best'); end
         set(gca, 'FontSize', 16);
     end
-
     saveas(fig2, fullfile(baseFolder, sprintf('FreqProfile_vs_DataLength_k%d.png', k_range(1))));
 end
+
+% === FIGURE 3: Data Length vs. Correlation per Latent Variable ===
+fig3 = figure('Position', [200, 200, 1600, 900]);
+
+nCols_lat = ceil(sqrt(param.N_F));
+nRows_lat = ceil(param.N_F / nCols_lat);
+t3 = tiledlayout(nRows_lat, nCols_lat, 'Padding', 'compact', 'TileSpacing', 'compact');
+sgtitle('Data Length vs. Matching Correlation per True Latent', 'FontSize', 24, 'FontWeight', 'bold');
+
+for f = 1:param.N_F
+    nexttile; hold on;
+    
+    for m = 1:numel(methods)
+        method = methods{m};
+        
+        % Extract mean and std for the specific true latent variable 'f'
+        mu_f = STATS.(conditions{1}).(method).matching_corr_per_latent_mean(:, f);
+        sd_f = STATS.(conditions{1}).(method).matching_corr_per_latent_std(:, f);
+        
+        x_col = reshape(double(durations), [], 1);
+        y_col = reshape(double(mu_f), [], 1);
+        e_col = reshape(double(sd_f), [], 1);
+        
+        errorbar(x_col, y_col, e_col, '-o', 'LineWidth', 2, ...
+                 'MarkerSize', 6, 'Color', colors(m,:), 'DisplayName', method);
+    end
+    
+    set(gca, 'XScale', 'log'); 
+    xticks(durations); 
+    xticklabels(string(durations));
+    xlabel('Data Length (seconds)'); 
+    ylabel('Max Correlation (\rho)');
+    ylim([0 1]); 
+    title(sprintf('Latent %d (%.1f Hz)', f, param.f_peak(f)));
+    grid on; 
+    
+    if f == 1
+        legend('Location', 'best');
+    end
+    set(gca, 'FontSize', 14);
+end
+
+saveas(fig3, fullfile(baseFolder, sprintf('DataLength_vs_MatchingCorr_PerLatent_k%d.png', k_range(1))));
 
 %% ---------------------------------------------------------------------
 %  HELPER FUNCTIONS
