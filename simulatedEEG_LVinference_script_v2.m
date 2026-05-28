@@ -66,6 +66,9 @@ title('Latent Variables (stacked)');
 if exist('H:\', 'dir')
     base_dir = ['C:' filesep 'Users' filesep 'sinad' filesep 'OneDrive - Georgia Institute of Technology' filesep 'Dr. Sederberg MaTRIX Lab'];
     realEEG_path = ['H:\' filesep 'My Drive' filesep 'Data' filesep 'New Data' filesep 'EEG epoched' filesep 'BLT'];
+elseif exist('I:\', 'dir')
+    base_dir = ['C:' filesep 'Users' filesep 'sinad' filesep 'OneDrive - Georgia Institute of Technology' filesep 'Dr. Sederberg MaTRIX Lab'];
+    realEEG_path = ['I:\' filesep 'My Drive' filesep 'Data' filesep 'New Data' filesep 'EEG epoched' filesep 'BLT'];    
 elseif exist('G:\', 'dir')
     base_dir = ['C:' filesep 'Users' filesep 'sdabiri' filesep 'OneDrive - Georgia Institute of Technology' filesep 'Dr. Sederberg MaTRIX Lab'];
     realEEG_path = ['G:\' filesep 'My Drive' filesep 'Data' filesep 'New Data' filesep 'EEG epoched' filesep 'BLT'];
@@ -96,8 +99,33 @@ num_channels = length(eeg_loc_x);
 % Nyquist is fs/2. Using a 4th order Butterworth filter.
 [bp_b, bp_a] = butter(4, [0.1 100]/(fs/2), 'bandpass');
 
-%% 5. Generate Full Component Images & Synthetic EEG
-num_spatial_realizations = 10; % # of datasets 
+%% 5. Real EEG Setup & PSD (Moved before the loop)
+disp('Loading Real EEG Data...');
+EEG = eeg_emptyset();
+EEG_real = pop_loadset('filename', 'binepochs filtered ICArej BLTAvgBOS2.set', 'filepath', realEEG_path);
+
+EEG.nbchan = size(EEG_real.data, 1);   
+EEG.pnts   = size(EEG_real.data, 2);   
+EEG.trials = 1;                   
+EEG.srate  = fs;                 
+EEG.xmin   = 0;
+EEG.chanlocs = EEG_real.chanlocs;
+EEG.times = (0:EEG.pnts-1) / EEG.srate * 1000; 
+EEG = eeg_checkset(EEG);
+
+epoch_trials = 1:2:EEG_real.trials;
+EEG.data = EEG_real.data(:,:,epoch_trials);
+eeg_vals_real = reshape(EEG.data, size(EEG.data,1), size(EEG.data,2)*size(EEG.data,3));
+
+% Calculate Real EEG PSD once
+fs_real = EEG_real.srate;
+win_len_rEEG = fs_real;
+n_overlap_rEEG = win_len_rEEG/2;
+[pxx_rEEG, f_psd_rEEG] = pwelch(eeg_vals_real', win_len_rEEG, n_overlap_rEEG, [], fs_real);
+
+
+%% 6. Generate Full Component Images, Synthetic EEG, & Combined Plots
+num_spatial_realizations = 1; % # of datasets 
 for i_spat = 1:num_spatial_realizations
     % Source locations and parameters
     pos_src_locs = rand(num_latents, 2)*1.5 - 0.75;
@@ -137,9 +165,8 @@ for i_spat = 1:num_spatial_realizations
     pink_bg = pinknoise(size(sim_eeg_vals, 2), num_channels)'; 
     sim_eeg_vals = sim_eeg_vals + 2.0 * pink_bg; 
     sim_eeg_vals = sim_eeg_vals * 20; 
-
+    
     % --- APPLY BANDPASS FILTER HERE ---
-    % Transpose to filter across time (columns), then transpose back
     sim_eeg_vals = filtfilt(bp_b, bp_a, sim_eeg_vals')'; 
     % ----------------------------------
     
@@ -151,7 +178,7 @@ for i_spat = 1:num_spatial_realizations
     xlim([0 3.5]); xlabel('Time (sec)'); ylabel('Channel 18 (uV)');
     title('Zoom-in view for Channel 18 (Synthetic, Filtered)');
     
-    % Train/Test Split (Fixed missing 'idx' variable, using 80/20 split)
+    % Train/Test Split
     idx = round(0.8 * size(all_h_F, 2)); 
     train_t_range = 1:idx;
     test_t_range = idx+1:size(all_h_F,2);
@@ -166,73 +193,42 @@ for i_spat = 1:num_spatial_realizations
     save(fullfile(output_dir, sprintf('simEEG_set4_spat%02d_dur%d_key.mat', i_spat, T)), "sim_eeg_vals", "all_h_F", ...
         "pos_src_locs", "neg_src_locs", "src_widths", "src_pks", "select_comps", "spatial_comps", "gain_par", "bias_par");
     
-    % Welch PSD Plot
-    fig2 = figure('Name', sprintf('PSD Set 4 - Spat %d', i_spat));
-    [pxx, f_psd] = pwelch(sim_eeg_vals', win_len, n_overlap, [], fs);
+    % Combined Welch PSD Plot
+    [pxx_sim, f_psd_sim] = pwelch(sim_eeg_vals', win_len, n_overlap, [], fs);
     
-    loglog(f_psd, pxx, 'Color', [0.7 0.7 0.7], 'HandleVisibility', 'off'); hold on;
-    loglog(f_psd, mean(pxx, 2), 'b', 'LineWidth', 1.5, 'DisplayName', 'Mean Power');
+    fig_combined = figure('Name', sprintf('Combined PSD - Spat %d', i_spat), 'Position', [100 100 800 600]);
     
-    f_valid = f_psd(f_psd > 0);
-    ref_1of = 1./f_valid;
+    % 1. Plot background individual channels
+    loglog(f_psd_rEEG, pxx_rEEG, 'Color', [0.8 0.8 0.8], 'HandleVisibility', 'off'); hold on; % Faint gray for real
+    loglog(f_psd_sim, pxx_sim, 'Color', [0.7 0.85 1], 'HandleVisibility', 'off'); % Faint blue for synthetic
     
-    avg_data_power = mean(pxx(2:end, :), 'all');
-    avg_ref_power = mean(ref_1of);
-    scaling_factor = avg_data_power / avg_ref_power;
+    % 2. Plot Mean Power Lines
+    loglog(f_psd_rEEG, mean(pxx_rEEG, 2), 'k', 'LineWidth', 2, 'DisplayName', 'Real EEG Mean'); 
+    loglog(f_psd_sim, mean(pxx_sim, 2), 'b', 'LineWidth', 2, 'DisplayName', 'Synthetic EEG Mean');
     
-    loglog(f_valid, ref_1of * scaling_factor, 'k--', 'LineWidth', 3, 'DisplayName', '1/f Reference');
+    % 3. Align 1/f reference line to the REAL EEG within the valid 2-50 Hz range
+    f_valid_rEEG = f_psd_rEEG(f_psd_rEEG > 0); 
+    ref_1of_rEEG = 1./f_valid_rEEG; 
     
-    title(sprintf('Welch PSD: Synthetic EEG'));
+    % Find indices for frequencies between 2 and 50 Hz to prevent filter roll-offs from skewing the alignment
+    valid_range_idx = (f_valid_rEEG >= 2) & (f_valid_rEEG <= 50);
+    
+    avg_data_power_rEEG = mean(mean(pxx_rEEG(valid_range_idx, :)));
+    avg_ref_power_rEEG = mean(ref_1of_rEEG(valid_range_idx));
+    scaling_factor_rEEG = avg_data_power_rEEG / avg_ref_power_rEEG;
+    
+    loglog(f_valid_rEEG, ref_1of_rEEG * scaling_factor_rEEG, 'k--', 'LineWidth', 2.5, 'DisplayName', '1/f Reference'); 
+    
+    title(sprintf('Real vs. Synthetic Welch PSD'));
     xlabel('Frequency (Hz)'); ylabel('Power (uV^2/Hz)');
-    grid on; xlim([f_psd(2) 50]); % Extended slightly to show 100Hz roll-off
+    grid on; 
+    xlim([2 50]); % Focus on the valid bandpass area
     xticks(param.f_peak);
     legend('Location','northeast');
-    set(findall(fig2,'-property','FontSize'),'FontSize',16);
-    saveas(gcf, fullfile(output_folder, sprintf('PSD_Set4_Spat%02d_dur%d.png', i_spat, T)));
+    set(findall(fig_combined,'-property','FontSize'),'FontSize',14);
+    
+    saveas(gcf, fullfile(output_folder, sprintf('Combined_PSD_Spat%02d_dur%d.png', i_spat, T)));
 end
-
-%% 6. Real EEG Comparison
-
-EEG = eeg_emptyset();
-EEG_real = pop_loadset('filename', 'binepochs filtered ICArej BLTAvgBOS2.set', 'filepath', realEEG_path);
-
-EEG.nbchan = size(EEG_real.data, 1);   
-EEG.pnts   = size(EEG_real.data, 2);   
-EEG.trials = 1;                   
-EEG.srate  = fs;                 
-EEG.xmin   = 0;
-EEG.chanlocs = EEG_real.chanlocs;
-EEG.times = (0:EEG.pnts-1) / EEG.srate * 1000; 
-EEG = eeg_checkset(EEG);
-
-epoch_trials = 1:2:EEG_real.trials;
-EEG.data = EEG_real.data(:,:,epoch_trials);
-eeg_vals = reshape(EEG.data, size(EEG.data,1), size(EEG.data,2)*size(EEG.data,3));
-
-% Real EEG PSD
-fs_real = EEG_real.srate;
-win_len_rEEG = fs_real;
-n_overlap_rEEG = win_len_rEEG/2;
-[pxx_rEEG, f_psd_rEEG] = pwelch(eeg_vals', win_len_rEEG, n_overlap_rEEG, [], fs_real);
-
-fig1 = figure('Name', 'Real EEG PSD');
-loglog(f_psd_rEEG, pxx_rEEG, 'Color', [0.7 0.7 0.7],'HandleVisibility', 'off'); hold on;
-loglog(f_psd_rEEG, mean(pxx_rEEG, 2), 'b', 'LineWidth', 1.5,'DisplayName','Mean channels power'); 
-
-f_valid_rEEG = f_psd_rEEG(f_psd_rEEG > 0); 
-ref_1of_rEEG = 1./f_valid_rEEG;       
-
-avg_data_power_rEEG = mean(pxx_rEEG(2:end, :), 'all');
-avg_ref_power_rEEG = mean(ref_1of_rEEG);
-scaling_factor_rEEG = avg_data_power_rEEG / avg_ref_power_rEEG;
-
-loglog(f_valid_rEEG, ref_1of_rEEG * scaling_factor_rEEG, 'k--', 'LineWidth', 3,'DisplayName','1/f'); 
-title('Welch PSD: Baseline Tactile Subject 1');
-xlabel('Frequency (Hz)'); ylabel('Power (uV^2/Hz)');
-grid on; xlim([f_psd_rEEG(2) 50]); 
-xticks(param.f_peak);
-legend('Location','northeast');
-set(findall(fig1,'-property','FontSize'),'FontSize',16);
 
 %% 7. Parsimonious Plots
 makeMyFigure(25, 16);
