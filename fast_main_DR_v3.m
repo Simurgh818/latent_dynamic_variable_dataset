@@ -39,7 +39,7 @@ nDatasets  = 5;
 % --- TARGETED RUN PARETERS ---
 k_range    = 6; % Only run k=6
 nK         = numel(k_range);
-methods    = {'PCA','AE','ICA'}; % Only run PCA and AE
+methods    = {'PCA'}; % ,'AE','ICA'
 durations  = [10, 60, 360, 8640]; %  Data lengths in seconds 
 nDurations = numel(durations);
 % -----------------------------
@@ -127,9 +127,36 @@ for c = 1:numel(conditions)
             data.eeg       = s_eeg_like; 
             data.H_ds      = h_f_norm_orig;
             data.f_peak    = f_peak;
+
+            % =================================================================
+            % --- Intrinsic Dimensionality Estimations ---
+            % =================================================================
+            dim_estimations = struct();
             
-            % --- 3. Method Loop ---
+            % 1. Rank of the training data
+            dim_estimations.rank = rank(eeg_train);
+            
+            % 2. Marchenko-Pastur Threshold
+            % X must be (channels x time). We compute cov of X' (time x channels)
+            [p_ch, n_t] = size(eeg_train);
+            eigVals = sort(eig(cov(eeg_train')), 'descend');
+            noise_var = median(eigVals); % Heuristic estimate of noise variance
+            mp_thresh = noise_var * (1 + sqrt(p_ch/n_t))^2;
+            dim_estimations.mp = sum(eigVals > mp_thresh);
+            
+            % 3. Velicer's MAP test
+            % Assumes you saved the velicer_map.m script in your path.
+            % It expects rows = observations (time), columns = variables (channels).
+            try
+                [dim_estimations.map, ~] = velicer_map(eeg_train'); 
+            catch
+                warning('velicer_map.m not found or failed. Storing NaN.');
+                dim_estimations.map = NaN;
+            end
+            
+            % --- Method Loop ---
             dataset_res = struct();
+            dataset_res.dim_estimations = dim_estimations;
             dataset_res.f_peak = local_param.f_peak;
             all_d_entries = table();
             
@@ -216,6 +243,32 @@ end % End Conditions Loop
 % STATS AGGREGATION FOR DURATION PLOTS
 % ---------------------------------------------------------------------
 STATS = struct();
+% --- Aggregate Intrinsic Dimensionality Estimates ---
+for c = 1:numel(conditions)
+    cond = conditions{c};
+    STATS.(cond).dim_estimations = struct();
+    
+    for dur_idx = 1:nDurations
+        rank_all = nan(nDatasets, 1);
+        mp_all   = nan(nDatasets, 1);
+        map_all  = nan(nDatasets, 1);
+        
+        for d = 1:nDatasets
+            analysis = EXP.(cond).duration(dur_idx).dataset(d).analysis;
+            rank_all(d) = analysis.dim_estimations.rank;
+            mp_all(d)   = analysis.dim_estimations.mp;
+            map_all(d)  = analysis.dim_estimations.map;
+        end
+        
+        STATS.(cond).dim_estimations.rank_mean(dur_idx) = mean(rank_all, 'omitnan');
+        STATS.(cond).dim_estimations.rank_std(dur_idx)  = std(rank_all, 'omitnan');
+        STATS.(cond).dim_estimations.mp_mean(dur_idx)   = mean(mp_all, 'omitnan');
+        STATS.(cond).dim_estimations.mp_std(dur_idx)    = std(mp_all, 'omitnan');
+        STATS.(cond).dim_estimations.map_mean(dur_idx)  = mean(map_all, 'omitnan');
+        STATS.(cond).dim_estimations.map_std(dur_idx)   = std(map_all, 'omitnan');
+    end
+end
+
 for c = 1:numel(conditions)
     cond = conditions{c};
     for m = 1:numel(methods)
@@ -291,6 +344,15 @@ for m = 1:numel(methods)
     RESULTS.PerLatent.(method).matching_corr_mean = STATS.(conditions{1}).(method).matching_corr_per_latent_mean;
     RESULTS.PerLatent.(method).matching_corr_std = STATS.(conditions{1}).(method).matching_corr_per_latent_std;
 end
+
+RESULTS.IntrinsicDim = struct();
+RESULTS.IntrinsicDim.duration  = durations;
+RESULTS.IntrinsicDim.rank_mean = STATS.(conditions{1}).dim_estimations.rank_mean;
+RESULTS.IntrinsicDim.rank_std  = STATS.(conditions{1}).dim_estimations.rank_std;
+RESULTS.IntrinsicDim.mp_mean   = STATS.(conditions{1}).dim_estimations.mp_mean;
+RESULTS.IntrinsicDim.mp_std    = STATS.(conditions{1}).dim_estimations.mp_std;
+RESULTS.IntrinsicDim.map_mean  = STATS.(conditions{1}).dim_estimations.map_mean;
+RESULTS.IntrinsicDim.map_std   = STATS.(conditions{1}).dim_estimations.map_std;
 
 % Save comprehensive outputs
 save(fullfile(baseFolder, "RESULTS_DataLength_Benchmark.mat"), "EXP", "STATS", "RESULTS", "-v7.3");
@@ -408,10 +470,125 @@ end
 
 saveas(fig3, fullfile(baseFolder, sprintf('DataLength_vs_MatchingCorr_PerLatent_k%d.png', k_range(1))));
 
+% === FIGURE 4: Intrinsic Dimensionality vs. Data Length ===
+fig4 = figure('Position', [300, 300, 900, 600]);
+hold on;
+
+% Plot 1: Ground Truth Reference Line
+yline(param.N_F, '--k', sprintf('True Latents (N=%d)', param.N_F), ...
+    'LineWidth', 2.5, 'LabelHorizontalAlignment', 'left', 'FontSize', 14, 'HandleVisibility', 'off');
+
+% Plot 2: Full Rank
+errorbar(durations, RESULTS.IntrinsicDim.rank_mean, RESULTS.IntrinsicDim.rank_std, ...
+         '-o', 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', [0.4 0.4 0.4], 'DisplayName', 'Matrix Rank');
+
+% Plot 3: Marchenko-Pastur
+errorbar(durations, RESULTS.IntrinsicDim.mp_mean, RESULTS.IntrinsicDim.mp_std, ...
+         '-s', 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', [0 0.4470 0.7410], 'DisplayName', 'Marchenko-Pastur');
+
+% Plot 4: Velicer's MAP
+errorbar(durations, RESULTS.IntrinsicDim.map_mean, RESULTS.IntrinsicDim.map_std, ...
+         '-^', 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', [0.8500 0.3250 0.0980], 'DisplayName', 'Velicer''s MAP');
+
+set(gca, 'XScale', 'log');
+xticks(durations); 
+xticklabels(string(durations));
+xlabel('Data Length (seconds)');
+ylabel('Estimated Intrinsic Dimensionality');
+title('Dimensionality Estimation vs. Data Length', 'FontSize', 22, 'FontWeight', 'bold');
+
+% Set Y-limits to slightly above the max rank to give it breathing room
+max_y = max([RESULTS.IntrinsicDim.rank_mean(:); param.N_F]);
+ylim([0 max_y + 2]); 
+
+grid on;
+legend('Location', 'best');
+set(gca, 'FontSize', 16);
+
+saveas(fig4, fullfile(baseFolder, 'IntrinsicDimensionality_vs_DataLength.png'));
+
 %% ---------------------------------------------------------------------
 %  HELPER FUNCTIONS
 % ---------------------------------------------------------------------
 function parsave_struct(fname, s)
     % Helper to save a structure inside parfor
     save(fname, '-struct', 's');
+end
+
+function [num_factors, map_values] = velicer_map(data)
+% VELICER_MAP Determines the number of factors to retain using Velicer's MAP test.
+%
+% Inputs:
+%   data - An (n x p) matrix of raw data (n observations, p variables).
+%
+% Outputs:
+%   num_factors - The optimal number of factors to retain.
+%   map_values  - A vector containing the MAP values at each step (from 0 to p-1 factors).
+
+    % 1. Compute the correlation matrix
+    R = corrcoef(data);
+    p = size(R, 1);
+    
+    % 2. Perform Eigenvalue Decomposition
+    [eigvec, eigval_mat] = eig(R);
+    eigval = diag(eigval_mat);
+    
+    % Sort eigenvalues and eigenvectors in descending order
+    [eigval, idx] = sort(eigval, 'descend');
+    eigvec = eigvec(:, idx);
+    
+    % Initialize array to store the MAP values
+    map_values = zeros(1, p);
+    
+    % 3. Step 0: Calculate average squared correlation (no factors partialled out)
+    R_off_diag = R - eye(p);
+    map_values(1) = sum(R_off_diag(:).^2) / (p * (p - 1));
+    
+    % 4. Loop to partial out 1 to p-1 components
+    for m = 1:(p-1)
+        % Calculate the loadings for m components
+        A = eigvec(:, 1:m) * diag(sqrt(eigval(1:m)));
+        
+        % Reproduce the correlation matrix from m components
+        part_cov = R - (A * A');
+        
+        % Compute the partial correlation matrix
+        d = diag(part_cov);
+        inv_sqrt_d = diag(1 ./ sqrt(d));
+        R_partial = inv_sqrt_d * part_cov * inv_sqrt_d;
+        
+        % Isolate off-diagonal elements
+        R_partial_off = R_partial - eye(p);
+        
+        % Calculate the average squared partial correlation
+        map_values(m+1) = sum(R_partial_off(:).^2) / (p * (p - 1));
+    end
+    
+    % 5. Find the minimum MAP value
+    % Note: MATLAB is 1-indexed, so index 1 represents 0 factors.
+    [min_val, min_idx] = min(map_values);
+    num_factors = min_idx - 1;
+    
+    % 6. Optional: Plot the results to visualize the minimum
+    figure('Position',[50 50 800 500]);
+    plot(0:(p-1), map_values, '-o', 'LineWidth', 2, 'MarkerFaceColor', 'b');
+    hold on;
+    plot(num_factors, map_values(min_idx), 'rp', 'MarkerSize', 12, 'MarkerFaceColor', 'r'); % Highlight minimum
+    coordinate_text = sprintf('  Min: (%d, %.4f)', num_factors, min_val);
+    text(num_factors, 0.2, coordinate_text, ...
+        'VerticalAlignment', 'top', ...
+        'HorizontalAlignment', 'center', ...
+        'FontSize', 26, ...
+        'FontWeight', 'bold', ...
+        'Color', 'r');
+    xlabel('Number of Factors Retained');
+    ylabel('Avg. Sqrd. Partial Corr.');
+    title('Velicer''s MAP Test');
+    legend('MAP Values', 'Minimum (Optimal Factors)');
+    set(gca,'FontSize',24);
+    grid on;
+    hold off;
+    
+    % Output the result to the console
+    fprintf('Velicer''s MAP Test recommends retaining %d factors.\n', num_factors);
 end
