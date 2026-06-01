@@ -42,11 +42,15 @@ end
 
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
 nDatasets  = 10; % 10
-k_range    = 1:8; % 9
+k_range    = 1:9; % 9
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA', 'AE', 'ICA'}; % , 'ICA', 'UMAP', 'AE' 'iVAE' 'PCA', 'AE','dPCA', 'ICA','UMAP' 
+methods = {'PCA', 'AE','ICA'}; % , 'ICA', 'UMAP', 'AE' 'iVAE''dPCA', 'PCA', 'AE', 'ICA','UMAP' 
+
+% --- Define Marker & Line Styles for distinct plotting ---
+method_markers = {'o', 's', '^', 'd', 'v', 'p'}; % Circle, Square, Triangle, Diamond, etc.
+method_lines = {'-', '--', '-.', ':', '-', '--'}; % Solid, Dashed, Dash-Dot, Dotted, etc.
 
 EXP = struct();
 param = struct();
@@ -83,7 +87,7 @@ for c = 1:numel(conditions)
     % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
-    parfor d = 1:nDatasets
+    parfor d = 1:nDatasets % parfor
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         data = struct();
         
@@ -438,24 +442,24 @@ for c = 1:numel(conditions)
     hold on;
     colors = lines(numel(methods));
     
-    for m = 1:numel(methods)
+   for m = 1:numel(methods)
         method = methods{m};
         
-        % STATS.(cond).(method).direct_Component_Corr.mean is size [nLatents x nK]
-        % We average across the latents (Dimension 1) to get a [1 x nK] vector
         mu_k = mean(STATS.(cond).(method).direct_Component_Corr.mean, 1, 'omitnan');
-        
-        % Calculate the standard deviation across the 6 latents
         sd_k = std(STATS.(cond).(method).direct_Component_Corr.mean, 0, 1, 'omitnan');
         
-        errorbar(k_range, mu_k, sd_k, '-o', ...
+        % --- UPDATE: Added LineStyle and Marker ---
+        errorbar(k_range, mu_k, sd_k, ...
+            'LineStyle', method_lines{m}, ...
+            'Marker', method_markers{m}, ...
             'LineWidth', 2, ...
+            'MarkerSize', 8, ...  % Slightly larger marker for visibility
             'Color', colors(m,:), ...
             'DisplayName', method);
     end
     
     xlabel('Number of Components (k)');
-    xticks(linspace(min(k_range), max(k_range), nK));
+    xticks(linspace(1, max(k_range), nK));
     ylabel('Mean Correlation (\rho)');
     ylim([0 1]);
     title(sprintf('Mean Latent Correlation vs k'));
@@ -476,6 +480,10 @@ ki_target = find(k_range == target_k);
 if ~isempty(ki_target)
     fig2 = figure('Position', [50 50 1000 800]);
     tiledlayout(2, 1, 'Padding', 'compact');
+
+    % Define specific markers and line styles to differentiate methods
+    method_markers = {'o', 's', '^', 'd', 'v', 'p'}; 
+    method_lines = {'-', '--', '-.', ':', '-', '--'};
     
     for c = 1:numel(conditions)
         cond = conditions{c};
@@ -500,9 +508,13 @@ if ~isempty(ki_target)
             y_col = reshape(double(mu), [], 1);
             e_col = reshape(double(sd), [], 1);
             
-            % Plot and capture the handle
-            h = errorbar(x_col, y_col, e_col, '-o', ...
-                'LineWidth', 2, 'Color', colors(m,:));
+            % Plot with specific line style and marker
+            h = errorbar(x_col, y_col, e_col, ...
+                'LineStyle', method_lines{m}, ...
+                'Marker', method_markers{m}, ...
+                'LineWidth', 2, ...
+                'MarkerSize', 8, ...
+                'Color', colors(m,:));
             
             % Ensure only the first handle is labeled in the legend
             if numel(h) >= 1
@@ -541,9 +553,13 @@ if ~isempty(ki_target)
             y_col = reshape(double(mu), [], 1);
             e_col = reshape(double(sd), [], 1);
             
-            % Plot and capture the handle
-            h = errorbar(x_col, y_col, e_col, '-o', ...
-                'LineWidth', 2, 'Color', colors(m,:));
+            % Plot with specific line style and marker
+            h = errorbar(x_col, y_col, e_col, ...
+                'LineStyle', method_lines{m}, ...
+                'Marker', method_markers{m}, ...
+                'LineWidth', 2, ...
+                'MarkerSize', 8, ...
+                'Color', colors(m,:));
             
             % Ensure only the first handle is labeled in the legend
             if numel(h) >= 1
@@ -598,7 +614,6 @@ for c = 1:numel(conditions)
         for m = 1:numel(methods)
             method = methods{m};
             
-            % Extract the mean and std across all k for this specific latent (f)
             mu_k = zeros(1, nK);
             sd_k = zeros(1, nK);
             for ki = 1:nK
@@ -606,13 +621,16 @@ for c = 1:numel(conditions)
                 sd_k(ki) = CORR_STATS.(cond).(method)(ki).std(f);
             end
             
-            % Plot the trajectory for this method
-            errorbar(k_range, mu_k, sd_k, '-o', ...
-                'LineWidth', 2.5, 'MarkerSize', 6, ...
-                'Color', colors(m,:), 'DisplayName', method);
+            % --- UPDATE: Added LineStyle and Marker ---
+            errorbar(k_range, mu_k, sd_k, ...
+                'LineStyle', method_lines{m}, ...
+                'Marker', method_markers{m}, ...
+                'LineWidth', 2.5, ...
+                'MarkerSize', 7, ...
+                'Color', colors(m,:), ...
+                'DisplayName', method);
             
             % --- Save to RESULTS structure ---
-            % Format the field name (replace dots with underscores for valid struct keys)
             latent_name = sprintf('Z_%gHz', peak_freq);
             latent_name = strrep(latent_name, '.', '_'); 
             
