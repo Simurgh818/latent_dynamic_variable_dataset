@@ -15,60 +15,55 @@ end
 file_suffix = sprintf('_k%d', num_comps);
 h_f_colors = lines(param.N_F); 
 
-%% 2. Run ICA (EEGLAB)
-% Prepare EEGLAB Structure
-EEG = eeg_emptyset();
-EEG.data   = double(eeg_train);
-EEG.nbchan = size(eeg_train,1);
-EEG.pnts   = size(eeg_train,2);
-EEG.trials = 1;
-EEG.srate  = param.fs; 
-EEG.xmin   = 0;
-EEG = eeg_checkset(EEG);
+%% 2. EXPLICIT MEAN CENTERING (Crucial for ICA Stability)
+train_mean = mean(eeg_train, 2);
+% Using bsxfun ensures matrix subtraction compatibility across all MATLAB versions
+eeg_train_centered = bsxfun(@minus, eeg_train, train_mean);
+eeg_test_centered  = bsxfun(@minus, eeg_test, train_mean);
 
-% 1. Get the true mathematical limit
-data_rank = rank(EEG.data); 
+%% 3. SAFE RANK CALCULATION
+% Compute the rank of the spatial covariance matrix (Channels x Channels)
+data_cov  = cov(eeg_train_centered');
+data_rank = rank(data_cov); 
+
 if num_comps > data_rank
-    warning('Requested %d components, but data rank is %d. Capping components.', num_comps, data_rank);
+    warning('Requested %d components, but spatial data rank is %d. Capping components.', num_comps, data_rank);
     k = data_rank;
 else
     k = num_comps;
 end
 
-% 2. Run ICA at FULL RANK
+%% 4. Run ICA (Switched to EEGLAB's native Infomax ICA)
 try
-    [icasig, A, W] = fastica(eeg_train, ... 
-        'numOfIC', k, ...
-        'lastEig', k, ... 
-        'verbose', 'off', ...
-        'displayMode', 'off', ...
-        'approach', 'symm', ...
-        'g', 'tanh');
+    % runica is the EEGLAB gold standard and handles PCA reduction perfectly
+    [weights, sphere] = runica(eeg_train_centered, ... 
+        'pca', k, ...
+        'maxsteps', 2000);
     
-    icasig_train = icasig'; 
+    % The full spatial unmixing matrix (k x Channels)
+    W = weights * sphere;
     
-    % 3. Project Test Data
-    train_mean = mean(eeg_train, 2);
-    eeg_test_centered = eeg_test - train_mean;
-    icasig_test = (W * eeg_test_centered)';
+    % Project the data into component space and transpose to (Time x k)
+    icasig_train = (W * eeg_train_centered)'; 
+    icasig_test  = (W * eeg_test_centered)';
+    
 catch ME
-    fprintf('FastICA failed or not installed. Falling back to MATLAB "rica". Error: %s \n', ME.message);
-    Mdl = rica(eeg_train', k); 
-    icasig_train = transform(Mdl, eeg_train');
-    icasig_test = transform(Mdl, eeg_test');
+    fprintf('runica failed. Falling back to MATLAB "rica". Error: %s \n', ME.message);
+    Mdl = rica(eeg_train_centered', k); 
+    icasig_train = transform(Mdl, eeg_train_centered');
+    icasig_test  = transform(Mdl, eeg_test_centered');
 end
 
-%% 4. Compute Performance Metrics
+%% 5. Compute Performance Metrics
 [h_rec_train, h_rec_test, Comp_latent_matching_corr, R_ICA, direct_Component_Corr_ica, ica_R2_scores, freq_data] = ...
     computePerformanceMetrics(icasig_train, icasig_test, h_train, h_test, 'ICA', num_comps, param);
 
 %% ============================================================
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
-if (isempty(getCurrentTask()) & num_comps==6)
+if (isempty(getCurrentTask()) && num_comps==6)
     % Time domain plot
     plotTimeDomainReconstruction(h_test, h_rec_test, param, 'ICA', num_comps, direct_Component_Corr_ica, method_dir);
-
     % Independent Component traces plot
     plotCTraces(num_comps, param, h_rec_test, method_dir, file_suffix);
     
@@ -141,7 +136,8 @@ outICA.h_recon_test  = h_rec_test;
 outICA.method_dir   = method_dir;
 outICA.Comp_latent_matching_corr = Comp_latent_matching_corr;
 outICA.direct_Component_Corr = direct_Component_Corr_ica;
-outICA.Comp_latent_matching_matrix       = R_ICA; 
+outICA.Comp_latent_matching_matrix = R_ICA; 
 outICA.spectral_R2  = ica_R2_scores;
 close all;
+
 end
