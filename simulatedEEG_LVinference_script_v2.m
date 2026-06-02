@@ -11,7 +11,7 @@ param.dt = 0.002; % 5e-3 for 200 Hz fs, 2e-3 for 500 Hz fs
 fs=1/param.dt;
 fc = fs/4;
 param.tau_F = [1, 0.85, 0.75, 0.5, 0.25, 0.125] ;
-param.T = 1728; % Total simulation time (in seconds), max duration at 8640 sec
+param.T = 62; % Total simulation time (in seconds), max duration at 8640 sec
 
 num_latents = length(param.tau_F);
 zeta_latents = [0.1 0.3 0.1 0.25 0.2 0.4]; %0.4 0.45 0.5 Increased from 0.15 to 0.5 for less sharp peaks [0.15 0.2 0.25 0.4 0.5 0.4 0.3 0.15];
@@ -168,7 +168,59 @@ for i_spat = 1:num_spatial_realizations
     
     % --- APPLY BANDPASS FILTER HERE ---
     sim_eeg_vals = filtfilt(bp_b, bp_a, sim_eeg_vals')'; 
-    % ----------------------------------
+    
+    
+% =========================================================================
+    % --- BURN-IN CHECK: Rolling Variance & Automatic Cut-off ---
+    % =========================================================================
+    window_samples = 2 * fs; 
+    rolling_var = movvar(sim_eeg_vals', [window_samples-1, 0])'; 
+    mean_rolling_var = mean(rolling_var, 1); % Average variance across all channels
+    
+    time_vector = linspace(0, T, size(sim_eeg_vals, 2));
+
+    % 1. Define the "Stable Regime" using the last 20% of the simulation
+    tail_idx = round(0.8 * length(mean_rolling_var));
+    stable_mean = mean(mean_rolling_var(tail_idx:end));
+    stable_std  = std(mean_rolling_var(tail_idx:end));
+    
+    % 2. Find the first point where the variance reaches the stable band
+    % We look for where it first crosses (stable_mean - stable_std)
+    burn_in_idx = find(mean_rolling_var >= (stable_mean - stable_std), 1, 'first');
+    
+    % 3. Add a 0.5 second safety buffer to ensure it stays stable
+    safety_buffer_samples = 0.5 * fs; 
+    burn_in_idx_safe = min(burn_in_idx + safety_buffer_samples, length(time_vector));
+    burn_in_time = time_vector(burn_in_idx_safe);
+
+    % --- Plotting the Automatic Detection ---
+    figure('Name', sprintf('Variance Stabilization - Spat %d', i_spat), 'Position', [150 150 800 400]);
+    plot(time_vector, mean_rolling_var, 'r', 'LineWidth', 1.5); hold on;
+    
+    % Plot the stable mean line 
+    yline(stable_mean, 'k--', 'Stable Mean', 'LineWidth', 1.5, 'LabelHorizontalAlignment', 'left');
+    
+    % Mark the calculated burn-in point
+    xline(burn_in_time, 'b-', sprintf('Cut-off (%.2fs)', burn_in_time), 'LineWidth', 2, 'LabelVerticalAlignment', 'bottom');
+    plot(burn_in_time, mean_rolling_var(burn_in_idx_safe), 'bo', 'MarkerSize', 8, 'MarkerFaceColor', 'b');
+    set(findall(gcf,'-property','FontSize'),'FontSize',24);
+    title('Mean Rolling Variance over Time (Automatic Burn-in Detection)');
+    xlabel('Time (seconds)');
+    ylabel('Total Variance (uV^2)');
+    grid on;
+    hold off;
+    
+    % =========================================================================
+    % 4. AUTOMATIC DATA TRIMMING
+    % Now we actually discard the burn-in period before PSD/Tensor analysis!
+    % =========================================================================
+    sim_eeg_vals(:, 1:burn_in_idx_safe) = [];
+    all_h_F(:, 1:burn_in_idx_safe) = [];
+    
+    % Recalculate time parameters for the remaining "clean" data
+    T_clean = size(sim_eeg_vals, 2) / fs;
+    % =========================================================================
+
     
     % Plot zoom-in view
     figure('Name', sprintf('Zoom Channel 18 - Spat %d', i_spat));
