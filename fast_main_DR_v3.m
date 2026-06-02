@@ -1,6 +1,5 @@
 %% MAIN SCRIPT FOR DIMENSIONALITY REDUCTION BENCHMARK: DATA LENGTH ANALYSIS
 clear; clc; close all;
-
 %% ----------------------------------------------------------
 % 1. Load & Prepare Data
 % ----------------------------------------------------------
@@ -40,29 +39,24 @@ elseif ismac && exist('/Users/asederberg6/Library/CloudStorage/OneDrive-GeorgiaI
 else
     error('Unknown system: Cannot determine input and output paths.');
 end
-
 %% Loop through experiments
 conditions = {'set4'}; 
 nDatasets  = 5; 
-
 % --- TARGETED RUN PARETERS ---
 k_range    = 6; % Only run k=6
 nK         = numel(k_range);
-methods    = {'PCA'}; % ,'AE','ICA'
+methods    = {'PCA','AE','ICA'}; % ,'AE','ICA'
 durations  = [10, 60, 360, 8640]; %  Data lengths in seconds 
 nDurations = numel(durations);
 % -----------------------------
-
 EXP = struct();
 param = struct();
 RESULTS = struct();
 RESULTS.meta = struct();
 RESULTS.meta.created = datetime;
 RESULTS.meta.description = "Data Length vs Performance benchmark";
-
 target_workers = 5; 
 current_pool = gcp('nocreate');
-
 if isempty(current_pool)
     parpool(target_workers);
 elseif current_pool.NumWorkers ~= target_workers
@@ -88,29 +82,31 @@ for c = 1:numel(conditions)
             fprintf('      Dataset %d / %d (Worker Processing)\n', d, nDatasets);
             data = struct();
             
-            % --- 1. Load Data (Local to Worker) ---
-            if d < 10 && ~strcmp(cond, 'ou') && ~strcmp(cond,'set4')
-                eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, dur);
-            elseif d < 10
-                eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, dur);
-            elseif d == 1 && strcmp(cond, 'ou')
-                eegFilename = sprintf('simEEG_Morrell_%s', cond);
+            % --- 1. Determine Filenames (Local to Worker) ---
+            if d < 10 
+                eegFilename  = sprintf('simEEG_set4_spat0%d_dur%d', d, dur);
+                testFilename = sprintf('simEEG_set4_spat01_dur1728');
             else
-                eegFilename = sprintf('simEEG_%s_spat%d_dur%d', cond, d, dur);
+                eegFilename  = sprintf('simEEG_set4_spat%d_dur%d', d, dur);
+                testFilename = sprintf('simEEG_set4_spat01_dur1728');
             end
             dataset_name = eegFilename;
             
-            % Load file
-            loader = load(fullfile(input_dir, [eegFilename '.mat']));
+            % --- 2. Load Train Data ---
+            loader_train = load(fullfile(input_dir, [eegFilename '.mat']));
+            s_eeg_train  = double(loader_train.sim_eeg_vals);
+            h_f_train    = double(loader_train.all_h_F');
+            f_peak       = loader_train.param.f_peak;
             
-            % Extract local variables
-            s_eeg_like      = double(loader.sim_eeg_vals);
-            h_f             = double(loader.all_h_F');
-            f_peak          = loader.param.f_peak;
             % Recalculate parameters locally
-            local_param = loader.param; 
-            fs         = 1 / loader.dt;
+            local_param = loader_train.param; 
+            fs          = 1 / loader_train.dt;
             local_param.fs = fs;
+            
+            % --- 3. Load Test Data (Fixed 1728 duration) ---
+            loader_test = load(fullfile(input_dir, [testFilename '.mat']));
+            s_eeg_test  = double(loader_test.sim_eeg_vals);
+            h_f_test    = double(loader_test.all_h_F');
             
             % Determine results directory for this dataset
             subfolderName = ['results_' eegFilename];
@@ -119,24 +115,22 @@ for c = 1:numel(conditions)
                 mkdir(local_results_dir);
             end
             
-            % Split Train/Test
-            eeg = s_eeg_like; 
-            idx_split = floor(0.8 * size(eeg, 2));
-            eeg_train = eeg(:, 1:idx_split);
-            eeg_test  = eeg(:, idx_split+1:end);
+            % --- 4. Assign Train/Test (No longer randomly splitting) ---
+            eeg_train = s_eeg_train; 
+            eeg_test  = s_eeg_test;
             
-            h_f_norm_orig = h_f ./ std(h_f, 0, 1);
-            H_train = h_f_norm_orig(1:idx_split, :);
-            H_test  = h_f_norm_orig(idx_split+1:end, :);
+            % Normalize latents individually to zero-mean, unit-variance
+            H_train = h_f_train ./ std(h_f_train, 0, 1);
+            H_test  = h_f_test ./ std(h_f_test, 0, 1);
             
             data.eeg_train = eeg_train;
             data.eeg_test  = eeg_test;
             data.H_train   = H_train;
             data.H_test    = H_test;
-            data.eeg       = s_eeg_like; 
-            data.H_ds      = h_f_norm_orig;
+            data.eeg       = s_eeg_train; % For backward compatibility in runDimRedMethod
+            data.H_ds      = H_train;     % For backward compatibility in runDimRedMethod
             data.f_peak    = f_peak;
-
+            
             % =================================================================
             % --- Intrinsic Dimensionality Estimations ---
             % =================================================================
@@ -229,7 +223,6 @@ for c = 1:numel(conditions)
             dataset_results{d}.(cond).entries = all_d_entries;
         end 
         duration_results{dur_idx} = dataset_results;
-
     end % End Parfor Loop
     
     % --- NOW SAFELY BUILD THE EXP STRUCT (Serial) ---
@@ -247,7 +240,6 @@ for c = 1:numel(conditions)
         end
     end % End Durations Loop
 end % End Conditions Loop
-
 %% ---------------------------------------------------------------------
 % STATS AGGREGATION FOR DURATION PLOTS
 % ---------------------------------------------------------------------
@@ -277,7 +269,6 @@ for c = 1:numel(conditions)
         STATS.(cond).dim_estimations.map_std(dur_idx)   = std(map_all, 'omitnan');
     end
 end
-
 for c = 1:numel(conditions)
     cond = conditions{c};
     for m = 1:numel(methods)
@@ -341,7 +332,6 @@ for c = 1:numel(conditions)
         STATS.(cond).(method).r2_per_latent_std             = r2_per_latent_std;
     end
 end
-
 %% ---------------------------------------------------------------------
 % SAVE RESULTS STRUCTURE
 % ---------------------------------------------------------------------
@@ -353,7 +343,6 @@ for m = 1:numel(methods)
     RESULTS.PerLatent.(method).matching_corr_mean = STATS.(conditions{1}).(method).matching_corr_per_latent_mean;
     RESULTS.PerLatent.(method).matching_corr_std = STATS.(conditions{1}).(method).matching_corr_per_latent_std;
 end
-
 RESULTS.IntrinsicDim = struct();
 RESULTS.IntrinsicDim.duration  = durations;
 RESULTS.IntrinsicDim.rank_mean = STATS.(conditions{1}).dim_estimations.rank_mean;
@@ -362,14 +351,16 @@ RESULTS.IntrinsicDim.mp_mean   = STATS.(conditions{1}).dim_estimations.mp_mean;
 RESULTS.IntrinsicDim.mp_std    = STATS.(conditions{1}).dim_estimations.mp_std;
 RESULTS.IntrinsicDim.map_mean  = STATS.(conditions{1}).dim_estimations.map_mean;
 RESULTS.IntrinsicDim.map_std   = STATS.(conditions{1}).dim_estimations.map_std;
-
 % Save comprehensive outputs
 save(fullfile(baseFolder, "RESULTS_DataLength_Benchmark.mat"), "EXP", "STATS", "RESULTS", "-v7.3");
-
 %% ----------------------------------------------------------
 % FINAL PLOTS
 % ----------------------------------------------------------
 colors = lines(numel(methods));
+
+% Setup markers and lines dynamically
+method_markers = {'o', 's', '^', 'd', 'v', 'p'}; % Circle, Square, Triangle, Diamond, etc.
+method_lines   = {'-', '--', '-.', ':', '-', '--'}; % Solid, Dashed, Dash-Dot, Dotted, etc.
 
 % === FIGURE 1: Global Performance vs. Data Length ===
 fig1 = figure('Position', [100, 100, 1400, 600]);
@@ -381,7 +372,7 @@ nexttile; hold on;
 for m = 1:numel(methods)
     method = methods{m};
     errorbar(durations, STATS.(conditions{1}).(method).matching_corr_mean, STATS.(conditions{1}).(method).matching_corr_std, ...
-        '-o', 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors(m,:), 'DisplayName', method);
+        'LineStyle', method_lines{m}, 'Marker', method_markers{m}, 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors(m,:), 'DisplayName', method);
 end
 set(gca, 'XScale', 'log'); 
 xticks(durations); xticklabels(string(durations));
@@ -394,14 +385,13 @@ nexttile; hold on;
 for m = 1:numel(methods)
     method = methods{m};
     errorbar(durations, STATS.(conditions{1}).(method).r2_mean, STATS.(conditions{1}).(method).r2_std, ...
-        '-o', 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors(m,:), 'DisplayName', method);
+        'LineStyle', method_lines{m}, 'Marker', method_markers{m}, 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors(m,:), 'DisplayName', method);
 end
 set(gca, 'XScale', 'log');
 xticks(durations); xticklabels(string(durations));
 xlabel('Data Length (seconds)'); ylabel('Mean Spectral R^2');
 ylim([0 1]); title('Spectral R^2');
 grid on; legend('Location', 'best'); set(gca, 'FontSize', 18);
-
 saveas(fig1, fullfile(baseFolder, sprintf('DataLength_vs_Performance_k%d.png', k_range(1))));
 
 % === FIGURE 2: Spectral R2 Frequency Profile per Duration ===
@@ -422,8 +412,8 @@ if nDurations > 1 && nDurations <= 6
             x_col = reshape(double(param.f_peak), [], 1);
             y_col = reshape(double(mu), [], 1);
             e_col = reshape(double(sd), [], 1);
-            errorbar(x_col, y_col, e_col, '-o', 'LineWidth', 2, ...
-                     'Color', colors(m,:), 'DisplayName', method);
+            errorbar(x_col, y_col, e_col, 'LineStyle', method_lines{m}, 'Marker', method_markers{m}, ...
+                     'LineWidth', 2, 'Color', colors(m,:), 'DisplayName', method);
         end
         
         xlabel('Peak Frequency (Hz)'); ylabel('Spectral R^2');
@@ -438,12 +428,10 @@ end
 
 % === FIGURE 3: Data Length vs. Correlation per Latent Variable ===
 fig3 = figure('Position', [200, 200, 1600, 900]);
-
 nCols_lat = ceil(sqrt(param.N_F));
 nRows_lat = ceil(param.N_F / nCols_lat);
 t3 = tiledlayout(nRows_lat, nCols_lat, 'Padding', 'compact', 'TileSpacing', 'compact');
 sgtitle('Data Length vs. Matching Correlation per True Latent', 'FontSize', 24, 'FontWeight', 'bold');
-
 for f = 1:param.N_F
     nexttile; hold on;
     
@@ -458,8 +446,8 @@ for f = 1:param.N_F
         y_col = reshape(double(mu_f), [], 1);
         e_col = reshape(double(sd_f), [], 1);
         
-        errorbar(x_col, y_col, e_col, '-o', 'LineWidth', 2, ...
-                 'MarkerSize', 6, 'Color', colors(m,:), 'DisplayName', method);
+        errorbar(x_col, y_col, e_col, 'LineStyle', method_lines{m}, 'Marker', method_markers{m}, ...
+                 'LineWidth', 2, 'MarkerSize', 6, 'Color', colors(m,:), 'DisplayName', method);
     end
     
     set(gca, 'XScale', 'log'); 
@@ -476,44 +464,35 @@ for f = 1:param.N_F
     end
     set(gca, 'FontSize', 14);
 end
-
 saveas(fig3, fullfile(baseFolder, sprintf('DataLength_vs_MatchingCorr_PerLatent_k%d.png', k_range(1))));
 
 % === FIGURE 4: Intrinsic Dimensionality vs. Data Length ===
 fig4 = figure('Position', [300, 300, 900, 600]);
 hold on;
-
 % Plot 1: Ground Truth Reference Line
 yline(param.N_F, '--k', sprintf('True Latents (N=%d)', param.N_F), ...
     'LineWidth', 2.5, 'LabelHorizontalAlignment', 'left', 'FontSize', 14, 'HandleVisibility', 'off');
-
 % Plot 2: Full Rank
 errorbar(durations, RESULTS.IntrinsicDim.rank_mean, RESULTS.IntrinsicDim.rank_std, ...
          '-o', 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', [0.4 0.4 0.4], 'DisplayName', 'Matrix Rank');
-
 % Plot 3: Marchenko-Pastur
 errorbar(durations, RESULTS.IntrinsicDim.mp_mean, RESULTS.IntrinsicDim.mp_std, ...
          '-s', 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', [0 0.4470 0.7410], 'DisplayName', 'Marchenko-Pastur');
-
 % Plot 4: Velicer's MAP
 errorbar(durations, RESULTS.IntrinsicDim.map_mean, RESULTS.IntrinsicDim.map_std, ...
          '-^', 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', [0.8500 0.3250 0.0980], 'DisplayName', 'Velicer''s MAP');
-
 set(gca, 'XScale', 'log');
 xticks(durations); 
 xticklabels(string(durations));
 xlabel('Data Length (seconds)');
 ylabel('Estimated Intrinsic Dimensionality');
 title('Dimensionality Estimation vs. Data Length', 'FontSize', 22, 'FontWeight', 'bold');
-
 % Set Y-limits to slightly above the max rank to give it breathing room
 max_y = max([RESULTS.IntrinsicDim.rank_mean(:); param.N_F]);
 ylim([0 max_y + 2]); 
-
 grid on;
 legend('Location', 'best');
 set(gca, 'FontSize', 16);
-
 saveas(fig4, fullfile(baseFolder, 'IntrinsicDimensionality_vs_DataLength.png'));
 
 %% ---------------------------------------------------------------------
@@ -533,7 +512,6 @@ function [num_factors, map_values] = velicer_map(data)
 % Outputs:
 %   num_factors - The optimal number of factors to retain.
 %   map_values  - A vector containing the MAP values at each step (from 0 to p-1 factors).
-
     % 1. Compute the correlation matrix
     R = corrcoef(data);
     p = size(R, 1);
