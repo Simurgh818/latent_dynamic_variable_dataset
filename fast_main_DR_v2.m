@@ -1,6 +1,5 @@
 %% MAIN SCRIPT FOR DIMENSIONALITY REDUCTION BENCHMARK
 clear; clc; close all;
-
 %% ----------------------------------------------------------
 % 1. Load & Prepare Data
 % ----------------------------------------------------------
@@ -10,18 +9,15 @@ if exist('I:\', 'dir')
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
     'Shared Code' filesep 'simEEG']; %  filesep 'diffDuration'
-
     baseFolder = ['C:' filesep 'Users' filesep 'sinad' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
     'Dimensionality Reduction Review Paper'];
-
 elseif exist('G:\', 'dir')
     input_dir = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
     'Shared Code' filesep 'simEEG']; %  filesep 'diffDuration'
-
     baseFolder = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
@@ -29,7 +25,6 @@ elseif exist('G:\', 'dir')
 elseif ismac && exist('/Users/asederberg6/Library/CloudStorage/OneDrive-GeorgiaInstituteofTechnology', 'dir')
     one_drive_dir = '/Users/asederberg6/Library/CloudStorage/OneDrive-GeorgiaInstituteofTechnology';
     path_to_files = '/Users/asederberg6/Library/CloudStorage/OneDrive-GeorgiaInstituteofTechnology/Dabiri, Sina''s files - Dr. Sederberg MaTRIX Lab';
-
     input_dir = [path_to_files filesep ...
         'Shared Code' filesep 'simEEG'];
     baseFolder = [path_to_files filesep ...
@@ -39,36 +34,28 @@ else
 end
 
 %% Loop through experiments
-
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 10; % 10
-k_range    = 1:9; % 9
+nDatasets  = 2; % 10 datasets
+k_range    = 1:6; % k components
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA', 'AE','ICA'}; % , 'ICA', 'UMAP', 'AE' 'iVAE''dPCA', 'PCA', 'AE', 'ICA','UMAP' 
-
+methods = {'PCA', 'AE','ICA'}; 
 % --- Define Marker & Line Styles for distinct plotting ---
 method_markers = {'o', 's', '^', 'd', 'v', 'p'}; % Circle, Square, Triangle, Diamond, etc.
 method_lines = {'-', '--', '-.', ':', '-', '--'}; % Solid, Dashed, Dash-Dot, Dotted, etc.
 
 EXP = struct();
 param = struct();
-% param.f_peak = round([1 4 8 12 30], 1);%2 5 10 13 20 25 30 50
-param.duration = [1000];% 1, 5, 10, 60, 120, 600, 
+param.duration = [1000];
 
 RESULTS = struct();
-
 RESULTS.meta = struct();
 RESULTS.meta.created = datetime;
-RESULTS.meta.description = "Dimensionality reduction benchmark";
-
-% Best practice: Leave 1-2 cores free for the OS/Main Thread.
-% For a 7-core system, 5 workers is a safe, high-performance choice.
+RESULTS.meta.description = "Dimensionality reduction benchmark (80:20 Split)";
 
 target_workers = 5; 
 current_pool = gcp('nocreate');
-
 if isempty(current_pool)
     parpool(target_workers);
 elseif current_pool.NumWorkers ~= target_workers
@@ -83,39 +70,33 @@ for c = 1:numel(conditions)
     
     % Preallocate temporary storage for parallel workers
     dataset_results = cell(1, nDatasets);
-
+    
     % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
-    parfor d = 1:nDatasets % parfor
+    parfor d = 1:nDatasets 
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         data = struct();
         
-        % --- 1. Load Data (Local to Worker) ---
-        if d < 10 && ~strcmp(cond, 'ou') && ~strcmp(cond,'set4')
-            eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(1));
-        elseif d < 10
-            eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(1));
-        elseif d == 1 && strcmp(cond, 'ou')
-            eegFilename = sprintf('simEEG_Morrell_%s', cond);
+        % --- 1. Determine Filename (Local to Worker) ---
+        if d < 10 
+            eegFilename  = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, param.duration(1));
         else
-            eegFilename = sprintf('simEEG_%s_spat%d_dur%d', cond, d, param.duration(1));
+            eegFilename  = sprintf('simEEG_%s_spat%d_dur%d', cond, d, param.duration(1));
         end
         dataset_name = eegFilename;
         
-        % Load file
+        % --- 2. Load Single Dataset ---
         loader = load(fullfile(input_dir, [eegFilename '.mat']));
+        s_eeg_all   = double(loader.sim_eeg_vals);
+        h_f_all     = double(loader.all_h_F');
+        f_peak      = loader.param.f_peak;
         
-        % Extract local variables
-        s_eeg_like      = double(loader.sim_eeg_vals);
-        h_f             = double(loader.all_h_F');
-        f_peak          = loader.param.f_peak;
-
         % Recalculate parameters locally
         local_param = loader.param; 
         fs         = 1 / loader.dt;
         local_param.fs = fs;
-
+        
         % Determine results directory for this dataset
         subfolderName = ['results_' eegFilename];
         local_results_dir = fullfile(baseFolder, subfolderName);
@@ -123,25 +104,29 @@ for c = 1:numel(conditions)
             mkdir(local_results_dir);
         end
         
-        % Split Train/Test
-        eeg = s_eeg_like; 
-        idx_split = floor(0.8 * size(eeg, 2));
-        eeg_train = eeg(:, 1:idx_split);
-        eeg_test  = eeg(:, idx_split+1:end);
+        % --- 3. Split 80:20 (Train/Test) ---
+        idx_split = floor(0.8 * size(s_eeg_all, 2));
         
-        h_f_norm_orig = h_f ./ std(h_f, 0, 1);
-        H_train = h_f_norm_orig(1:idx_split, :);
-        H_test  = h_f_norm_orig(idx_split+1:end, :);
+        eeg_train = s_eeg_all(:, 1:idx_split);
+        eeg_test  = s_eeg_all(:, idx_split+1:end);
+        
+        h_f_train = h_f_all(1:idx_split, :);
+        h_f_test  = h_f_all(idx_split+1:end, :);
+        
+        % --- 4. Strict Z-Score Normalization ---
+        % zscore automatically subtracts the mean AND divides by std
+        H_train = zscore(h_f_train, 0, 1);
+        H_test  = zscore(h_f_test, 0, 1);
         
         data.eeg_train = eeg_train;
         data.eeg_test  = eeg_test;
         data.H_train   = H_train;
         data.H_test    = H_test;
-        data.eeg    = s_eeg_like; 
-        data.H_ds      = h_f_norm_orig;
+        data.eeg       = s_eeg_all; % For backward compatibility in runDimRedMethod
+        data.H_ds      = zscore(h_f_all, 0, 1); % For backward compatibility
         data.f_peak    = f_peak;
-
-        % --- 3. Method Loop ---
+        
+        % --- Method Loop ---
         dataset_res = struct();
         dataset_res.f_peak = local_param.f_peak;
         
@@ -157,7 +142,7 @@ for c = 1:numel(conditions)
             dataset_res.(method).Comp_latent_matching_matrix = cell(1, nK);
             dataset_res.(method).direct_Component_Corr = nan(local_param.N_F, nK);
             dataset_res.(method).spectral_R2 = nan(local_param.N_F, nK);
-
+            
             for ki = 1:nK
                 k = k_range(ki);
                 fprintf('   -> Running %s with k = %d ...\n', method, k);
@@ -171,7 +156,7 @@ for c = 1:numel(conditions)
                 dataset_res.(method).direct_Component_Corr(:,ki) = entry.direct_Component_Corr;
                 dataset_res.(method).spectral_R2(:,ki) = entry.spectral_R2;
                 
-                if ki== nK
+                if ki == nK
                     dataset_res.(method).h_recon_test = entry.out.h_recon_test;
                 end
                 
@@ -181,7 +166,6 @@ for c = 1:numel(conditions)
                 if ~isempty(current_corr_table)
                     nRows = height(current_corr_table);
                     current_vars = current_corr_table.Properties.VariableNames;
-
                     % Only add columns if they DON'T exist yet
                     if ~ismember('method', current_vars)
                         current_corr_table.method = repmat(categorical(cellstr(method)), nRows, 1);
@@ -196,26 +180,22 @@ for c = 1:numel(conditions)
                         current_corr_table.k = repmat(k, nRows, 1);
                     end
                     
-                    % RESULTS.entries = [RESULTS.entries; entry];
-
                     % Append to the main collector
                     all_d_entries = [all_d_entries; current_corr_table];
                 end
             end
         end
-
+        
         % saving out snippets of data 
-        % To Do: take h_test sample
         snippet_seconds = 10;
-        snippet_samples = min(size(data.H_ds, 1), round(snippet_seconds * local_param.fs));
+        snippet_samples = min(size(data.H_test, 1), round(snippet_seconds * local_param.fs));
         time_idx = 1:snippet_samples;
-
+        
         snippets = struct();
         snippets.time_vector = (time_idx - 1) / local_param.fs;
-        snippets.H_test = data.H_test(time_idx, :); % Ground truth, if we need to save more
-        % space we can cast as single() since double is 64-bit and single
-        % 32-bit.
-        snippets.eeg_train = data.eeg_train;
+        snippets.H_test = data.H_test(time_idx, :); % Ground truth
+        
+        snippets.eeg_train = data.eeg_train; % Can be large, consider snipping if memory is tight
         snippets.param = local_param;
         
         % Collect the reconstruction from each method at the max k
@@ -223,11 +203,9 @@ for c = 1:numel(conditions)
             method = methods{m};
             % h_recon_test is already in dataset_res from the runMethod function
             % Ensure we only take the snippet window
-            snippets.(method).h_recon_test = dataset_res.(method).h_recon_test(time_idx, :);% if we need to save more
-            % space we can cast as single() since double is 64-bit and single
-            % 32-bit.
+            snippets.(method).h_recon_test = dataset_res.(method).h_recon_test(time_idx, :);
         end     
-
+        
         % Pack variables into a structure to save cleanly
         ds_out = struct();
         ds_out.analysis = dataset_res;
@@ -242,16 +220,16 @@ for c = 1:numel(conditions)
         
         % Call helper function to save (avoids parfor transparency error)
         parsave_struct(ds_filename, ds_out);
-
+        
         % Save results for this dataset
         dataset_results{d}.(cond).output_dir = local_results_dir;
         dataset_results{d}.(cond).analysis = dataset_res;
         dataset_results{d}.(cond).entries = all_d_entries;
         dataset_results{d}.(cond).snippets = snippets;
     end % End Parfor
-
+    
     RESULTS.data = struct();
-
+    
     % ---------------------------------------------------------------------
     % POST-PROCESSING & PLOTTING (Serial)
     % ---------------------------------------------------------------------
@@ -265,7 +243,7 @@ for c = 1:numel(conditions)
             break
         end
     end
-
+    
     % Unpack results back into EXP structure and Generate Plots
     for d = 1:nDatasets
         EXP.(cond).dataset(d) = dataset_results{d}.(cond);
@@ -277,7 +255,7 @@ for c = 1:numel(conditions)
         RESULTS.data.(cond).(ds_field).entries  = dataset_results{d}.(cond).entries;
         RESULTS.data.(cond).(ds_field).path     = dataset_results{d}.(cond).output_dir;
         RESULTS.data.(cond).(ds_field).snippets = dataset_results{d}.(cond).snippets;
-
+        
         for m = 1:numel(methods)
             method = methods{m};
             method_dir = fullfile(local_results_dir, method);
@@ -299,33 +277,21 @@ for c = 1:numel(conditions)
                 saveas(fig, fullfile(method_dir, sprintf('%s_CorrHeatmap_k%d.png', method, k)));
                 close(fig);
             end
-            
-            % Generate Frequency Plots
-            % (Insert your frequency plotting code here using EXP data)
         end
-        
     end
 end
 
-
 STATS = struct();
-
 for c = 1:numel(conditions)
     cond = conditions{c};
-
     for m = 1:numel(methods)
         method = methods{m};
-
-
         spectral_R2_all = nan(nDatasets, length(param.f_peak), nK);
         direct_Component_Corr_all = nan(nDatasets, length(param.f_peak), nK);
-
         for d = 1:nDatasets
             direct_Component_Corr_all(d, :, :) = EXP.(cond).dataset(d).analysis.(method).direct_Component_Corr;
             spectral_R2_all(d, :, :) = EXP.(cond).dataset(d).analysis.(method).spectral_R2;
         end
-
-
         % Per-latent detailed stats (Mean and Std across datasets)
         STATS.(cond).(method).direct_Component_Corr.mean  = squeeze(mean(direct_Component_Corr_all, 1, 'omitnan'));
         STATS.(cond).(method).direct_Component_Corr.std   = squeeze(std(direct_Component_Corr_all, 0, 1, 'omitnan'));
@@ -335,55 +301,41 @@ for c = 1:numel(conditions)
 end
 
 CORR_STATS = struct();
-
 for c = 1:numel(conditions)
     cond = conditions{c};
-
     for m = 1:numel(methods)
         method = methods{m};
-
         for ki = 1:nK
             % Collect corr tables from all datasets
             corr_mat = nan(nDatasets, size(param.f_peak,2));
-
             for d = 1:nDatasets
                 tbl = EXP.(cond).dataset(d).analysis.(method).Comp_latent_matching_corr{ki};
-
                 if isempty(tbl)
                     continue
                 end
-
                 corr_mat(d, tbl.h_f) = tbl.corr_value;
             end
-
             CORR_STATS.(cond).(method)(ki).mean = mean(corr_mat,1,'omitnan');
             CORR_STATS.(cond).(method)(ki).std  = std(corr_mat,0,1,'omitnan');
         end
     end
 end
 
-
 for c = 1:numel(conditions)
     cond = conditions{c};
-
     for ki = 1:nK
         k = k_range(ki);
-
         fig0 = figure; hold on;
         colors = lines(numel(methods));
-
         for m = 1:numel(methods)
             method = methods{m};
-
             mu = CORR_STATS.(cond).(method)(ki).mean;
             sd = CORR_STATS.(cond).(method)(ki).std;
-
             errorbar(param.f_peak, mu, sd, '-o', ...
                 'LineWidth',1.8, ...
                 'Color',colors(m,:), ...
                 'DisplayName',method);
         end
-
         xlabel('Peak Frequency (Hz)');
         ylabel('Correlation');
         xticks(param.f_peak);
@@ -422,6 +374,7 @@ else
                     all_corr_tables(all_corr_tables.corr_value > threshold,:), ...
                     'method',@sum,'corr_value');
 end
+
 results.summary.mean = summary;
 results.summary.min  = summary_min;
 results.summary.good_counts = good_counts;
@@ -436,7 +389,6 @@ save(fullfile(local_results_dir, "Component_latentVariable_Corr.mat"), ...
 % 4. Plot Mean Latent Correlation vs # components (k)
 % ----------------------------------------------------------
 fig1 = figure('Position', [100, 100, 1000, 600]);
-
 for c = 1:numel(conditions)
     cond = conditions{c};
     hold on;
@@ -448,12 +400,11 @@ for c = 1:numel(conditions)
         mu_k = mean(STATS.(cond).(method).direct_Component_Corr.mean, 1, 'omitnan');
         sd_k = std(STATS.(cond).(method).direct_Component_Corr.mean, 0, 1, 'omitnan');
         
-        % --- UPDATE: Added LineStyle and Marker ---
         errorbar(k_range, mu_k, sd_k, ...
             'LineStyle', method_lines{m}, ...
             'Marker', method_markers{m}, ...
             'LineWidth', 2, ...
-            'MarkerSize', 8, ...  % Slightly larger marker for visibility
+            'MarkerSize', 8, ...  
             'Color', colors(m,:), ...
             'DisplayName', method);
     end
@@ -467,23 +418,18 @@ for c = 1:numel(conditions)
     legend('Location', 'eastoutside');
     set(gca, 'FontSize', 20);
 end
-
 set(findall(gcf,'-property','FontSize'),'FontSize',20)
 summary_trace_name = fullfile(local_results_dir, 'Main_Summary_Corr_vs_k.png');
 saveas(fig1, summary_trace_name);
+
 %% ----------------------------------------------------------
 % 5. Plot Corr and Spectral R^2 vs Peak Frequency (for k=6)
 % ----------------------------------------------------------
 target_k = 6;
 ki_target = find(k_range == target_k);
-
 if ~isempty(ki_target)
     fig2 = figure('Position', [50 50 1000 800]);
     tiledlayout(2, 1, 'Padding', 'compact');
-
-    % Define specific markers and line styles to differentiate methods
-    method_markers = {'o', 's', '^', 'd', 'v', 'p'}; 
-    method_lines = {'-', '--', '-.', ':', '-', '--'};
     
     for c = 1:numel(conditions)
         cond = conditions{c};
@@ -495,7 +441,6 @@ if ~isempty(ki_target)
         for m = 1:numel(methods)
             method = methods{m};
             
-            % Extract mean and std
             mu = STATS.(cond).(method).direct_Component_Corr.mean;
             sd = STATS.(cond).(method).direct_Component_Corr.std;
             if size(mu, 2) > 1
@@ -503,12 +448,10 @@ if ~isempty(ki_target)
                 sd = sd(:, ki_target);
             end
             
-            % FIX: Force strictly into column vectors
             x_col = reshape(double(param.f_peak), [], 1);
             y_col = reshape(double(mu), [], 1);
             e_col = reshape(double(sd), [], 1);
             
-            % Plot with specific line style and marker
             h = errorbar(x_col, y_col, e_col, ...
                 'LineStyle', method_lines{m}, ...
                 'Marker', method_markers{m}, ...
@@ -516,7 +459,6 @@ if ~isempty(ki_target)
                 'MarkerSize', 8, ...
                 'Color', colors(m,:));
             
-            % Ensure only the first handle is labeled in the legend
             if numel(h) >= 1
                 h(1).DisplayName = char(method);
                 for idx = 2:numel(h)
@@ -528,12 +470,11 @@ if ~isempty(ki_target)
         xlabel('Peak Frequency (Hz)');
         ylabel('Correlation');
         xticks(param.f_peak);
-        ylim([0 1]); % Adjusted back to [0 1] for general safety
+        ylim([0 1]); 
         title(sprintf('Correlation vs Frequency (k=%d)', target_k));
         grid on; 
         legend('Location','eastoutside'); 
         set(gca, 'FontSize', 20);
-        
         
         % --- Bottom Subplot: Spectral R^2 ---
         nexttile; hold on;
@@ -548,12 +489,10 @@ if ~isempty(ki_target)
                 sd = sd(:, ki_target);
             end
             
-            % FIX: Force strictly into column vectors
             x_col = reshape(double(param.f_peak), [], 1);
             y_col = reshape(double(mu), [], 1);
             e_col = reshape(double(sd), [], 1);
             
-            % Plot with specific line style and marker
             h = errorbar(x_col, y_col, e_col, ...
                 'LineStyle', method_lines{m}, ...
                 'Marker', method_markers{m}, ...
@@ -561,7 +500,6 @@ if ~isempty(ki_target)
                 'MarkerSize', 8, ...
                 'Color', colors(m,:));
             
-            % Ensure only the first handle is labeled in the legend
             if numel(h) >= 1
                 h(1).DisplayName = char(method);
                 for idx = 2:numel(h)
@@ -573,7 +511,7 @@ if ~isempty(ki_target)
         xlabel('Peak Frequency (Hz)');
         ylabel('Spectral R^2');
         xticks(param.f_peak);
-        ylim([0 1]); % Widened slightly to account for negative R2 error bars
+        ylim([0 1]); 
         title(sprintf('Spectral R^2 vs Frequency (k=%d)', target_k));
         grid on; 
         legend('Location','eastoutside'); 
@@ -586,25 +524,23 @@ if ~isempty(ki_target)
 else
     sprintf('k=%d is not in your current k_range. Skipping the frequency profile plot.',target_k);
 end
+
 %% ----------------------------------------------------------
 % 6. Plot Matching Correlation vs k (Per Latent Variable)
 % ----------------------------------------------------------
 for c = 1:numel(conditions)
     cond = conditions{c};
     
-    % Initialize figure and layout based on number of latents
     fig3 = figure('Position', [100, 100, 1600, 900]);
     nLatents = length(param.f_peak);
     nCols = ceil(sqrt(nLatents));
     nRows = ceil(nLatents / nCols);
     tiledlayout(nRows, nCols, 'Padding', 'compact', 'TileSpacing', 'compact');
-
     sgtitle(sprintf('Matching Correlation vs k per Latent Variable (%s)', cond), ...
         'FontSize', 24, 'FontWeight', 'bold');
     
     colors = lines(numel(methods));
     
-    % Initialize a sub-struct in RESULTS for these specific metrics
     RESULTS.stats_per_latent.(cond) = struct();
     
     for f = 1:nLatents
@@ -621,7 +557,6 @@ for c = 1:numel(conditions)
                 sd_k(ki) = CORR_STATS.(cond).(method)(ki).std(f);
             end
             
-            % --- UPDATE: Added LineStyle and Marker ---
             errorbar(k_range, mu_k, sd_k, ...
                 'LineStyle', method_lines{m}, ...
                 'Marker', method_markers{m}, ...
@@ -630,7 +565,6 @@ for c = 1:numel(conditions)
                 'Color', colors(m,:), ...
                 'DisplayName', method);
             
-            % --- Save to RESULTS structure ---
             latent_name = sprintf('Z_%gHz', peak_freq);
             latent_name = strrep(latent_name, '.', '_'); 
             
@@ -639,7 +573,6 @@ for c = 1:numel(conditions)
             RESULTS.stats_per_latent.(cond).(method).(latent_name).corr_std = sd_k;
         end
         
-        % Format the subplot
         xlabel('Number of Components (k)');
         ylabel('Matching Correlation (\rho)');
         xticks(linspace(min(k_range), max(k_range), nK));
@@ -648,20 +581,19 @@ for c = 1:numel(conditions)
         title(sprintf('Latent: %g Hz', peak_freq));
         grid on;
         
-        % Add legend only to the first subplot to save space
         if f == 1
             legend('Location', 'best');
         end
         set(gca, 'FontSize', 16);
     end
     
-    % Save the figure
     fig_name = fullfile(local_results_dir, sprintf('Matching_Corr_vs_k_Per_Latent_%s.png', cond));
     saveas(fig3, fig_name);
 end
 
 % Re-save RESULTS.mat to capture the newly added stats_per_latent structure
 save(fullfile(local_results_dir, "RESULTS.mat"), "RESULTS", "-v7.3");
+
 %% ---------------------------------------------------------------------
 %  HELPER FUNCTIONS
 % ---------------------------------------------------------------------

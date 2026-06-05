@@ -41,7 +41,7 @@ else
 end
 %% Loop through experiments
 conditions = {'set4'}; 
-nDatasets  = 1; 
+nDatasets  = 5; 
 % --- TARGETED RUN PARETERS ---
 k_range    = 6; % Only run k=6
 nK         = numel(k_range);
