@@ -44,8 +44,8 @@ end
 
 %% Loop through experiments
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 10; % 10 datasets
-k_range    = 1:15; % k components
+nDatasets  = 1; % 10 datasets
+k_range    = 1:6; % k components
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
@@ -437,8 +437,8 @@ saveas(fig1, summary_trace_name);
 target_k = 6;
 ki_target = find(k_range == target_k);
 if ~isempty(ki_target)
-    fig2 = figure('Position', [50 50 1000 800]);
-    tiledlayout(2, 1, 'Padding', 'compact');
+    fig2 = figure('Position', [50 50 1400 600]);
+    tiledlayout(1, 2, 'Padding', 'compact');
     
     for c = 1:numel(conditions)
         cond = conditions{c};

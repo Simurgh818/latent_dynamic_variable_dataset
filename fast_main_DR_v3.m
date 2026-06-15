@@ -41,12 +41,12 @@ else
 end
 %% Loop through experiments
 conditions = {'set4'}; 
-nDatasets  = 5; 
+nDatasets  = 10; 
 % --- TARGETED RUN PARETERS ---
 k_range    = 6; % Only run k=6
 nK         = numel(k_range);
 methods    = {'PCA' ,'AE','ICA'}; % ,'AE','ICA'
-durations  = [10, 60, 360, 8640]; %  Data lengths in seconds 
+durations  = [1, 5, 10, 60, 360, 8640]; %  Data lengths in seconds 
 nDurations = numel(durations);
 % -----------------------------
 EXP = struct();

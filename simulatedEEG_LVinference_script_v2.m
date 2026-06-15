@@ -9,7 +9,7 @@ param.dt = 0.002; % 2e-3 for 500 Hz fs
 fs=1/param.dt;
 param.tau_F = [1, 0.85, 0.75, 0.5, 0.25, 0.125] ;
 burn_in_seconds = 6;
-param.T = 1728 + burn_in_seconds; % Total simulation time (in seconds)
+param.T = 1 + burn_in_seconds; % Total simulation time (in seconds)
 num_latents = length(param.tau_F);
 zeta_latents = [0.1 0.3 0.1 0.25 0.2 0.4]; 
 T = param.T;     
@@ -73,8 +73,8 @@ else
     error('Unknown system: Cannot determine input and output paths.');
 end
 input_dir = fullfile(base_dir, 'Shared Code', 'latent_dynamic_variable_dataset');
-% output_dir = fullfile(base_dir, 'Method Paper', 'simEEG');
-output_dir = fullfile(base_dir, 'Shared Code', 'simEEG');
+output_dir = fullfile(base_dir, 'Method Paper', 'simEEG');
+% output_dir = fullfile(base_dir, 'Shared Code', 'simEEG');
 
 % Setup Output Folder for PSD Plots
 output_folder = fullfile(input_dir, 'PSD_Output');
@@ -117,7 +117,7 @@ n_overlap_rEEG = win_len_rEEG/2;
 [pxx_rEEG, f_psd_rEEG] = pwelch(eeg_vals_real', win_len_rEEG, n_overlap_rEEG, [], fs_real);
 
 %% 6. Generate Full Component Images, Synthetic EEG, & Combined Plots
-num_spatial_realizations = 1; % # of datasets 
+num_spatial_realizations = 10; % # of datasets 
 for i_spat = 1:num_spatial_realizations
     
     % =====================================================================
@@ -155,8 +155,8 @@ for i_spat = 1:num_spatial_realizations
     % Nonlinear generation (tanh)
     select_comps = 1:num_latents;
     wx_vals = spatial_comps(:, select_comps) * all_h_F(select_comps, :);
-    gain_par = 2;
-    bias_par = 1;
+    gain_par = 2; % try 1
+    bias_par = 1; % try 0.8
     sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
     
     % Add Pink Noise and Scale
@@ -247,7 +247,9 @@ end
 %% 7. Parsimonious Plots
 makeMyFigure(25, 16);
 tiledlayout(3, 6, 'TileSpacing', 'compact', 'Padding', 'compact');
-t_range = 1:500;
+num_test_samples = size(test_true_hF, 2);
+t_range = 1:num_test_samples;
+
 for i_comp = 1:size(spatial_comps, 2)
     nexttile([1 1]);
     scatter(eeg_loc_x, eeg_loc_y, 30, spatial_comps(:, i_comp), 'filled');
