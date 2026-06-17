@@ -9,7 +9,7 @@ param.dt = 0.002; % 2e-3 for 500 Hz fs
 fs=1/param.dt;
 param.tau_F = [1, 0.85, 0.75, 0.5, 0.25, 0.125] ;
 burn_in_seconds = 6;
-param.T = 1 + burn_in_seconds; % Total simulation time (in seconds)
+param.T = 8640 + burn_in_seconds; % Total simulation time (in seconds) 1, 5, 10, 60, 360, 1000, 8640
 num_latents = length(param.tau_F);
 zeta_latents = [0.1 0.3 0.1 0.25 0.2 0.4]; 
 T = param.T;     
@@ -154,15 +154,82 @@ for i_spat = 1:num_spatial_realizations
     
     % Nonlinear generation (tanh)
     select_comps = 1:num_latents;
+
+    % 1. Base linear mixing (The part PCA handles well)
     wx_vals = spatial_comps(:, select_comps) * all_h_F(select_comps, :);
     gain_par = 2; % try 1
-    bias_par = 1; % try 0.8
+    bias_par = 1.2; % try 0.8
     sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
     
-    % Add Pink Noise and Scale
+    % % 2. Identify latents based on your param.f_peak array
+    % idx_delta = 1; % 2 Hz (Delta)
+    % idx_beta  = 5; % 24 Hz (Beta)
+    % 
+    % % 3. Create the Multiplicative PAC interaction
+    % pac_interaction = all_h_F(idx_delta, :) .* all_h_F(idx_beta, :);
+    % 
+    % % 4. Create a fixed spatial mask for this interaction to project it to the scalp
+    % % We use rng(i_spat) so the interaction mask is consistent for this specific dataset
+    % rng(i_spat, 'twister');
+    % pac_spatial_mask = randn(num_channels, 1) * 0.5; 
+    % 
+    % % 5. Combine linear mixing + Non-linear PAC interaction 
+    % % =========================================================================
+    % % --- AUTOMATED PAC TUNING ---
+    % % Test different coupling strengths to find the biological window
+    % % =========================================================================
+    % test_strengths = 0.0 : 0.05 : 1.0;
+    % measured_MIs = zeros(length(test_strengths), 1);
+    % 
+    % % Find the channel with the highest PAC weight to measure the upper bound
+    % [~, target_ch] = max(abs(pac_spatial_mask));
+    % 
+    % for c_idx = 1:length(test_strengths)
+    %     test_cs = test_strengths(c_idx);
+    %     test_eeg = wx_vals + test_cs * (pac_spatial_mask * pac_interaction);
+    % 
+    %     % Add background noise (crucial, because noise dilutes the MI!)
+    %     test_bg = pinknoise(size(test_eeg, 2), num_channels)';
+    %     test_eeg = test_eeg + 2.0 * test_bg;
+    % 
+    %     % 1. Extract Delta and Beta from the mixed sensor data
+    %     delta_filtered = bandpass(test_eeg(target_ch, :), [1 3], fs);
+    %     beta_filtered  = bandpass(test_eeg(target_ch, :), [20 28], fs);
+    % 
+    %     % 2. Calculate Phase and Amplitude
+    %     phase_delta = angle(hilbert(delta_filtered));
+    %     amp_beta    = abs(hilbert(beta_filtered));
+    % 
+    %     % 3. Run Tort MI (18 bins is the standard in literature)
+    %     measured_MIs(c_idx) = calculateTortMI(phase_delta, amp_beta, 18);
+    % end
+    % 
+    % % Plot the Tuning Curve
+    % figure('Name', 'PAC Tuning Curve', 'Position', [200 200 600 400]);
+    % plot(test_strengths, measured_MIs, 'k-o', 'LineWidth', 2); hold on;
+    % yline(0.005, 'r--', 'Min Biological PAC');
+    % yline(0.05, 'r--', 'Max Biological PAC');
+    % xlabel('Mathematical Coupling Strength');
+    % ylabel("Tort's Modulation Index (MI)");
+    % title('Tuning PAC to Biological Realism');
+    % grid on;
+    % 
+    % % Find the optimal coupling strength that gets closest to MI = 0.02
+    % [~, best_idx] = min(abs(measured_MIs - 0.02));
+    % optimal_coupling_strength = test_strengths(best_idx);
+    % 
+    % fprintf('Optimal Coupling Strength chosen: %.2f (MI = %.4f)\n', ...
+    %          optimal_coupling_strength, measured_MIs(best_idx));
+    % 
+    % % =========================================================================
+    % 
+    % % Use the optimally tuned strength to generate the final EEG
+    % sim_eeg_vals = wx_vals + optimal_coupling_strength * (pac_spatial_mask * pac_interaction);
+    
+    % Add Pink Noise and Scale 
     pink_bg = pinknoise(size(sim_eeg_vals, 2), num_channels)'; 
     sim_eeg_vals = sim_eeg_vals + 2.0 * pink_bg; 
-    sim_eeg_vals = sim_eeg_vals * 20; 
+    sim_eeg_vals = sim_eeg_vals * 16; 
     
     % --- APPLY BANDPASS FILTER HERE ---
     sim_eeg_vals = filtfilt(bp_b, bp_a, sim_eeg_vals')'; 
@@ -206,12 +273,13 @@ for i_spat = 1:num_spatial_realizations
     % Save data
     save(fullfile(output_dir, sprintf('simEEG_set4_spat%02d_dur%d.mat', i_spat, T_clean)), "sim_eeg_vals", "all_h_F", "dt","param", "T_clean");
     save(fullfile(output_dir, sprintf('simEEG_set4_spat%02d_dur%d_key.mat', i_spat, T_clean)), "sim_eeg_vals", "all_h_F", ...
-        "pos_src_locs", "neg_src_locs", "src_widths", "src_pks", "select_comps", "spatial_comps", "gain_par", "bias_par", "T_clean");
+        "pos_src_locs", "neg_src_locs", "src_widths", "src_pks", "select_comps", "spatial_comps", "gain_par", "bias_par",...
+        "T_clean", "wx_vals");
     
     % Combined Welch PSD Plot
     [pxx_sim, f_psd_sim] = pwelch(sim_eeg_vals', win_len, n_overlap, [], fs);
     
-    fig_combined = figure('Name', sprintf('Combined PSD - Spat %d', i_spat), 'Position', [100 100 800 600]);
+    figure('Name', sprintf('Combined PSD - Spat %d', i_spat), 'Position', [100 100 800 600]);
     
     % 1. Plot background individual channels
     loglog(f_psd_rEEG, pxx_rEEG, 'Color', [0.8 0.8 0.8], 'HandleVisibility', 'off'); hold on; 
@@ -239,7 +307,7 @@ for i_spat = 1:num_spatial_realizations
     xlim([2 50]); 
     xticks(param.f_peak);
     legend('Location','northeast');
-    set(findall(fig_combined,'-property','FontSize'),'FontSize',14);
+    set(findall(gcf,'-property','FontSize'),'FontSize',14);
     
     saveas(gcf, fullfile(output_folder, sprintf('Combined_PSD_Spat%02d_dur%d.png', i_spat, T_clean)));
 end
@@ -259,6 +327,7 @@ for i_comp = 1:size(spatial_comps, 2)
     nexttile([1 2]);
     plot(dt*t_range, test_true_hF(i_comp, t_range), 'k','LineWidth',1.5);
     yticks([-2, 0, 2]); ylim([-3.5 3.5]);
+    xlim([0 1]);
     set(gca, 'color', 'none', 'box', 'off');
     ylabel(['h_' num2str(i_comp) '(t)'], 'Interpreter','tex');
     title(['f_{peak} = ' num2str(param.f_peak(i_comp), '%d') ' Hz'], 'Interpreter','tex' );
@@ -272,4 +341,31 @@ function comp_mask = spatial_mask_fun(pos_src_loc, neg_src_loc, src_widths, src_
     pos_comp = src_pks(1)*exp(-((mesh_x - pos_src_loc(1)).^2 + (mesh_y - pos_src_loc(2)).^2)/(2*src_widths(1)^2));
     neg_comp = src_pks(2)*exp(-((mesh_x - neg_src_loc(1)).^2 + (mesh_y - neg_src_loc(2)).^2)/(2*src_widths(1)^2));
     comp_mask = pos_comp - neg_comp;
+end
+
+%% Helper Function: Tort's Modulation Index (2010)
+function MI = calculateTortMI(phase_slow, amp_fast, num_bins)
+    phase_slow = phase_slow(:);
+    amp_fast = amp_fast(:);
+    
+    % Define phase bins (-pi to pi)
+    phase_bins = linspace(-pi, pi, num_bins + 1);
+    
+    % Calculate mean amplitude in each bin
+    mean_amp = zeros(num_bins, 1);
+    for b = 1:num_bins
+        idx = phase_slow >= phase_bins(b) & phase_slow < phase_bins(b+1);
+        if any(idx)
+            mean_amp(b) = mean(amp_fast(idx));
+        end
+    end
+    
+    % Normalize mean amplitudes to create a probability distribution (P)
+    P = mean_amp / sum(mean_amp);
+    P(P == 0) = eps; % Handle empty bins to avoid log(0)
+    
+    % Calculate Shannon Entropy (H) and Modulation Index
+    H = -sum(P .* log(P));
+    H_max = log(num_bins);
+    MI = (H_max - H) / H_max;
 end
