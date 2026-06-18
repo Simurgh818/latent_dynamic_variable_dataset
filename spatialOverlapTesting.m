@@ -1,10 +1,9 @@
-%% Spatial Overlap Hypothesis Testing: Pairwise Analysis
+%% Spatial Overlap Hypothesis Testing: Pairwise Analysis (Difference & Mean)
 clear; clc; close all;
 
 % =========================================================================
 % 1. DEFINE PATHS AND PARAMETERS
 % =========================================================================
-% Using your G: drive paths (adjust to H: or I: if you are on a different machine)
 if exist('G:\', 'dir')
     data_dir = ['C:' filesep 'Users' filesep 'sdabiri' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
@@ -16,7 +15,6 @@ if exist('G:\', 'dir')
     'Dr. Sederberg MaTRIX Lab' filesep ...
     'Method Paper' filesep 'Results'];
 else
-    % Fallback to I: drive paths
     data_dir = ['C:' filesep 'Users' filesep 'sinad' filesep ...
     'OneDrive - Georgia Institute of Technology' filesep ...
     'Dr. Sederberg MaTRIX Lab' filesep ...
@@ -33,7 +31,7 @@ cond = 'set4';
 target_duration = 1000;
 nDatasets = 10; 
 
-% Because you tested multiple k's, choose which k to evaluate spatial overlap on!
+% Target component limit
 k_range = 5:9;
 target_k = 6; 
 ki_target = find(k_range == target_k);
@@ -43,20 +41,23 @@ all_pair_overlap = [];
 all_diff_PCA = [];
 all_diff_AE = [];
 
+% --- NEW VARIABLES FOR MEAN PERFORMANCE ---
+all_mean_PCA = []; 
+all_mean_AE = [];
+
 % =========================================================================
-% 2. LOOP THROUGH DATASETS: EXTRACT TRUE MAPS & LOCAL RESULTS
+% 2. LOOP THROUGH DATASETS
 % =========================================================================
 fprintf('Extracting spatial mixing matrices and latent statistics for k=%d...\n', target_k);
 
 for d = 1:nDatasets
-    % --- Determine the base filename for this dataset ---
     if d < 10 
         eegFilename = sprintf('simEEG_%s_spat0%d_dur%d', cond, d, target_duration);
     else
         eegFilename = sprintf('simEEG_%s_spat%d_dur%d', cond, d, target_duration);
     end
     
-    % --- A. Load the Ground Truth Spatial Mixing Matrix (W_true) ---
+    % --- Load the Ground Truth Spatial Mixing Matrix ---
     key_filename = sprintf('%s_key.mat', eegFilename);
     key_filepath = fullfile(data_dir, key_filename);
     
@@ -65,48 +66,46 @@ for d = 1:nDatasets
         continue;
     end
     
-    % Load all variables in the key file to find the mixing matrix
     key_data = load(key_filepath);
-    
-    % Based on your synthetic generator, the matrix is likely called spatial_comps
     if isfield(key_data, 'spatial_comps')
         W_true = key_data.spatial_comps;
     elseif isfield(key_data, 'W')
         W_true = key_data.W;
     else
-        error('Dataset %d: Could not find "spatial_comps" in the key file. Please check what the mixing matrix is named!', d);
+        error('Dataset %d: Could not find spatial mixing matrix in key file.', d);
     end
     
-    % --- B. Load this Dataset's Individual Results File ---
+    % --- Load this Dataset's Individual Results File ---
     subfolderName = ['results_' eegFilename];
     ds_filename = fullfile(results_dir, subfolderName, sprintf('Results_%s.mat', eegFilename));
     
     if ~exist(ds_filename, 'file')
-        warning('Cannot find results file %s. Skipping dataset %d.', ds_filename, d);
         continue;
     end
     
     res = load(ds_filename);
     
-    % --- C. Extract Recovery Correlations for the Target k ---
-    % PCA
+    % --- Extract Recovery Correlations ---
     pca_tbl = res.analysis.PCA.Comp_latent_matching_corr{ki_target};
     pca_tbl = sortrows(pca_tbl, 'h_f'); 
     pca_corr = pca_tbl.corr_value;
     
-    % Autoencoder
     ae_tbl = res.analysis.AE.Comp_latent_matching_corr{ki_target};
     ae_tbl = sortrows(ae_tbl, 'h_f');
     ae_corr = ae_tbl.corr_value;
     
-    % --- D. Calculate Pairwise Metrics for this Dataset ---
+    % --- Calculate Pairwise Metrics (Diff & Mean) ---
     pairs_PCA = calculatePairwiseSimilarities(W_true, pca_corr);
     pairs_AE  = calculatePairwiseSimilarities(W_true, ae_corr);
     
-    % --- E. Aggregate across all datasets ---
+    % --- Aggregate across all datasets ---
     all_pair_overlap = [all_pair_overlap; pairs_PCA.overlap]; 
     all_diff_PCA     = [all_diff_PCA; pairs_PCA.perf_diff];
     all_diff_AE      = [all_diff_AE; pairs_AE.perf_diff];
+    
+    % --- NEW: Aggregate Mean ---
+    all_mean_PCA     = [all_mean_PCA; pairs_PCA.perf_mean]; 
+    all_mean_AE      = [all_mean_AE; pairs_AE.perf_mean];
 end
 
 % =========================================================================
@@ -114,37 +113,55 @@ end
 % =========================================================================
 fprintf('Fitting models and plotting results...\n');
 
-% Fit Linear Regression Models
-mdl_PCA = fitlm(all_pair_overlap, all_diff_PCA);
-mdl_AE  = fitlm(all_pair_overlap, all_diff_AE);
+% --- FIGURE 1: ABSOLUTE DIFFERENCE (Original Funnel Plot) ---
+mdl_PCA_diff = fitlm(all_pair_overlap, all_diff_PCA);
+mdl_AE_diff  = fitlm(all_pair_overlap, all_diff_AE);
 
-% Visualization
-figure('Position', [100, 100, 1200, 500], 'Name', sprintf('Pairwise Latent Similarity (k=%d)', target_k));
+figure('Position', [50, 100, 1200, 500], 'Name', sprintf('Pairwise Difference (k=%d)', target_k));
 
-% Subplot 1: PCA
 subplot(1,2,1);
-scatter(all_pair_overlap, all_diff_PCA, 50, 'b', 'filled', 'MarkerFaceAlpha', 0.5);
-hold on;
-plot(mdl_PCA.Variables.x1, mdl_PCA.Fitted, 'k-', 'LineWidth', 2);
+scatter(all_pair_overlap, all_diff_PCA, 50, 'b', 'filled', 'MarkerFaceAlpha', 0.5); hold on;
+plot(mdl_PCA_diff.Variables.x1, mdl_PCA_diff.Fitted, 'k-', 'LineWidth', 2);
 xlabel('Pairwise Spatial Overlap (Cosine Similarity)');
 ylabel('Absolute Difference in Recovery (\Delta Corr)');
 title('PCA: Performance Convergence');
-ylim([-0.05 1]); xlim([0 1.05]);
-grid on;
-% Add R^2 and p-value
-txt_pca = sprintf('R^2 = %.3f\np = %.3e', mdl_PCA.Rsquared.Ordinary, mdl_PCA.Coefficients.pValue(2));
+ylim([-0.05 1]); xlim([0 1.05]); grid on;
+txt_pca = sprintf('R^2 = %.3f\np = %.3e', mdl_PCA_diff.Rsquared.Ordinary, mdl_PCA_diff.Coefficients.pValue(2));
 text(0.65, 0.85, txt_pca, 'FontSize', 12, 'BackgroundColor', 'w', 'EdgeColor', 'k');
 
-% Subplot 2: Autoencoder
 subplot(1,2,2);
-scatter(all_pair_overlap, all_diff_AE, 50, 'r', 'filled', 'MarkerFaceAlpha', 0.5);
-hold on;
-plot(mdl_AE.Variables.x1, mdl_AE.Fitted, 'k-', 'LineWidth', 2);
+scatter(all_pair_overlap, all_diff_AE, 50, 'r', 'filled', 'MarkerFaceAlpha', 0.5); hold on;
+plot(mdl_AE_diff.Variables.x1, mdl_AE_diff.Fitted, 'k-', 'LineWidth', 2);
 xlabel('Pairwise Spatial Overlap (Cosine Similarity)');
 ylabel('Absolute Difference in Recovery (\Delta Corr)');
 title('Autoencoder: Performance Convergence');
-ylim([-0.05 1]); xlim([0 1.05]);
-grid on;
-% Add R^2 and p-value
-txt_ae = sprintf('R^2 = %.3f\np = %.3e', mdl_AE.Rsquared.Ordinary, mdl_AE.Coefficients.pValue(2));
+ylim([-0.05 1]); xlim([0 1.05]); grid on;
+txt_ae = sprintf('R^2 = %.3f\np = %.3e', mdl_AE_diff.Rsquared.Ordinary, mdl_AE_diff.Coefficients.pValue(2));
 text(0.65, 0.85, txt_ae, 'FontSize', 12, 'BackgroundColor', 'w', 'EdgeColor', 'k');
+
+% --- FIGURE 2: MEAN PERFORMANCE (The New Request) ---
+mdl_PCA_mean = fitlm(all_pair_overlap, all_mean_PCA);
+mdl_AE_mean  = fitlm(all_pair_overlap, all_mean_AE);
+
+figure('Position', [100, 650, 1200, 500], 'Name', sprintf('Pairwise Mean Recovery (k=%d)', target_k));
+
+subplot(1,2,1);
+scatter(all_pair_overlap, all_mean_PCA, 50, 'b', 'filled', 'MarkerFaceAlpha', 0.5); hold on;
+plot(mdl_PCA_mean.Variables.x1, mdl_PCA_mean.Fitted, 'k-', 'LineWidth', 2);
+xlabel('Pairwise Spatial Overlap (Cosine Similarity)');
+ylabel('Mean Recovery of Pair (Corr)');
+title('PCA: Spatial Overlap Degrades Performance');
+ylim([0 1.05]); xlim([0 1.05]); grid on;
+% Placing text in bottom left since trend should be downward
+txt_pca_m = sprintf('R^2 = %.3f\np = %.3e', mdl_PCA_mean.Rsquared.Ordinary, mdl_PCA_mean.Coefficients.pValue(2));
+text(0.05, 0.15, txt_pca_m, 'FontSize', 12, 'BackgroundColor', 'w', 'EdgeColor', 'k');
+
+subplot(1,2,2);
+scatter(all_pair_overlap, all_mean_AE, 50, 'r', 'filled', 'MarkerFaceAlpha', 0.5); hold on;
+plot(mdl_AE_mean.Variables.x1, mdl_AE_mean.Fitted, 'k-', 'LineWidth', 2);
+xlabel('Pairwise Spatial Overlap (Cosine Similarity)');
+ylabel('Mean Recovery of Pair (Corr)');
+title('Autoencoder: Spatial Overlap Degrades Performance');
+ylim([0 1.05]); xlim([0 1.05]); grid on;
+txt_ae_m = sprintf('R^2 = %.3f\np = %.3e', mdl_AE_mean.Rsquared.Ordinary, mdl_AE_mean.Coefficients.pValue(2));
+text(0.05, 0.15, txt_ae_m, 'FontSize', 12, 'BackgroundColor', 'w', 'EdgeColor', 'k');

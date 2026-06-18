@@ -21,17 +21,25 @@ function pair_metrics = calculatePairwiseSimilarities(W_true, perf_scores)
     % Preallocate output arrays
     pair_overlap = zeros(num_pairs, 1);
     pair_perf_diff = zeros(num_pairs, 1);
-    
+    pair_perf_mean = zeros(num_pairs, 1);
+
     % Calculate metrics for each pair
     for p = 1:num_pairs
         idx_A = pairs(p, 1);
         idx_B = pairs(p, 2);
         
         pair_overlap(p) = CosSimMatrix(idx_A, idx_B);
+        
+        % Absolute difference in performance
         pair_perf_diff(p) = abs(perf_scores(idx_A) - perf_scores(idx_B));
+        
+        % Mean performance of the pair
+        pair_perf_mean(p) = (perf_scores(idx_A) + perf_scores(idx_B)) / 2;
     end
     
     % Save to output structure
     pair_metrics.overlap = pair_overlap;
     pair_metrics.perf_diff = pair_perf_diff;
+    pair_metrics.perf_mean = pair_perf_mean;
+
 end
