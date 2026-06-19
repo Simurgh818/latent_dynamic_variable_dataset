@@ -44,8 +44,8 @@ end
 
 %% Loop through experiments
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 10; % 10 datasets
-k_range    = 5:9; % k components
+nDatasets  = 1; % 10 datasets
+k_range    = 6:7; % k components
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
@@ -436,6 +436,7 @@ saveas(fig1, summary_trace_name);
 % ----------------------------------------------------------
 target_k = 6;
 ki_target = find(k_range == target_k);
+
 if ~isempty(ki_target)
     fig2 = figure('Position', [50 50 1400 600]);
     tiledlayout(1, 2, 'Padding', 'compact');
@@ -443,19 +444,16 @@ if ~isempty(ki_target)
     for c = 1:numel(conditions)
         cond = conditions{c};
         
-        % --- Top Subplot: Zero-Lag Corr ---
+        % --- Left Subplot: Corr (UPDATED TO OPTIMAL MATCHING) ---
         nexttile; hold on;
         colors = lines(numel(methods));
         
         for m = 1:numel(methods)
             method = methods{m};
             
-            mu = STATS.(cond).(method).direct_Component_Corr.mean;
-            sd = STATS.(cond).(method).direct_Component_Corr.std;
-            if size(mu, 2) > 1
-                mu = mu(:, ki_target);
-                sd = sd(:, ki_target);
-            end
+            % Pull from optimally matched CORR_STATS instead of direct STATS
+            mu = CORR_STATS.(cond).(method)(ki_target).mean;
+            sd = CORR_STATS.(cond).(method)(ki_target).std;
             
             x_col = reshape(double(param.f_peak), [], 1);
             y_col = reshape(double(mu), [], 1);
@@ -477,15 +475,15 @@ if ~isempty(ki_target)
         end
         
         xlabel('Peak Frequency (Hz)');
-        ylabel('Correlation');
+        ylabel('Matched Correlation');
         xticks(param.f_peak);
         ylim([0 1]); 
-        title(sprintf('Correlation vs Frequency (k=%d)', target_k));
+        title(sprintf('Matched Correlation vs Frequency (k=%d)', target_k));
         grid on; 
         legend('Location','eastoutside'); 
         set(gca, 'FontSize', 20);
         
-        % --- Bottom Subplot: Spectral R^2 ---
+        % --- Right Subplot: Spectral R^2 ---
         nexttile; hold on;
         
         for m = 1:numel(methods)
@@ -493,6 +491,7 @@ if ~isempty(ki_target)
             
             mu = STATS.(cond).(method).spectral_R2.mean;
             sd = STATS.(cond).(method).spectral_R2.std;
+            
             if size(mu, 2) > 1
                 mu = mu(:, ki_target);
                 sd = sd(:, ki_target);
@@ -531,7 +530,8 @@ if ~isempty(ki_target)
     summary_spectral_name = fullfile(local_results_dir, sprintf('Summary_FreqProfile_k%d.png', target_k));
     saveas(fig2, summary_spectral_name);
 else
-    sprintf('k=%d is not in your current k_range. Skipping the frequency profile plot.',target_k);
+    % Added an fprintf here to make sure this prints properly in the command window
+    fprintf('k=%d is not in your current k_range. Skipping the frequency profile plot.\n', target_k);
 end
 
 %% ----------------------------------------------------------
