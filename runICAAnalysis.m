@@ -133,6 +133,7 @@ outICA.icasig_train = icasig_train;
 outICA.icasig_test  = icasig_test;
 outICA.h_recon_train = h_rec_train;
 outICA.h_recon_test  = h_rec_test;
+outICA.matched_R2       = freq_data.matched_R2;
 outICA.method_dir   = method_dir;
 outICA.Comp_latent_matching_corr = Comp_latent_matching_corr;
 outICA.direct_Component_Corr = direct_Component_Corr_ica;

@@ -237,6 +237,7 @@ outAE.net = net;
 outAE.info = info;
 outAE.h_recon_train    = H_recon_train;
 outAE.h_recon_test     = H_recon_test;
+outAE.matched_R2       = freq_data.matched_R2;
 outAE.results_dir      = method_dir;
 outAE.Comp_latent_matching_corr = Comp_latent_matching_corr;
 outAE.direct_Component_Corr  = direct_Component_Corr_ae;

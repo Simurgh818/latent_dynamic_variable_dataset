@@ -52,6 +52,7 @@ end
 outPCA = struct();
 outPCA.h_recon_train = h_recon_train; % Required for snippet logic
 outPCA.h_recon_test  = h_recon_test;
+outPCA.matched_R2       = freq_data.matched_R2;
 outPCA.Comp_latent_matching_corr      = Comp_latent_matching_corr_pca;      % Table of matches
 outPCA.Comp_latent_matching_matrix        = R_PCA;         % Full corr matrix
 outPCA.explained     = explained;

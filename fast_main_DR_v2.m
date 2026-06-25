@@ -44,12 +44,12 @@ end
 
 %% Loop through experiments
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 10; % 10 datasets
-k_range    = 1:9; % k components
+nDatasets  = 2; % 10 datasets
+k_range    = 6:6; % k components
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA', 'AE','ICA'};  % 'PCA', 'AE','ICA'
+methods = {'PCA'};  % 'PCA', 'AE','ICA'
 % --- Define Marker & Line Styles for distinct plotting ---
 method_markers = {'o', 's', '^', 'd', 'v', 'p'}; % Circle, Square, Triangle, Diamond, etc.
 method_lines = {'-', '--', '-.', ':', '-', '--'}; % Solid, Dashed, Dash-Dot, Dotted, etc.
@@ -151,7 +151,8 @@ for c = 1:numel(conditions)
             dataset_res.(method).Comp_latent_matching_matrix = cell(1, nK);
             dataset_res.(method).direct_Component_Corr = nan(local_param.N_F, nK);
             dataset_res.(method).spectral_R2 = nan(local_param.N_F, nK);
-            
+            dataset_res.(method).matched_R2 = nan(local_param.N_F, nK);
+
             for ki = 1:nK
                 k = k_range(ki);
                 fprintf('   -> Running %s with k = %d ...\n', method, k);
@@ -164,7 +165,8 @@ for c = 1:numel(conditions)
                 dataset_res.(method).Comp_latent_matching_matrix{ki} = entry.Comp_latent_matching_matrix;
                 dataset_res.(method).direct_Component_Corr(:,ki) = entry.direct_Component_Corr;
                 dataset_res.(method).spectral_R2(:,ki) = entry.spectral_R2;
-                
+                dataset_res.(method).matched_R2(:,ki) = entry.matched_R2;
+
                 if ki == nK
                     dataset_res.(method).h_recon_test = entry.out.h_recon_test;
                 end
@@ -297,15 +299,20 @@ for c = 1:numel(conditions)
         method = methods{m};
         spectral_R2_all = nan(nDatasets, length(param.f_peak), nK);
         direct_Component_Corr_all = nan(nDatasets, length(param.f_peak), nK);
+        matched_R2_all = nan(nDatasets, length(param.f_peak), nK);
+
         for d = 1:nDatasets
             direct_Component_Corr_all(d, :, :) = EXP.(cond).dataset(d).analysis.(method).direct_Component_Corr;
             spectral_R2_all(d, :, :) = EXP.(cond).dataset(d).analysis.(method).spectral_R2;
+            matched_R2_all(d, :, :) = EXP.(cond).dataset(d).analysis.(method).matched_R2; % <-- NEW
         end
         % Per-latent detailed stats (Mean and Std across datasets)
         STATS.(cond).(method).direct_Component_Corr.mean  = squeeze(mean(direct_Component_Corr_all, 1, 'omitnan'));
         STATS.(cond).(method).direct_Component_Corr.std   = squeeze(std(direct_Component_Corr_all, 0, 1, 'omitnan'));
         STATS.(cond).(method).spectral_R2.mean = squeeze(mean(spectral_R2_all, 1, 'omitnan'));
         STATS.(cond).(method).spectral_R2.std  = squeeze(std(spectral_R2_all, 0, 1, 'omitnan'));
+        STATS.(cond).(method).matched_R2.mean = squeeze(mean(matched_R2_all, 1, 'omitnan'));
+        STATS.(cond).(method).matched_R2.std  = squeeze(std(matched_R2_all, 0, 1, 'omitnan'));
     end
 end
 
@@ -420,7 +427,7 @@ for c = 1:numel(conditions)
     
     xlabel('Number of Components (k)');
     xticks(linspace(1, max(k_range), nK));
-    ylabel('Mean Correlation (\rho)');
+    ylabel('Mean Correlation (\rho) Mean correlation between $Z$ and $\hat{Z}$', 'Interpreter', 'latex');
     ylim([0 1]);
     title(sprintf('Mean Latent Correlation vs k'));
     grid on;
@@ -431,6 +438,92 @@ set(findall(gcf,'-property','FontSize'),'FontSize',20)
 summary_trace_name = fullfile(local_results_dir, 'Main_Summary_Corr_vs_k.png');
 saveas(fig1, summary_trace_name);
 
+% ==========================================================
+% FIGURE 1b: TIME-DOMAIN MATCHED R^2
+% ==========================================================
+fig1b = figure('Position', [125, 125, 1000, 600]);
+for c = 1:numel(conditions)
+    cond = conditions{c};
+    hold on;
+    colors = lines(numel(methods));
+    
+   for m = 1:numel(methods)
+        method = methods{m};
+        
+        % Average the True Time-Domain R^2 across all latents 
+        mu_k_r2 = mean(STATS.(cond).(method).matched_R2.mean, 1, 'omitnan');
+        sd_k_r2 = std(STATS.(cond).(method).matched_R2.mean, 0, 1, 'omitnan');
+        
+        errorbar(k_range, mu_k_r2, sd_k_r2, ...
+            'LineStyle', method_lines{m}, ...
+            'Marker', method_markers{m}, ...
+            'LineWidth', 2, ...
+            'MarkerSize', 8, ...  
+            'Color', colors(m,:), ...
+            'DisplayName', method);
+    end
+    
+    xlabel('Number of Components (k)');
+    xticks(k_range); 
+    ylabel('Mean Time-Domain R^2 (Coefficient of Determination)');
+    
+    % If models perform worse than predicting the mean, R^2 drops below 0.
+    % You can change the lower limit of ylim here if the lines clip at the bottom.
+    ylim([0 1]); 
+    title(sprintf('Mean Matched Time-Domain R^2 vs k'));
+    grid on;
+    legend('Location', 'eastoutside');
+    set(gca, 'FontSize', 20);
+end
+set(findall(fig1b,'-property','FontSize'),'FontSize',20);
+summary_r2_name = fullfile(local_results_dir, 'Main_Summary_TimeDomain_R2_vs_k.png');
+saveas(fig1b, summary_r2_name);
+
+
+% ==========================================================
+% FIGURE 1c: MATCHED CORRELATION
+% ==========================================================
+fig1c = figure('Position', [150, 150, 1000, 600]);
+for c = 1:numel(conditions)
+    cond = conditions{c};
+    hold on;
+    colors = lines(numel(methods));
+    
+   for m = 1:numel(methods)
+        method = methods{m};
+        
+        % Preallocate for the k-sweep
+        mu_k_matched = zeros(1, nK);
+        sd_k_matched = zeros(1, nK);
+        
+        % Loop through k indices to extract the matched means from CORR_STATS
+        for ki = 1:nK
+            % Average across all latent variables for this specific k
+            mu_k_matched(ki) = mean(CORR_STATS.(cond).(method)(ki).mean, 'omitnan');
+            sd_k_matched(ki) = std(CORR_STATS.(cond).(method)(ki).mean, 0, 'omitnan');
+        end
+        
+        errorbar(k_range, mu_k_matched, sd_k_matched, ...
+            'LineStyle', method_lines{m}, ...
+            'Marker', method_markers{m}, ...
+            'LineWidth', 2, ...
+            'MarkerSize', 8, ...  
+            'Color', colors(m,:), ...
+            'DisplayName', method);
+    end
+    
+    xlabel('Number of Components (k)');
+    xticks(k_range); 
+    ylabel('Mean Matched component to true latent correlation');
+    ylim([0 1]);
+    title(sprintf('Mean Matched Latent Correlation vs k'));
+    grid on;
+    legend('Location', 'eastoutside');
+    set(gca, 'FontSize', 20);
+end
+set(findall(fig1c,'-property','FontSize'),'FontSize',20)
+summary_matched_name = fullfile(local_results_dir, 'Main_Summary_MatchedCorr_vs_k.png');
+saveas(fig1c, summary_matched_name);
 %% ----------------------------------------------------------
 % 5. Plot Corr and Spectral R^2 vs Peak Frequency (for k=6)
 % ----------------------------------------------------------

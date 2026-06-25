@@ -19,7 +19,8 @@ switch method
                         
         out = outPCA;
         if isfield(outPCA, 'Comp_latent_matching_corr'), corr_table = outPCA.Comp_latent_matching_corr; end
-        if isfield(outPCA, 'Comp_latent_matching_matrix'),   Comp_latent_matching_matrix   = outPCA.Comp_latent_matching_matrix;   end
+        if isfield(outPCA, 'Comp_latent_matching_matrix'),   Comp_latent_matching_matrix   = outPCA.Comp_latent_matching_matrix; end
+        if isfield(outPCA, 'matched_R2'), matched_R2 = outPCA.matched_R2; end
         if isfield(outPCA, 'spectral_R2'), spectral_R2 = outPCA.spectral_R2; end
         if isfield(outPCA, 'direct_Component_Corr'), direct_Component_Corr = outPCA.direct_Component_Corr; end
         
@@ -40,6 +41,7 @@ switch method
         out = outICA;
         if isfield(outICA, 'Comp_latent_matching_corr'), corr_table = outICA.Comp_latent_matching_corr; end
         if isfield(outICA, 'Comp_latent_matching_matrix'),   Comp_latent_matching_matrix   = outICA.Comp_latent_matching_matrix;   end
+        if isfield(outICA, 'matched_R2'), matched_R2 = outICA.matched_R2; end
         if isfield(outICA, 'spectral_R2'), spectral_R2 = outICA.spectral_R2; end
         if isfield(outICA, 'direct_Component_Corr'), direct_Component_Corr = outICA.direct_Component_Corr; end
         
@@ -60,6 +62,7 @@ switch method
         out = outAE;
         if isfield(outAE, 'Comp_latent_matching_corr'), corr_table = outAE.Comp_latent_matching_corr; end
         if isfield(outAE, 'Comp_latent_matching_matrix'),  Comp_latent_matching_matrix   = outAE.Comp_latent_matching_matrix;  end
+        if isfield(outAE, 'matched_R2'), matched_R2 = outAE.matched_R2; end
         if isfield(outAE, 'spectral_R2'), spectral_R2 = outAE.spectral_R2; end
         if isfield(outAE, 'direct_Component_Corr'), direct_Component_Corr = outAE.direct_Component_Corr; end
         
@@ -92,6 +95,7 @@ entry.ki      = ki;
 entry.stats = struct();
 entry.Comp_latent_matching_corr = corr_table;
 entry.Comp_latent_matching_matrix = Comp_latent_matching_matrix;
+entry.matched_R2 = matched_R2;
 entry.direct_Component_Corr = direct_Component_Corr;
 entry.spectral_R2 = spectral_R2;
 entry.out  = out;

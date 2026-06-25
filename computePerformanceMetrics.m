@@ -25,17 +25,47 @@ function [h_recon_train, h_recon_test, corr_table, R_matrix, direct_Component_Co
     %% 1. Match Components to Latents
     [corr_table, R_matrix] = match_components_to_latents(components_test, h_test, method_name, k);
 
-    %% 2. Least-Squares Mapping & Normalization
-    % Train regression weights: Components * W = Latents
-    W = components_train \ h_train;
+    %% 2. Single-Component Matched Mapping (Replaces Multiple Regression)
+    % Preallocate the newly matched reconstruction matrices
+    h_recon_train = zeros(size(h_train));
+    h_recon_test  = zeros(size(h_test));
+    matched_R2    = zeros(num_f, 1);
     
-    % Reconstruct raw latents
-    h_recon_train_raw = components_train * W;
-    h_recon_test_raw  = components_test * W;
+    for f = 1:num_f
+        % 1. Find the SINGLE best component from the R_matrix for this latent
+        if size(R_matrix, 1) == num_f
+            [~, best_c] = max(abs(R_matrix(f, :)));
+        else
+            [~, best_c] = max(abs(R_matrix(:, f)));
+        end
+        
+        % 2. Extract strictly that one component
+        c_train_single = components_train(:, best_c);
+        c_test_single  = components_test(:, best_c);
+        
+        % 3. 1D Linear Regression (Solves for optimal sign and amplitude scale)
+        % This replaces the need for dividing by std() later, as OLS 
+        % mathematically guarantees the optimal amplitude to minimize error.
+        w_single = c_train_single \ h_train(:, f);
+        
+        % 4. Reconstruct the latent using ONLY the matched component
+        h_recon_train(:, f) = c_train_single * w_single;
+        h_recon_test(:, f)  = c_test_single * w_single;
+        
+        % 5. Calculate True Time-Domain R^2 on the Test partition
+        SS_res = sum((h_test(:, f) - h_recon_test(:, f)).^2);
+        SS_tot = sum((h_test(:, f) - mean(h_test(:, f))).^2);
+        matched_R2(f) = 1 - (SS_res / SS_tot);
+    end
     
-    % Normalization: ensure std=1 to match the true latents
-    h_recon_train = h_recon_train_raw ./ std(h_recon_train_raw, 0, 1);
-    h_recon_test  = h_recon_test_raw  ./ std(h_recon_test_raw, 0, 1);
+    % Safely inject the Time-Domain R^2 into your corr_table for easy plotting later
+    if ismember('h_f', corr_table.Properties.VariableNames)
+        % Ensure we match the correct row if the table was sorted differently
+        for i = 1:height(corr_table)
+            f_idx = corr_table.h_f(i);
+            corr_table.Time_Domain_R2(i) = matched_R2(f_idx);
+        end
+    end
 
     %% 3. Compute Pearson Correlation (Test Set)
     direct_Component_Corr = zeros(1, num_f);
@@ -55,7 +85,7 @@ function [h_recon_train, h_recon_test, corr_table, R_matrix, direct_Component_Co
     
     % --- FFT Calculation with 50% Overlap ---
     % Define overlap step (e.g., 50% overlap)
-    step = floor(L / 9); % TODO: step size L/2
+    step = floor(L / 2); %  L/6
     nTrials = floor((T - L) / step) + 1; % Number of trials increases significantly
     
     Ht = zeros(L, num_f, nTrials);
@@ -136,6 +166,7 @@ function [h_recon_train, h_recon_test, corr_table, R_matrix, direct_Component_Co
 
     %% 7. Pack frequency data for plotting
     freq_data = struct();
+    freq_data.matched_R2 = matched_R2;
     freq_data.Ht_avg     = Ht_avg;
     freq_data.Hr_avg     = Hr_avg;
     freq_data.R2_avg     = R2_avg;
