@@ -44,12 +44,12 @@ end
 
 %% Loop through experiments
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 1; % 10 datasets
-k_range    = 6:7; % k components
+nDatasets  = 10; % 10 datasets
+k_range    = 1:9; % k components
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA','AE'};  % 'PCA', 'AE','ICA'
+methods = {'PCA', 'AE','ICA'};  % 'PCA', 'AE','ICA'
 % --- Define Marker & Line Styles for distinct plotting ---
 method_markers = {'o', 's', '^', 'd', 'v', 'p'}; % Circle, Square, Triangle, Diamond, etc.
 method_lines = {'-', '--', '-.', ':', '-', '--'}; % Solid, Dashed, Dash-Dot, Dotted, etc.
@@ -83,7 +83,7 @@ for c = 1:numel(conditions)
     % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
-    parfor d = 1:nDatasets 
+    parfor d = 1:nDatasets %parfor
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         data = struct();
         
@@ -276,7 +276,7 @@ for c = 1:numel(conditions)
                 
                 if isempty(R), continue; end
                 
-                fig = figure; % ('Visible', 'off')  
+                fig = figure('Visible', 'off'); % 
                 imagesc(R);
                 clim([-1 1]); 
                 axis square;
@@ -346,7 +346,7 @@ for c = 1:numel(conditions)
                 'DisplayName',method);
         end
         xlabel('Peak Frequency (Hz)');
-        ylabel('Correlation');
+        ylabel('Matched Correlation');
         xticks(param.f_peak);
         ylim([0 1]);
         title(sprintf('Latent Variable–Component Corr (k=%d)', k));
