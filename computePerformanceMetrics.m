@@ -26,43 +26,19 @@ function [h_recon_train, h_recon_test, corr_table, R_matrix, direct_Component_Co
     % [corr_table, R_matrix] = match_components_to_latents(components_test, h_test, method_name, k);
     [corr_table, R_matrix] = match_components_to_latents(components_train, h_train, method_name, k);
 
-   %% 2. Expanded Matrix Multiple Regression Subspace Mapping
+  %% 2. Raw Subspace Multiple Regression Mapping
     
-    % 1. Extract the set of matched components from the correlation table
-    if ismember('C', corr_table.Properties.VariableNames)
-        matched_cols = corr_table.C;
-    elseif ismember('component_idx', corr_table.Properties.VariableNames)
-        matched_cols = corr_table.component_idx;
-    else
-        matched_cols = corr_table{:, 1}; % Fallback 
-    end
+    % 1. Multiple Linear Regression (Raw Components -> Latents)
+    % Solves for a W matrix of size [k x num_f]. 
+    % We use pinv() to gracefully handle any potential rank deficiency 
+    % (e.g., if a method outputs an empty or perfectly collinear component).
+    W_multi = pinv(components_train) * h_train;
     
-    % 2. Preallocate the expanded Component matrices [Time x num_f]
-    C_train_expanded = zeros(size(components_train, 1), num_f);
-    C_test_expanded  = zeros(size(components_test, 1), num_f);
+    % 2. Reconstruct all latents simultaneously using the full raw subspace
+    h_recon_train = components_train * W_multi;
+    h_recon_test  = components_test * W_multi;
     
-    % 3. Populate the expanded matrices based on the matching table
-    for i = 1:height(corr_table)
-        f_idx = corr_table.h_f(i);
-        c_idx = matched_cols(i);
-        
-        % Safety check: ensure the component index exists in the current k-space
-        if c_idx <= size(components_train, 2)
-            C_train_expanded(:, f_idx) = components_train(:, c_idx);
-            C_test_expanded(:, f_idx)  = components_test(:, c_idx);
-        end
-    end
-    
-    % 4. Multiple Linear Regression (Expanded Subspace -> Latents)
-    % Using pinv() (Pseudoinverse) safely handles rank-deficient matrices 
-    % that contain duplicate or all-zero columns without throwing warnings.
-    W_multi = pinv(C_train_expanded) * h_train;
-    
-    % 5. Reconstruct all latents simultaneously using the combined matched subspace
-    h_recon_train = C_train_expanded * W_multi;
-    h_recon_test  = C_test_expanded * W_multi;
-    
-    % 6. Calculate True Time-Domain R^2 on the TEST partition per latent
+    % 3. Calculate True Time-Domain R^2 on the TEST partition per latent
     matched_R2 = zeros(num_f, 1);
     for f = 1:num_f
         SS_res = sum((h_test(:, f) - h_recon_test(:, f)).^2);
@@ -70,12 +46,6 @@ function [h_recon_train, h_recon_test, corr_table, R_matrix, direct_Component_Co
         matched_R2(f) = 1 - (SS_res / SS_tot);
     end
 
-    % 7. Safely inject the Time-Domain R^2 into your corr_table for easy plotting later
-    corr_table.Time_Domain_R2 = zeros(height(corr_table), 1);
-    for i = 1:height(corr_table)
-        f_idx = corr_table.h_f(i);
-        corr_table.Time_Domain_R2(i) = matched_R2(f_idx);
-    end
 
     %% 3. Compute Pearson Correlation (Test Set)
     direct_Component_Corr = zeros(1, num_f);

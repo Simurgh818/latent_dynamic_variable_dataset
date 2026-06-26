@@ -44,12 +44,12 @@ end
 
 %% Loop through experiments
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 10; % 10 datasets
-k_range    = 1:9; % k components
+nDatasets  = 2; % 10 datasets
+k_range    = 1:6; % k components
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA', 'AE','ICA'};  % 'PCA', 'AE','ICA'
+methods = {'PCA', 'AE'};  % 'PCA', 'AE','ICA'
 % --- Define Marker & Line Styles for distinct plotting ---
 method_markers = {'o', 's', '^', 'd', 'v', 'p'}; % Circle, Square, Triangle, Diamond, etc.
 method_lines = {'-', '--', '-.', ':', '-', '--'}; % Solid, Dashed, Dash-Dot, Dotted, etc.
@@ -470,7 +470,7 @@ for c = 1:numel(conditions)
     % If models perform worse than predicting the mean, R^2 drops below 0.
     % You can change the lower limit of ylim here if the lines clip at the bottom.
     ylim([0 1]); 
-    title(sprintf('Mean Matched Time-Domain R^2 vs k'));
+    title(sprintf('Time-Domain R^2 vs k'));
     grid on;
     legend('Location', 'eastoutside');
     set(gca, 'FontSize', 20);
@@ -514,7 +514,7 @@ for c = 1:numel(conditions)
     
     xlabel('Number of Components (k)');
     xticks(k_range); 
-    ylabel('Mean Matched component to $Z$ correlation');
+    ylabel('Mean Matched component to $Z$ correlation', 'Interpreter', 'latex');
     ylim([0 1]);
     title(sprintf('Mean Matched Latent Correlation vs k'));
     grid on;
@@ -531,7 +531,7 @@ target_k = 6;
 ki_target = find(k_range == target_k);
 
 if ~isempty(ki_target)
-    fig2 = figure('Position', [50 50 1400 600]);
+    fig2 = figure('Position', [50 50 1800 600]);
     tiledlayout(1, 2, 'Padding', 'compact');
     
     for c = 1:numel(conditions)
