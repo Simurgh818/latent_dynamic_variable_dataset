@@ -22,7 +22,7 @@ h_f_colors = lines(param.N_F);
 fs_new = param.fs;
 
 %% 2. Train Autoencoder (Unsupervised)
-batch_size = 512; % 100
+batch_size = 2048; % 100
 [net, info] = trainEEGAutoencoder(X_train, X_test,  ...
     'encoderLayerSizes', [64,32], ...
     'bottleneckSize', bottleNeck, ...
@@ -74,17 +74,29 @@ if (isempty(getCurrentTask()) & bottleNeck==6)
     fig_loss = figure('Name', 'Autoencoder Loss Curve', 'Position', [100, 100, 800, 500], 'Visible', 'off');
     hold on;
     
+    % --- NEW: Calculate Iterations per Epoch ---
+    % Assuming X_train is [Channels x Time]. If it's [Time x Channels], change to size(X_train, 1)
+    iters_per_epoch = floor(size(X_train, 2) / batch_size); 
+    
+    % Convert iteration indices to epoch units
+    train_epochs = (1:length(info.TrainingLoss)) / iters_per_epoch;
+    
     % info.TrainingLoss is recorded every iteration
-    plot(info.TrainingLoss, 'LineWidth', 1.5, 'Color', [0 0.4470 0.7410], 'DisplayName', 'Training Loss');
+    plot(train_epochs, info.TrainingLoss, 'LineWidth', 1.5, 'Color', [0 0.4470 0.7410], 'DisplayName', 'Training Loss');
     
     % info.ValidationLoss is recorded at validation frequencies (contains NaNs in between)
     val_idx = find(~isnan(info.ValidationLoss));
     if ~isempty(val_idx)
-        plot(val_idx, info.ValidationLoss(val_idx), '-o', 'LineWidth', 2, 'Color', [0.8500 0.3250 0.0980], 'DisplayName', 'Validation Loss');
+        val_epochs = val_idx / iters_per_epoch; % Convert validation iterations to epochs
+        plot(val_epochs, info.ValidationLoss(val_idx), '-o', 'LineWidth', 2, 'Color', [0.8500 0.3250 0.0980], 'DisplayName', 'Validation Loss');
     end
     
-    xlabel('Iteration', 'FontSize', 14);
-    ylabel('MSE Loss', 'FontSize', 14);
+    % --- NEW: Set Y-Axis to Logarithmic Scale ---
+    set(gca, 'YScale', 'log');
+    
+    % Updated labels to reflect the new axes
+    xlabel('Epochs', 'FontSize', 14);
+    ylabel('MSE Loss (Log Scale)', 'FontSize', 14);
     title(sprintf('AE Training Curve (k=%d)', bottleNeck), 'FontSize', 16);
     legend('Location', 'northeast', 'FontSize', 12);
     grid on;
@@ -93,7 +105,8 @@ if (isempty(getCurrentTask()) & bottleNeck==6)
     if ~isempty(val_idx)
         [min_val_loss, best_idx] = min(info.ValidationLoss(val_idx));
         best_iter = val_idx(best_idx);
-        plot(best_iter, min_val_loss, 'k*', 'MarkerSize', 10, 'DisplayName', 'Best Model / Early Stop');
+        best_epoch = best_iter / iters_per_epoch; % Convert best iteration to epoch
+        plot(best_epoch, min_val_loss, 'k*', 'MarkerSize', 10, 'DisplayName', 'Best Model / Early Stop');
     end
     
     saveas(fig_loss, fullfile(method_dir, ['AE_Loss_Curve' file_suffix '.png']));

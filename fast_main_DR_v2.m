@@ -44,12 +44,12 @@ end
 
 %% Loop through experiments
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 2; % 10 datasets
-k_range    = 6:6; % k components
+nDatasets  = 10; % 10 datasets
+k_range    = 1:9; % k components
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA'};  % 'PCA', 'AE','ICA'
+methods = {'PCA', 'AE','ICA'};  % 'PCA', 'AE','ICA'
 % --- Define Marker & Line Styles for distinct plotting ---
 method_markers = {'o', 's', '^', 'd', 'v', 'p'}; % Circle, Square, Triangle, Diamond, etc.
 method_lines = {'-', '--', '-.', ':', '-', '--'}; % Solid, Dashed, Dash-Dot, Dotted, etc.
@@ -427,7 +427,7 @@ for c = 1:numel(conditions)
     
     xlabel('Number of Components (k)');
     xticks(linspace(1, max(k_range), nK));
-    ylabel('Mean Correlation (\rho) Mean correlation between $Z$ and $\hat{Z}$', 'Interpreter', 'latex');
+    ylabel('Mean correlation between $Z$ and $\hat{Z}$', 'Interpreter', 'latex');
     ylim([0 1]);
     title(sprintf('Mean Latent Correlation vs k'));
     grid on;
@@ -465,7 +465,7 @@ for c = 1:numel(conditions)
     
     xlabel('Number of Components (k)');
     xticks(k_range); 
-    ylabel('Mean Time-Domain R^2 (Coefficient of Determination)');
+    ylabel('Mean R^2');
     
     % If models perform worse than predicting the mean, R^2 drops below 0.
     % You can change the lower limit of ylim here if the lines clip at the bottom.
@@ -514,7 +514,7 @@ for c = 1:numel(conditions)
     
     xlabel('Number of Components (k)');
     xticks(k_range); 
-    ylabel('Mean Matched component to true latent correlation');
+    ylabel('Mean Matched component to $Z$ correlation');
     ylim([0 1]);
     title(sprintf('Mean Matched Latent Correlation vs k'));
     grid on;

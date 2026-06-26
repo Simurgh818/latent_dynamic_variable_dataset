@@ -23,48 +23,58 @@ function [h_recon_train, h_recon_test, corr_table, R_matrix, direct_Component_Co
     num_f = size(h_test, 2); % Number of latent features
 
     %% 1. Match Components to Latents
-    [corr_table, R_matrix] = match_components_to_latents(components_test, h_test, method_name, k);
+    % [corr_table, R_matrix] = match_components_to_latents(components_test, h_test, method_name, k);
+    [corr_table, R_matrix] = match_components_to_latents(components_train, h_train, method_name, k);
 
-    %% 2. Single-Component Matched Mapping (Replaces Multiple Regression)
-    % Preallocate the newly matched reconstruction matrices
-    h_recon_train = zeros(size(h_train));
-    h_recon_test  = zeros(size(h_test));
-    matched_R2    = zeros(num_f, 1);
+   %% 2. Expanded Matrix Multiple Regression Subspace Mapping
     
-    for f = 1:num_f
-        % 1. Find the SINGLE best component from the R_matrix for this latent
-        if size(R_matrix, 1) == num_f
-            [~, best_c] = max(abs(R_matrix(f, :)));
-        else
-            [~, best_c] = max(abs(R_matrix(:, f)));
+    % 1. Extract the set of matched components from the correlation table
+    if ismember('C', corr_table.Properties.VariableNames)
+        matched_cols = corr_table.C;
+    elseif ismember('component_idx', corr_table.Properties.VariableNames)
+        matched_cols = corr_table.component_idx;
+    else
+        matched_cols = corr_table{:, 1}; % Fallback 
+    end
+    
+    % 2. Preallocate the expanded Component matrices [Time x num_f]
+    C_train_expanded = zeros(size(components_train, 1), num_f);
+    C_test_expanded  = zeros(size(components_test, 1), num_f);
+    
+    % 3. Populate the expanded matrices based on the matching table
+    for i = 1:height(corr_table)
+        f_idx = corr_table.h_f(i);
+        c_idx = matched_cols(i);
+        
+        % Safety check: ensure the component index exists in the current k-space
+        if c_idx <= size(components_train, 2)
+            C_train_expanded(:, f_idx) = components_train(:, c_idx);
+            C_test_expanded(:, f_idx)  = components_test(:, c_idx);
         end
-        
-        % 2. Extract strictly that one component
-        c_train_single = components_train(:, best_c);
-        c_test_single  = components_test(:, best_c);
-        
-        % 3. 1D Linear Regression (Solves for optimal sign and amplitude scale)
-        % This replaces the need for dividing by std() later, as OLS 
-        % mathematically guarantees the optimal amplitude to minimize error.
-        w_single = c_train_single \ h_train(:, f);
-        
-        % 4. Reconstruct the latent using ONLY the matched component
-        h_recon_train(:, f) = c_train_single * w_single;
-        h_recon_test(:, f)  = c_test_single * w_single;
-        
-        % 5. Calculate True Time-Domain R^2 on the Test partition
+    end
+    
+    % 4. Multiple Linear Regression (Expanded Subspace -> Latents)
+    % Using pinv() (Pseudoinverse) safely handles rank-deficient matrices 
+    % that contain duplicate or all-zero columns without throwing warnings.
+    W_multi = pinv(C_train_expanded) * h_train;
+    
+    % 5. Reconstruct all latents simultaneously using the combined matched subspace
+    h_recon_train = C_train_expanded * W_multi;
+    h_recon_test  = C_test_expanded * W_multi;
+    
+    % 6. Calculate True Time-Domain R^2 on the TEST partition per latent
+    matched_R2 = zeros(num_f, 1);
+    for f = 1:num_f
         SS_res = sum((h_test(:, f) - h_recon_test(:, f)).^2);
         SS_tot = sum((h_test(:, f) - mean(h_test(:, f))).^2);
         matched_R2(f) = 1 - (SS_res / SS_tot);
     end
-    
-    % Safely inject the Time-Domain R^2 into your corr_table for easy plotting later
-    if ismember('h_f', corr_table.Properties.VariableNames)
-        % Ensure we match the correct row if the table was sorted differently
-        for i = 1:height(corr_table)
-            f_idx = corr_table.h_f(i);
-            corr_table.Time_Domain_R2(i) = matched_R2(f_idx);
-        end
+
+    % 7. Safely inject the Time-Domain R^2 into your corr_table for easy plotting later
+    corr_table.Time_Domain_R2 = zeros(height(corr_table), 1);
+    for i = 1:height(corr_table)
+        f_idx = corr_table.h_f(i);
+        corr_table.Time_Domain_R2(i) = matched_R2(f_idx);
     end
 
     %% 3. Compute Pearson Correlation (Test Set)
