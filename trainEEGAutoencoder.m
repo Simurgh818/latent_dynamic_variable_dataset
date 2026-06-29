@@ -51,6 +51,9 @@ function [net, info] = trainEEGAutoencoder(X_train, X_test, cfg)
         if ~isempty(act)
             layers = [layers; act];
         end
+        layers = [
+            layers
+            dropoutLayer(0.1, "Name", "enc_drop"+i)];
     end
     
     % Bottleneck
@@ -69,6 +72,9 @@ function [net, info] = trainEEGAutoencoder(X_train, X_test, cfg)
         if ~isempty(act)
             layers = [layers; act];
         end
+        layers = [
+            layers
+            dropoutLayer(0.1, "Name", "dec_drop"+i)];
     end
     
     % Output layer
@@ -103,7 +109,7 @@ function [net, info] = trainEEGAutoencoder(X_train, X_test, cfg)
         "MaxEpochs",cfg.epochs, ...
         "MiniBatchSize",cfg.batchSize, ...
         "InitialLearnRate",cfg.learnRate, ...
-        "L2Regularization", 1e-3, ...
+        "L2Regularization", 1e-4, ...
         "Shuffle","every-epoch", ...
         "Plots", "none", ... %  "training-progress",...
         "Verbose",false, ... % true
