@@ -22,7 +22,11 @@ h_f_colors = lines(param.N_F);
 fs_new = param.fs;
 
 %% 2. Train Autoencoder (Unsupervised)
-batch_size = 2048; % 100
+batch_size = 512; % 512
+ckpt_dir = fullfile(method_dir, 'Checkpoints');
+if ~exist(ckpt_dir, 'dir')
+    mkdir(ckpt_dir);
+end
 [net, info] = trainEEGAutoencoder(X_train, X_test,  ...
     'encoderLayerSizes', [64,32], ...
     'bottleneckSize', bottleNeck, ...
@@ -32,7 +36,8 @@ batch_size = 2048; % 100
     'outputActivation', "none", ...
     'epochs', 500, ...
     'batchSize', batch_size, ...
-    'learnRate', 1e-3);
+    'learnRate', 1e-3, ...
+    'checkpointPath', ckpt_dir);
 
 % Extract Latents
 Z_train_c = double(activations(net, X_train.', 'bottleneck', 'OutputAs','rows'));
@@ -48,6 +53,58 @@ minLenTest = min(size(Z_test_c,1), size(H_test,1));
 Z_test_c  = Z_test_c(1:minLenTest,:);
 H_test    = H_test(1:minLenTest,:);
 
+%% --- NEW: 3.5 Evaluate Checkpoints every 5 Epochs ---
+disp('Evaluating Checkpoints for Z-Z_hat Correlation...');
+ckpt_files = dir(fullfile(ckpt_dir, 'net_checkpoint__*.mat'));
+
+% Extract iterations to sort them chronologically
+iters = zeros(length(ckpt_files), 1);
+for i = 1:length(ckpt_files)
+    parts = split(ckpt_files(i).name, '__');
+    iters(i) = str2double(parts{2});
+end
+[sorted_iters, sort_idx] = sort(iters);
+ckpt_files = ckpt_files(sort_idx);
+
+iters_per_epoch = floor(size(X_train, 2) / batch_size);
+eval_every_n_epochs = 5;
+
+% Create target epochs up to the point early stopping was triggered
+max_epoch_reached = floor(max(sorted_iters) / iters_per_epoch);
+target_epochs = eval_every_n_epochs : eval_every_n_epochs : max_epoch_reached;
+target_iters = target_epochs * iters_per_epoch;
+
+history_corr = nan(length(target_epochs), param.N_F);
+
+for i = 1:length(target_epochs)
+    % Find closest checkpoint to target iteration
+    [~, closest_idx] = min(abs(sorted_iters - target_iters(i)));
+    
+    % Load network state at this epoch
+    ckpt_data = load(fullfile(ckpt_dir, ckpt_files(closest_idx).name));
+    temp_net = ckpt_data.net; 
+    
+    % Extract latents using the temporary past network
+    Z_train_tmp = double(activations(temp_net, X_train.', 'bottleneck', 'OutputAs','rows'));
+    Z_test_tmp  = double(activations(temp_net, X_test.',  'bottleneck', 'OutputAs','rows'));
+    
+    % Match lengths
+    Z_train_tmp = Z_train_tmp(1:minLen,:);
+    Z_test_tmp  = Z_test_tmp(1:minLenTest,:);
+    
+    % Subspace mapping (Identical math to your computePerformanceMetrics)
+    W_multi = pinv(Z_train_tmp) * H_train;
+    Z_recon_test_tmp = Z_test_tmp * W_multi;
+    
+    % Calculate Pearson Correlation
+    for f = 1:param.N_F
+        c = corrcoef(H_test(:,f), Z_recon_test_tmp(:,f));
+        history_corr(i, f) = c(1,2);
+    end
+end
+
+% Clean up checkpoints to free up hard drive space!
+rmdir(ckpt_dir, 's');
 %% 4. Compute Performance Metrics
 [H_recon_train, H_recon_test, Comp_latent_matching_corr, R_AE, direct_Component_Corr_ae, AE_R2_scores, freq_data] = ...
     computePerformanceMetrics(Z_train_c, Z_test_c, H_train, H_test, 'AE', bottleNeck, param);
@@ -92,10 +149,9 @@ if (isempty(getCurrentTask()) & bottleNeck==6)
     end
     
     % --- NEW: Set Y-Axis to Logarithmic Scale ---
-    set(gca, 'YScale', 'log');
+    set(gca,'XScale', 'log','YScale', 'log');
     
-    % Updated labels to reflect the new axes
-    xlabel('Epochs', 'FontSize', 14);
+    xlabel('Epochs (Log Scale)', 'FontSize', 14);
     ylabel('MSE Loss (Log Scale)', 'FontSize', 14);
     title(sprintf('AE Training Curve (k=%d)', bottleNeck), 'FontSize', 16);
     legend('Location', 'northeast', 'FontSize', 12);
@@ -111,6 +167,25 @@ if (isempty(getCurrentTask()) & bottleNeck==6)
     
     saveas(fig_loss, fullfile(method_dir, ['AE_Loss_Curve' file_suffix '.png']));
     close(fig_loss);
+
+    %% Plot 0.5: Evolution of Z-Z_hat Correlation
+    if ~isempty(target_epochs)
+        fig_corr_evol = figure('Name', 'Correlation Evolution', 'Position', [150, 150, 800, 500], 'Visible', 'off');
+        hold on;
+        for f = 1:param.N_F
+            plot(target_epochs, history_corr(:, f), '-o', 'LineWidth', 1.5, ...
+                'Color', h_f_colors(f,:), 'DisplayName', sprintf('Z_{%d}', param.f_peak(f)));
+        end
+        xlabel('Epochs', 'FontSize', 14);
+        ylabel('Pearson Correlation (\rho)', 'FontSize', 14);
+        title(sprintf('Z vs \\hat{Z} Correlation over Training (k=%d)', bottleNeck), 'FontSize', 16);
+        legend('Location', 'eastoutside', 'FontSize', 12);
+        grid on;
+        ylim([0 1.05]); % Forces Y-axis to standard correlation scale
+        
+        saveas(fig_corr_evol, fullfile(method_dir, ['AE_Corr_Evolution' file_suffix '.png']));
+        close(fig_corr_evol);
+    end
     %% Plot 1 & 2: Component Traces
     plotCTraces(bottleNeck, param, H_recon_test, method_dir, file_suffix);
     
