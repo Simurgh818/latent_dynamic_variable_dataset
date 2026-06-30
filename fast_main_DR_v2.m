@@ -44,12 +44,12 @@ end
 
 %% Loop through experiments
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 1; % 10 datasets
-k_range    = 6:6; % k components
+nDatasets  = 10; % 10 datasets
+k_range    = 1:9; % k components
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'AE'};  % 'PCA', 'AE','ICA'
+methods = {'PCA', 'AE','ICA'};  % 'PCA', 'AE','ICA'
 % --- Define Marker & Line Styles for distinct plotting ---
 method_markers = {'o', 's', '^', 'd', 'v', 'p'}; % Circle, Square, Triangle, Diamond, etc.
 method_lines = {'-', '--', '-.', ':', '-', '--'}; % Solid, Dashed, Dash-Dot, Dotted, etc.
@@ -63,14 +63,14 @@ RESULTS.meta = struct();
 RESULTS.meta.created = datetime;
 RESULTS.meta.description = "Dimensionality reduction benchmark (80:20 Split)";
 
-% target_workers = 5; 
-% current_pool = gcp('nocreate');
-% if isempty(current_pool)
-%     parpool(target_workers);
-% elseif current_pool.NumWorkers ~= target_workers
-%     delete(current_pool);
-%     parpool(target_workers);
-% end
+target_workers = 5; 
+current_pool = gcp('nocreate');
+if isempty(current_pool)
+    parpool(target_workers);
+elseif current_pool.NumWorkers ~= target_workers
+    delete(current_pool);
+    parpool(target_workers);
+end
 
 %% Loop through experiments
 for c = 1:numel(conditions)
@@ -83,7 +83,7 @@ for c = 1:numel(conditions)
     % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
-    for d = 1:nDatasets %parfor
+    parfor d = 1:nDatasets %parfor
         fprintf('Dataset %d / %d (Worker Processing)\n', d, nDatasets);
         data = struct();
         
