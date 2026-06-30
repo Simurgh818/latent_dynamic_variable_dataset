@@ -23,10 +23,9 @@ fs_new = param.fs;
 
 %% 2. Train Autoencoder (Unsupervised)
 batch_size = 512; % 512
-ckpt_dir = fullfile(method_dir, 'Checkpoints');
-if ~exist(ckpt_dir, 'dir')
-    mkdir(ckpt_dir);
-end
+ckpt_dir = tempname; 
+mkdir(ckpt_dir); % We must explicitly create the randomized folder
+
 [net, info] = trainEEGAutoencoder(X_train, X_test,  ...
     'encoderLayerSizes', [256, 128], ...
     'bottleneckSize', bottleNeck, ...
@@ -34,7 +33,7 @@ end
     'encoderActivations', {'leakyrelu','leakyrelu'}, ...
     'decoderActivations', {'leakyrelu','leakyrelu'}, ...
     'outputActivation', "none", ...
-    'epochs', 500, ... % TODO test 100
+    'epochs', 50, ... % TODO test 100
     'batchSize', batch_size, ...
     'learnRate', 1e-3, ...
     'checkpointPath', ckpt_dir);
@@ -104,7 +103,7 @@ for i = 1:length(target_epochs)
 end
 
 % Clean up checkpoints to free up hard drive space!
-% rmdir(ckpt_dir, 's');
+rmdir(ckpt_dir, 's');
 %% 4. Compute Performance Metrics
 [H_recon_train, H_recon_test, Comp_latent_matching_corr, R_AE, direct_Component_Corr_ae, AE_R2_scores, freq_data] = ...
     computePerformanceMetrics(Z_train_c, Z_test_c, H_train, H_test, 'AE', bottleNeck, param);
