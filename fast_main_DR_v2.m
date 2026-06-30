@@ -45,7 +45,7 @@ end
 %% Loop through experiments
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
 nDatasets  = 10; % 10 datasets
-k_range    = 1:9; % k components
+k_range    = 1:10; % 10 k components
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name

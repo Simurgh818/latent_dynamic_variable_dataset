@@ -104,7 +104,7 @@ for i = 1:length(target_epochs)
 end
 
 % Clean up checkpoints to free up hard drive space!
-rmdir(ckpt_dir, 's');
+% rmdir(ckpt_dir, 's');
 %% 4. Compute Performance Metrics
 [H_recon_train, H_recon_test, Comp_latent_matching_corr, R_AE, direct_Component_Corr_ae, AE_R2_scores, freq_data] = ...
     computePerformanceMetrics(Z_train_c, Z_test_c, H_train, H_test, 'AE', bottleNeck, param);
