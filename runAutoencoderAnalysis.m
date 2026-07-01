@@ -125,7 +125,7 @@ end
 %% ============================================================
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
-if (isempty(getCurrentTask()) & bottleNeck==6)
+if (isempty(getCurrentTask()) & bottleNeck==10)
     %% Plot 0: Training and Validation Loss Curve
     fig_loss = figure('Name', 'Autoencoder Loss Curve', 'Position', [100, 100, 800, 500], 'Visible', 'off');
     hold on;

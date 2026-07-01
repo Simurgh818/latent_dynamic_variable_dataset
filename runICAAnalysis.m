@@ -61,7 +61,7 @@ end
 %% ============================================================
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
-if (isempty(getCurrentTask()) && num_comps==6)
+if (isempty(getCurrentTask()) && num_comps==10)
     % Time domain plot
     plotTimeDomainReconstruction(h_test, h_rec_test, param, 'ICA', num_comps, direct_Component_Corr_ica, method_dir);
     % Independent Component traces plot

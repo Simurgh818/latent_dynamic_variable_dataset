@@ -29,7 +29,7 @@ score_test_k  = score_test(:, 1:k);
 %% ============================================================
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
-if (isempty(getCurrentTask()) & k==6)
+if (isempty(getCurrentTask()) & k==10)
     plotTimeDomainReconstruction(h_test, h_recon_test, param, 'PCA', k, direct_Component_Corr_pca, method_dir);
     plotCTraces(k, param, score_test, method_dir, file_suffix);
     
