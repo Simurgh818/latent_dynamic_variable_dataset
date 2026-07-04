@@ -22,7 +22,7 @@ h_f_colors = lines(param.N_F);
 fs_new = param.fs;
 
 %% 2. Train Autoencoder (Unsupervised)
-batch_size = 512; % 512
+batch_size = 256; % 512
 ckpt_dir = tempname; 
 mkdir(ckpt_dir); % We must explicitly create the randomized folder
 

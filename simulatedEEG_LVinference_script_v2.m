@@ -9,7 +9,7 @@ param.dt = 0.002; % 2e-3 for 500 Hz fs
 fs=1/param.dt;
 param.tau_F = [1, 0.85, 0.75, 0.5, 0.25, 0.125] ;
 burn_in_seconds = 6;
-param.T = 8640 + burn_in_seconds; % Total simulation time (in seconds) 1, 5, 10, 60, 360, 1000, 8640
+param.T = 10800 + burn_in_seconds; % Total simulation time (in seconds) 1, 5, 10, 60, 1000, 3600, 10800 (3 hr)
 num_latents = length(param.tau_F);
 zeta_latents = [0.1 0.3 0.1 0.25 0.2 0.4]; 
 T = param.T;     
@@ -157,8 +157,8 @@ for i_spat = 1:num_spatial_realizations
 
     % 1. Base linear mixing (The part PCA handles well)
     wx_vals = spatial_comps(:, select_comps) * all_h_F(select_comps, :);
-    gain_par = 2; % try 1
-    bias_par = 1.2; % try 0.8
+    gain_par = 2; % try 2
+    bias_par = 1.2; % try 1.2
     sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
     
     % % 2. Identify latents based on your param.f_peak array
@@ -229,7 +229,7 @@ for i_spat = 1:num_spatial_realizations
     % Add Pink Noise and Scale 
     pink_bg = pinknoise(size(sim_eeg_vals, 2), num_channels)'; 
     sim_eeg_vals = sim_eeg_vals + 2.0 * pink_bg; 
-    sim_eeg_vals = sim_eeg_vals * 16; 
+    sim_eeg_vals = sim_eeg_vals * 16; % 16 before
     
     % --- APPLY BANDPASS FILTER HERE ---
     sim_eeg_vals = filtfilt(bp_b, bp_a, sim_eeg_vals')'; 
