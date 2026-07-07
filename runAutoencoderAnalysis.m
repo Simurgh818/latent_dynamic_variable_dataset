@@ -21,26 +21,60 @@ file_suffix = sprintf('_k%d', bottleNeck);
 h_f_colors = lines(param.N_F); 
 fs_new = param.fs;
 
-%% 2. Train Autoencoder (Unsupervised)
-batch_size = 256; % 512
-ckpt_dir = tempname; 
-mkdir(ckpt_dir); % We must explicitly create the randomized folder
+%% 2. Train 2D Spectrogram Convolutional Autoencoder
+batch_size = 4; 
 
-[net, info] = trainEEGAutoencoder(X_train, X_test,  ...
-    'encoderLayerSizes', [256, 128], ...
+% --- 2.1 Calculate Spectrograms (STFT) ---
+disp('Extracting 2D Spectrogram Features...');
+window = round(param.fs * 0.5);   % 500ms sliding window
+overlap = round(param.fs * 0.4);  % 400ms overlap (step size of 100ms)
+nfft = window;
+
+% Precompute for Train data to get output dimensions
+[~, F, T_train] = spectrogram(X_train(1,:), window, overlap, nfft, param.fs);
+freq_idx = F <= 50; % Keep only frequencies up to 50Hz to save memory!
+NumFreqs = sum(freq_idx);
+
+X_train_spec = zeros(size(X_train,1), NumFreqs, 1, length(T_train));
+for ch = 1:size(X_train,1)
+    [S, ~, ~] = spectrogram(X_train(ch,:), window, overlap, nfft, param.fs);
+    X_train_spec(ch, :, 1, :) = log(abs(S(freq_idx, :)) + 1); % Log-transform stabilizes CNN gradients
+end
+
+% Precompute for Test data
+[~, ~, T_test] = spectrogram(X_test(1,:), window, overlap, nfft, param.fs);
+X_test_spec = zeros(size(X_test,1), NumFreqs, 1, length(T_test));
+for ch = 1:size(X_test,1)
+    [S, ~, ~] = spectrogram(X_test(ch,:), window, overlap, nfft, param.fs);
+    X_test_spec(ch, :, 1, :) = log(abs(S(freq_idx, :)) + 1);
+end
+
+% --- 2.2 Train the Network ---
+ckpt_dir = tempname; 
+mkdir(ckpt_dir); 
+
+[net, info] = trainEEG_CAE(X_train_spec, X_test_spec,  ...
     'bottleneckSize', bottleNeck, ...
-    'decoderLayerSizes', [128,256], ...
-    'encoderActivations', {'leakyrelu','leakyrelu'}, ...
-    'decoderActivations', {'leakyrelu','leakyrelu'}, ...
-    'outputActivation', "none", ...
-    'epochs', 50, ... % TODO test 100
+    'epochs', 150, ... 
     'batchSize', batch_size, ...
-    'learnRate', 1e-3, ...
+    'learnRate', 1e-4, ...
     'checkpointPath', ckpt_dir);
 
-% Extract Latents
-Z_train_c = double(activations(net, X_train.', 'bottleneck', 'OutputAs','rows'));
-Z_test_c  = double(activations(net, X_test.',  'bottleneck', 'OutputAs','rows'));
+% --- 2.3 Extract Latents ---
+% The CNN outputs latents corresponding to the STFT TimeWindows
+Z_train_stft = double(activations(net, X_train_spec, 'bottleneck', 'OutputAs','rows'));
+Z_test_stft  = double(activations(net, X_test_spec,  'bottleneck', 'OutputAs','rows'));
+
+% --- 2.4 Interpolate Latents back to Native EEG Time Resolution ---
+% Because the STFT compresses time, we must stretch Z back out so it perfectly 
+% aligns with your Ground Truth H matrices for the correlation math!
+orig_time_train = (0:size(H_train,1)-1) / param.fs;
+orig_time_test  = (0:size(H_test,1)-1) / param.fs;
+
+% Interpolate STFT centers (T_train) to native times (orig_time_train)
+Z_train_c = interp1(T_train, Z_train_stft, orig_time_train, 'linear', 'extrap');
+Z_test_c  = interp1(T_test, Z_test_stft, orig_time_test, 'linear', 'extrap');
+
 H_train   = double(H_train);
 H_test    = double(H_test);
 
@@ -48,6 +82,7 @@ H_test    = double(H_test);
 minLen = min(size(Z_train_c,1), size(H_train,1));
 Z_train_c = Z_train_c(1:minLen,:);
 H_train   = H_train(1:minLen,:);
+
 minLenTest = min(size(Z_test_c,1), size(H_test,1));
 Z_test_c  = Z_test_c(1:minLenTest,:);
 H_test    = H_test(1:minLenTest,:);
@@ -65,8 +100,8 @@ end
 [sorted_iters, sort_idx] = sort(iters);
 ckpt_files = ckpt_files(sort_idx);
 
-iters_per_epoch = floor(size(X_train, 2) / batch_size);
-eval_every_n_epochs = 5;
+iters_per_epoch = max(1, floor(size(X_train_spec, 4) / batch_size)); 
+eval_every_n_epochs = 2;
 
 % Create target epochs up to the point early stopping was triggered
 max_epoch_reached = floor(max(sorted_iters) / iters_per_epoch);
@@ -76,22 +111,24 @@ target_iters = target_epochs * iters_per_epoch;
 history_corr = nan(length(target_epochs), param.N_F);
 
 for i = 1:length(target_epochs)
-    % Find closest checkpoint to target iteration
-    [~, closest_idx] = min(abs(sorted_iters - target_iters(i)));
-    
     % Load network state at this epoch
+    [~, closest_idx] = min(abs(sorted_iters - target_iters(i)));
     ckpt_data = load(fullfile(ckpt_dir, ckpt_files(closest_idx).name));
     temp_net = ckpt_data.net; 
     
-    % Extract latents using the temporary past network
-    Z_train_tmp = double(activations(temp_net, X_train.', 'bottleneck', 'OutputAs','rows'));
-    Z_test_tmp  = double(activations(temp_net, X_test.',  'bottleneck', 'OutputAs','rows'));
+    % Extract latents using the 2D Spectrograms
+    Z_train_stft_tmp = double(activations(temp_net, X_train_spec, 'bottleneck', 'OutputAs','rows'));
+    Z_test_stft_tmp  = double(activations(temp_net, X_test_spec,  'bottleneck', 'OutputAs','rows'));
+    
+    % Interpolate back to native time
+    Z_train_tmp = interp1(T_train, Z_train_stft_tmp, orig_time_train, 'linear', 'extrap');
+    Z_test_tmp  = interp1(T_test, Z_test_stft_tmp, orig_time_test, 'linear', 'extrap');
     
     % Match lengths
     Z_train_tmp = Z_train_tmp(1:minLen,:);
     Z_test_tmp  = Z_test_tmp(1:minLenTest,:);
     
-    % Subspace mapping (Identical math to your computePerformanceMetrics)
+    % Subspace mapping 
     W_multi = pinv(Z_train_tmp) * H_train;
     Z_recon_test_tmp = Z_test_tmp * W_multi;
     
@@ -126,13 +163,12 @@ end
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
 if (isempty(getCurrentTask()) & bottleNeck==10)
-    %% Plot 0: Training and Validation Loss Curve
+  %% Plot 0: Training and Validation Loss Curve
     fig_loss = figure('Name', 'Autoencoder Loss Curve', 'Position', [100, 100, 800, 500], 'Visible', 'off');
     hold on;
     
-    % --- NEW: Calculate Iterations per Epoch ---
-    % Assuming X_train is [Channels x Time]. If it's [Time x Channels], change to size(X_train, 1)
-    iters_per_epoch = floor(size(X_train, 2) / batch_size); 
+    % --- FIXED: Now uses the Spectrogram dimensions safely ---
+    iters_per_epoch = max(1, floor(size(X_train_spec, 4) / batch_size)); 
     
     % Convert iteration indices to epoch units
     train_epochs = (1:length(info.TrainingLoss)) / iters_per_epoch;
@@ -140,19 +176,19 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
     % info.TrainingLoss is recorded every iteration
     plot(train_epochs, info.TrainingLoss, 'LineWidth', 1.5, 'Color', [0 0.4470 0.7410], 'DisplayName', 'Training Loss');
     
-    % info.ValidationLoss is recorded at validation frequencies (contains NaNs in between)
+    % info.ValidationLoss is recorded at validation frequencies
     val_idx = find(~isnan(info.ValidationLoss));
     if ~isempty(val_idx)
         val_epochs = val_idx / iters_per_epoch; % Convert validation iterations to epochs
         plot(val_epochs, info.ValidationLoss(val_idx), '-o', 'LineWidth', 2, 'Color', [0.8500 0.3250 0.0980], 'DisplayName', 'Validation Loss');
     end
     
-    % --- NEW: Set Y-Axis to Logarithmic Scale ---
-    set(gca,'XScale', 'log','YScale', 'log');
+    % --- Set Y-Axis to Logarithmic Scale ---
+    set(gca,'XScale', 'log', 'YScale', 'log'); 
     
-    xlabel('Epochs (Log Scale)', 'FontSize', 14);
+    xlabel('Epochs', 'FontSize', 14);
     ylabel('MSE Loss (Log Scale)', 'FontSize', 14);
-    title(sprintf('AE Training Curve (k=%d)', bottleNeck), 'FontSize', 16);
+    title(sprintf('CAE Training Curve (k=%d)', bottleNeck), 'FontSize', 16);
     legend('Location', 'northeast', 'FontSize', 12);
     grid on;
     
@@ -322,6 +358,8 @@ end
 outAE = struct();
 outAE.net = net;
 outAE.info = info;
+outAE.history_corr     = history_corr;  % <-- ALWAYS SAVES CORR DATA
+outAE.target_epochs    = target_epochs;
 outAE.h_recon_train    = H_recon_train;
 outAE.h_recon_test     = H_recon_test;
 outAE.matched_R2       = freq_data.matched_R2;
