@@ -1,64 +1,60 @@
-function [net, info] = trainEEG_CAE(X_train_spec, X_test_spec, cfg)
-    % Train a 2D Spectrogram Convolutional Autoencoder 
+function [net, info] = trainEEG_CAE(X_train_1D, X_test_1D, cfg)
+    % Train a 1D Temporal Convolutional Autoencoder 
     
     arguments
-        X_train_spec double 
-        X_test_spec  double 
+        X_train_1D double % [1 x TimeWindow x Channels x Observations]
+        X_test_1D  double 
         cfg.bottleneckSize (1,1) double
         cfg.epochs double = 150
-        cfg.batchSize double = 4   
-        cfg.learnRate double = 1e-4
+        cfg.batchSize double = 64
+        cfg.learnRate double = 1e-3
         cfg.checkpointPath string = ""
     end
     
-    inputDim = size(X_train_spec, 1);
-    NumFreqs = size(X_train_spec, 2);
+    WindowLength = size(X_train_1D, 2);
+    NumChannels = size(X_train_1D, 3);
     
     % -------------------
-    % 1) Build the CAE Layers
+    % 1) Build the 1D Temporal CAE Layers
     % -------------------
     layers = [
-        % --- MUST BE ZSCORE: Centers the positive log-spectrograms at 0 ---
-        imageInputLayer([inputDim NumFreqs 1], "Normalization", "zscore", "Name", "input")
+        % Input is structured as [1 (Height) x L (Time) x 32 (Channels)]
+        imageInputLayer([1 WindowLength NumChannels], "Normalization", "zscore", "Name", "input")
         
-        convolution2dLayer([3 3], 32, "Padding", "same", "Name", "enc_conv1")
-        % BN layer removed to bypass MATLAB checkpoint bug
+        % --- ENCODER (Temporal Filtering) ---
+        % Filter size [1 15] slides ONLY across the time dimension
+        convolution2dLayer([1 15], 64, "Padding", "same", "Name", "enc_conv1")    
         leakyReluLayer(0.01, "Name", "enc_relu1")
         
-        convolution2dLayer([3 3], 64, "Padding", "same", "Name", "enc_conv2")
-        leakyReluLayer(0.01, "Name", "enc_relu2")
+        % --- BOTTLENECK (Spatial/Temporal Mixing) ---
+        % Mixes the 64 feature maps down to 'k' latent components
+        convolution2dLayer([1 5], cfg.bottleneckSize, "Padding", "same", "Name", "bottleneck")
         
-        convolution2dLayer([inputDim NumFreqs], cfg.bottleneckSize, "Padding", 0, "Name", "bottleneck")
-        
-        transposedConv2dLayer([inputDim NumFreqs], 64, "Name", "dec_tconv1")
+        % --- DECODER (Reconstruction) ---
+        convolution2dLayer([1 15], 64, "Padding", "same", "Name", "dec_conv1")
         leakyReluLayer(0.01, "Name", "dec_relu1")
         
-        convolution2dLayer([3 3], 32, "Padding", "same", "Name", "dec_conv2")
-        leakyReluLayer(0.01, "Name", "dec_relu2")
-        
-        convolution2dLayer([3 3], 1, "Padding", "same", "Name", "reconstruction")
+        % Reconstructs back to the original 32 channels
+        convolution2dLayer([1 1], NumChannels, "Padding", "same", "Name", "reconstruction")
         regressionLayer("Name", "mse")
     ];
 
     % -------------------
     % 2) Training Options
     % -------------------
-    val_freq = max(1, floor(size(X_train_spec, 4) / cfg.batchSize));
+    val_freq = max(1, floor(size(X_train_1D, 4) / cfg.batchSize));
     
     options = trainingOptions("adam", ...
         "MaxEpochs", cfg.epochs, ...
         "MiniBatchSize", cfg.batchSize, ...
         "InitialLearnRate", cfg.learnRate, ...
-        "LearnRateSchedule", "piecewise", ...      
-        "LearnRateDropPeriod", 25, ...             
-        "LearnRateDropFactor", 0.5, ...
-        "L2Regularization", 0, ...                 % <-- 0 PENALTY: Forces Overfitting
+        "L2Regularization", 1e-4, ...              % <-- Slight L2 added for stability
         "Shuffle", "every-epoch", ...
         "Plots", "none", ... 
         "Verbose", false, ... 
-        "ValidationData", {X_test_spec, X_test_spec}, ...
+        "ValidationData", {X_test_1D, X_test_1D}, ...
         "ValidationFrequency", val_freq, ...
-        "ValidationPatience", 150, ...             % <-- Disables Early Stopping
+        "ValidationPatience", 30, ... 
         "CheckpointPath", cfg.checkpointPath, ...
         "OutputNetwork", "best-validation-loss", ...
         "ExecutionEnvironment", "auto");
@@ -66,5 +62,5 @@ function [net, info] = trainEEG_CAE(X_train_spec, X_test_spec, cfg)
     % -------------------
     % 3) Train
     % -------------------
-    [net, info] = trainNetwork(X_train_spec, X_train_spec, layers, options);
+    [net, info] = trainNetwork(X_train_1D, X_train_1D, layers, options);
 end

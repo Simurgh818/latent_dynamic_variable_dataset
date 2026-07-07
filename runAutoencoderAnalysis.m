@@ -21,59 +21,55 @@ file_suffix = sprintf('_k%d', bottleNeck);
 h_f_colors = lines(param.N_F); 
 fs_new = param.fs;
 
-%% 2. Train 2D Spectrogram Convolutional Autoencoder
-batch_size = 4; 
+%% 2. Train 1D Temporal Convolutional Autoencoder
+batch_size = 64; 
 
-% --- 2.1 Calculate Spectrograms (STFT) ---
-disp('Extracting 2D Spectrogram Features...');
-window = round(param.fs * 0.5);   % 500ms sliding window
-overlap = round(param.fs * 0.4);  % 400ms overlap (step size of 100ms)
-nfft = window;
+disp('Chunking Raw EEG into Temporal Windows...');
+% Define window length (e.g., 250 samples, roughly 1 second if fs=500)
+L = 500; 
 
-% Precompute for Train data to get output dimensions
-[~, F, T_train] = spectrogram(X_train(1,:), window, overlap, nfft, param.fs);
-freq_idx = F <= 50; % Keep only frequencies up to 50Hz to save memory!
-NumFreqs = sum(freq_idx);
+% --- 2.1 Pad and Chunk Train Data ---
+% Pad the data so it divides perfectly by L
+pad_len_train = ceil(size(X_train, 2) / L) * L - size(X_train, 2);
+X_train_padded = [X_train, zeros(size(X_train, 1), pad_len_train)];
 
-X_train_spec = zeros(size(X_train,1), NumFreqs, 1, length(T_train));
-for ch = 1:size(X_train,1)
-    [S, ~, ~] = spectrogram(X_train(ch,:), window, overlap, nfft, param.fs);
-    X_train_spec(ch, :, 1, :) = log(abs(S(freq_idx, :)) + 1); % Log-transform stabilizes CNN gradients
-end
+% Reshape from [32 x Time] to [1 x L x 32 x NumWindows]
+num_windows_train = size(X_train_padded, 2) / L;
+X_train_chunked = reshape(X_train_padded, [size(X_train, 1), L, num_windows_train]);
+X_train_1D = zeros(1, L, size(X_train, 1), num_windows_train);
+X_train_1D(1, :, :, :) = permute(X_train_chunked, [2, 1, 3]);
 
-% Precompute for Test data
-[~, ~, T_test] = spectrogram(X_test(1,:), window, overlap, nfft, param.fs);
-X_test_spec = zeros(size(X_test,1), NumFreqs, 1, length(T_test));
-for ch = 1:size(X_test,1)
-    [S, ~, ~] = spectrogram(X_test(ch,:), window, overlap, nfft, param.fs);
-    X_test_spec(ch, :, 1, :) = log(abs(S(freq_idx, :)) + 1);
-end
+% --- 2.2 Pad and Chunk Test Data ---
+pad_len_test = ceil(size(X_test, 2) / L) * L - size(X_test, 2);
+X_test_padded = [X_test, zeros(size(X_test, 1), pad_len_test)];
 
-% --- 2.2 Train the Network ---
+num_windows_test = size(X_test_padded, 2) / L;
+X_test_chunked = reshape(X_test_padded, [size(X_test, 1), L, num_windows_test]);
+X_test_1D = zeros(1, L, size(X_test, 1), num_windows_test);
+X_test_1D(1, :, :, :) = permute(X_test_chunked, [2, 1, 3]);
+
+% --- 2.3 Train the 1D Temporal Network ---
 ckpt_dir = tempname; 
 mkdir(ckpt_dir); 
-
-[net, info] = trainEEG_CAE(X_train_spec, X_test_spec,  ...
+[net, info] = trainEEG_CAE(X_train_1D, X_test_1D,  ...
     'bottleneckSize', bottleNeck, ...
     'epochs', 150, ... 
     'batchSize', batch_size, ...
-    'learnRate', 1e-4, ...
+    'learnRate', 1e-3, ...
     'checkpointPath', ckpt_dir);
 
-% --- 2.3 Extract Latents ---
-% The CNN outputs latents corresponding to the STFT TimeWindows
-Z_train_stft = double(activations(net, X_train_spec, 'bottleneck', 'OutputAs','rows'));
-Z_test_stft  = double(activations(net, X_test_spec,  'bottleneck', 'OutputAs','rows'));
+% --- 2.4 Extract Latents ---
+% Returns [1 x L x k x NumWindows]
+Z_train_raw = double(activations(net, X_train_1D, 'bottleneck'));
+Z_test_raw  = double(activations(net, X_test_1D,  'bottleneck'));
 
-% --- 2.4 Interpolate Latents back to Native EEG Time Resolution ---
-% Because the STFT compresses time, we must stretch Z back out so it perfectly 
-% aligns with your Ground Truth H matrices for the correlation math!
-orig_time_train = (0:size(H_train,1)-1) / param.fs;
-orig_time_test  = (0:size(H_test,1)-1) / param.fs;
+% Re-flatten into continuous time: [L x NumWindows x k] -> [Time x k]
+Z_train_flat = reshape(permute(Z_train_raw, [2, 4, 3, 1]), [L * num_windows_train, bottleNeck]);
+Z_test_flat  = reshape(permute(Z_test_raw, [2, 4, 3, 1]), [L * num_windows_test, bottleNeck]);
 
-% Interpolate STFT centers (T_train) to native times (orig_time_train)
-Z_train_c = interp1(T_train, Z_train_stft, orig_time_train, 'linear', 'extrap');
-Z_test_c  = interp1(T_test, Z_test_stft, orig_time_test, 'linear', 'extrap');
+% Truncate the padded zeros so it perfectly matches your Ground Truth H length!
+Z_train_c = Z_train_flat(1:size(X_train, 2), :);
+Z_test_c  = Z_test_flat(1:size(X_test, 2), :);
 
 H_train   = double(H_train);
 H_test    = double(H_test);
@@ -82,16 +78,14 @@ H_test    = double(H_test);
 minLen = min(size(Z_train_c,1), size(H_train,1));
 Z_train_c = Z_train_c(1:minLen,:);
 H_train   = H_train(1:minLen,:);
-
 minLenTest = min(size(Z_test_c,1), size(H_test,1));
 Z_test_c  = Z_test_c(1:minLenTest,:);
 H_test    = H_test(1:minLenTest,:);
 
-%% --- NEW: 3.5 Evaluate Checkpoints every 5 Epochs ---
+%% --- 3.5 Evaluate Checkpoints every N Epochs ---
 disp('Evaluating Checkpoints for Z-Z_hat Correlation...');
 ckpt_files = dir(fullfile(ckpt_dir, 'net_checkpoint__*.mat'));
 
-% Extract iterations to sort them chronologically
 iters = zeros(length(ckpt_files), 1);
 for i = 1:length(ckpt_files)
     parts = split(ckpt_files(i).name, '__');
@@ -100,29 +94,29 @@ end
 [sorted_iters, sort_idx] = sort(iters);
 ckpt_files = ckpt_files(sort_idx);
 
-iters_per_epoch = max(1, floor(size(X_train_spec, 4) / batch_size)); 
+iters_per_epoch = max(1, floor(size(X_train_1D, 4) / batch_size)); 
 eval_every_n_epochs = 2;
 
-% Create target epochs up to the point early stopping was triggered
 max_epoch_reached = floor(max(sorted_iters) / iters_per_epoch);
 target_epochs = eval_every_n_epochs : eval_every_n_epochs : max_epoch_reached;
 target_iters = target_epochs * iters_per_epoch;
-
 history_corr = nan(length(target_epochs), param.N_F);
 
 for i = 1:length(target_epochs)
-    % Load network state at this epoch
     [~, closest_idx] = min(abs(sorted_iters - target_iters(i)));
     ckpt_data = load(fullfile(ckpt_dir, ckpt_files(closest_idx).name));
     temp_net = ckpt_data.net; 
     
-    % Extract latents using the 2D Spectrograms
-    Z_train_stft_tmp = double(activations(temp_net, X_train_spec, 'bottleneck', 'OutputAs','rows'));
-    Z_test_stft_tmp  = double(activations(temp_net, X_test_spec,  'bottleneck', 'OutputAs','rows'));
+    % Extract Latents
+    Z_train_raw_tmp = double(activations(temp_net, X_train_1D, 'bottleneck'));
+    Z_test_raw_tmp  = double(activations(temp_net, X_test_1D,  'bottleneck'));
     
-    % Interpolate back to native time
-    Z_train_tmp = interp1(T_train, Z_train_stft_tmp, orig_time_train, 'linear', 'extrap');
-    Z_test_tmp  = interp1(T_test, Z_test_stft_tmp, orig_time_test, 'linear', 'extrap');
+    % Flatten & Truncate
+    Z_train_flat_tmp = reshape(permute(Z_train_raw_tmp, [2, 4, 3, 1]), [L * num_windows_train, bottleNeck]);
+    Z_test_flat_tmp  = reshape(permute(Z_test_raw_tmp, [2, 4, 3, 1]), [L * num_windows_test, bottleNeck]);
+    
+    Z_train_tmp = Z_train_flat_tmp(1:size(X_train, 2), :);
+    Z_test_tmp  = Z_test_flat_tmp(1:size(X_test, 2), :);
     
     % Match lengths
     Z_train_tmp = Z_train_tmp(1:minLen,:);
@@ -138,8 +132,6 @@ for i = 1:length(target_epochs)
         history_corr(i, f) = c(1,2);
     end
 end
-
-% Clean up checkpoints to free up hard drive space!
 rmdir(ckpt_dir, 's');
 %% 4. Compute Performance Metrics
 [H_recon_train, H_recon_test, Comp_latent_matching_corr, R_AE, direct_Component_Corr_ae, AE_R2_scores, freq_data] = ...
@@ -167,8 +159,8 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
     fig_loss = figure('Name', 'Autoencoder Loss Curve', 'Position', [100, 100, 800, 500], 'Visible', 'off');
     hold on;
     
-    % --- FIXED: Now uses the Spectrogram dimensions safely ---
-    iters_per_epoch = max(1, floor(size(X_train_spec, 4) / batch_size)); 
+    % --- FIXED: Now uses the 1D Temporal dimensions safely ---
+    iters_per_epoch = max(1, floor(size(X_train_1D, 4) / batch_size));
     
     % Convert iteration indices to epoch units
     train_epochs = (1:length(info.TrainingLoss)) / iters_per_epoch;
