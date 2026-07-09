@@ -21,60 +21,72 @@ file_suffix = sprintf('_k%d', bottleNeck);
 h_f_colors = lines(param.N_F); 
 fs_new = param.fs;
 
-%% 2. Train 1D Temporal Convolutional Autoencoder
+%% 2. Train Multi-Band Temporal Convolutional Autoencoder
 batch_size = 32; 
+L = 500; % 1-second chunks (fs=500)
 
-disp('Chunking Raw EEG into Temporal Windows...');
-% Define window length (e.g., 250 samples, roughly 1 second if fs=500)
-L = 500; 
+disp('Filtering EEG into 5 Canonical Bands and Chunking...');
 
-% --- 2.1 Pad and Chunk Train Data ---
-% Pad the data so it divides perfectly by L
-pad_len_train = ceil(size(X_train, 2) / L) * L - size(X_train, 2);
-X_train_padded = [X_train, zeros(size(X_train, 1), pad_len_train)];
+% --- 2.1 Define Canonical Bands ---
+bands = [1 4;    % Delta
+         4 8;    % Theta
+         8 13;   % Alpha
+         13 30;  % Beta
+         30 50]; % Gamma
+num_bands = size(bands, 1);
+num_channels = size(X_train, 1);
 
-% Reshape from [32 x Time] to [1 x L x 32 x NumWindows]
+% --- 2.2 Helper Function to Filter & Stack ---
+% This function filters the data and stacks it from [31 x Time] to [155 x Time]
+stack_bands = @(X) cell2mat(arrayfun(@(b) bandpass(X.', bands(b,:), param.fs).', 1:num_bands, 'UniformOutput', false)');
+
+X_train_stacked = stack_bands(X_train);
+X_test_stacked  = stack_bands(X_test);
+
+% --- 2.3 Pad and Chunk Train Data ---
+pad_len_train = ceil(size(X_train_stacked, 2) / L) * L - size(X_train_stacked, 2);
+X_train_padded = [X_train_stacked, zeros(size(X_train_stacked, 1), pad_len_train)];
+
 num_windows_train = size(X_train_padded, 2) / L;
-X_train_chunked = reshape(X_train_padded, [size(X_train, 1), L, num_windows_train]);
-X_train_1D = zeros(1, L, size(X_train, 1), num_windows_train);
+X_train_chunked = reshape(X_train_padded, [size(X_train_stacked, 1), L, num_windows_train]);
+X_train_1D = zeros(1, L, size(X_train_stacked, 1), num_windows_train);
 X_train_1D(1, :, :, :) = permute(X_train_chunked, [2, 1, 3]);
 
-% --- 2.2 Pad and Chunk Test Data ---
-pad_len_test = ceil(size(X_test, 2) / L) * L - size(X_test, 2);
-X_test_padded = [X_test, zeros(size(X_test, 1), pad_len_test)];
+% --- 2.4 Pad and Chunk Test Data ---
+pad_len_test = ceil(size(X_test_stacked, 2) / L) * L - size(X_test_stacked, 2);
+X_test_padded = [X_test_stacked, zeros(size(X_test_stacked, 1), pad_len_test)];
 
 num_windows_test = size(X_test_padded, 2) / L;
-X_test_chunked = reshape(X_test_padded, [size(X_test, 1), L, num_windows_test]);
-X_test_1D = zeros(1, L, size(X_test, 1), num_windows_test);
+X_test_chunked = reshape(X_test_padded, [size(X_test_stacked, 1), L, num_windows_test]);
+X_test_1D = zeros(1, L, size(X_test_stacked, 1), num_windows_test);
 X_test_1D(1, :, :, :) = permute(X_test_chunked, [2, 1, 3]);
 
-% --- 2.3 Train the 1D Temporal Network ---
+% --- 2.5 Train the Network ---
 ckpt_dir = tempname; 
 mkdir(ckpt_dir); 
-[net, info] = trainEEG_CAE(X_train_1D, X_test_1D,  ...
+[net, info] = trainEEG_CAE_2(X_train_1D, X_test_1D,  ...
     'bottleneckSize', bottleNeck, ...
-    'epochs', 500, ... 
+    'epochs', 150, ... 
     'batchSize', batch_size, ...
     'learnRate', 1e-3, ...
-    'checkpointPath', ckpt_dir);
+    'checkpointPath', ckpt_dir,...
+    'bandWeights', [1 1 1 3 4]);
 
-% --- 2.4 Extract Latents ---
-% Returns [1 x L x k x NumWindows]
+% --- 2.6 Extract Latents ---
 Z_train_raw = double(activations(net, X_train_1D, 'bottleneck'));
 Z_test_raw  = double(activations(net, X_test_1D,  'bottleneck'));
 
-% Re-flatten into continuous time: [L x NumWindows x k] -> [Time x k]
+% Re-flatten into continuous time
 Z_train_flat = reshape(permute(Z_train_raw, [2, 4, 3, 1]), [L * num_windows_train, bottleNeck]);
 Z_test_flat  = reshape(permute(Z_test_raw, [2, 4, 3, 1]), [L * num_windows_test, bottleNeck]);
 
-% Truncate the padded zeros so it perfectly matches your Ground Truth H length!
+% Truncate padding to match Ground Truth H
 Z_train_c = Z_train_flat(1:size(X_train, 2), :);
 Z_test_c  = Z_test_flat(1:size(X_test, 2), :);
 
 H_train   = double(H_train);
 H_test    = double(H_test);
 
-% Ensure matching lengths
 minLen = min(size(Z_train_c,1), size(H_train,1));
 Z_train_c = Z_train_c(1:minLen,:);
 H_train   = H_train(1:minLen,:);

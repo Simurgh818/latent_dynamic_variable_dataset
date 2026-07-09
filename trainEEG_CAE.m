@@ -1,41 +1,62 @@
 function [net, info] = trainEEG_CAE(X_train_1D, X_test_1D, cfg)
-    % Train a 1D Temporal Convolutional Autoencoder 
+    % Train a 5-Branch Parallel 1D Temporal Convolutional Autoencoder 
     
     arguments
-        X_train_1D double % [1 x TimeWindow x Channels x Observations]
+        X_train_1D double 
         X_test_1D  double 
         cfg.bottleneckSize (1,1) double
-        cfg.epochs double = 150
-        cfg.batchSize double = 64
+        cfg.numBands double = 5
+        cfg.epochs double = 250
+        cfg.batchSize double = 32
         cfg.learnRate double = 1e-3
         cfg.checkpointPath string = ""
     end
     
     WindowLength = size(X_train_1D, 2);
-    NumChannels = size(X_train_1D, 3);
+    TotalChannels = size(X_train_1D, 3);
+    
+    % Dynamically calculate channels per band (e.g., 155 / 5 = 31)
+    NumChannelsPerBand = TotalChannels / cfg.numBands; 
+    
+    % Number of filters PER BAND (64 filters * 5 bands = 320 total feature maps)
+    filters_per_band = 64; 
+    total_filters = filters_per_band * cfg.numBands;
     
     % -------------------
-    % 1) Build the 1D Temporal CAE Layers
+    % 1) Build the Parallel Multi-Band Layers
     % -------------------
     layers = [
-        % Input is structured as [1 (Height) x L (Time) x 32 (Channels)]
-        imageInputLayer([1 WindowLength NumChannels], "Normalization", "zscore", "Name", "input")
+        % Input: Stacked bands [1 x L x 155]
+        imageInputLayer([1 WindowLength TotalChannels], "Normalization", "zscore", "Name", "input")
         
-        % --- ENCODER (Temporal Filtering) ---
-        % Filter size [1 15] slides ONLY across the time dimension
-        convolution2dLayer([1 15], 64, "Padding", "same", "Name", "enc_conv1")    
+        % --- 5 PARALLEL ENCODERS ---
+        groupedConvolution2dLayer([1 250], filters_per_band, cfg.numBands, "Padding", "same", "Name", "enc_conv1")
         leakyReluLayer(0.01, "Name", "enc_relu1")
         
-        % --- BOTTLENECK (Spatial/Temporal Mixing) ---
-        % Mixes the 64 feature maps down to 'k' latent components
+        groupedConvolution2dLayer([1 32], filters_per_band, cfg.numBands, "Padding", "same", "Name", "enc_conv2")
+        leakyReluLayer(0.01, "Name", "enc_relu2")
+        
+        % THE ANTI-OVERFITTER: Randomly zeros out 30% of connections
+        dropoutLayer(0.2, "Name", "dropout_enc")
+        
+        % --- BOTTLENECK ---
         convolution2dLayer([1 5], cfg.bottleneckSize, "Padding", "same", "Name", "bottleneck")
         
-        % --- DECODER (Reconstruction) ---
-        convolution2dLayer([1 15], 64, "Padding", "same", "Name", "dec_conv1")
+        % --- DECODER (Splitting back out) ---
+        convolution2dLayer([1 1], total_filters, "Padding", "same", "Name", "dec_expand")
+        leakyReluLayer(0.01, "Name", "dec_relu_expand")
+        
+        % --- 5 PARALLEL DECODERS (The Brushes) ---
+        % First brush stroke
+        groupedConvolution2dLayer([1 32], filters_per_band, cfg.numBands, "Padding", "same", "Name", "dec_conv1")
         leakyReluLayer(0.01, "Name", "dec_relu1")
         
-        % Reconstructs back to the original 32 channels
-        convolution2dLayer([1 1], NumChannels, "Padding", "same", "Name", "reconstruction")
+        % WIDE BRUSH: Added the 125-sample filter to smoothly draw the slow waves!
+        groupedConvolution2dLayer([1 250], filters_per_band, cfg.numBands, "Padding", "same", "Name", "dec_conv2")
+        leakyReluLayer(0.01, "Name", "dec_relu2")
+        
+        % Final parallel output to reconstruct exactly 31 channels per band
+        groupedConvolution2dLayer([1 1], NumChannelsPerBand, cfg.numBands, "Padding", "same", "Name", "reconstruction")
         regressionLayer("Name", "mse")
     ];
 
@@ -48,9 +69,12 @@ function [net, info] = trainEEG_CAE(X_train_1D, X_test_1D, cfg)
         "MaxEpochs", cfg.epochs, ...
         "MiniBatchSize", cfg.batchSize, ...
         "InitialLearnRate", cfg.learnRate, ...
-        "L2Regularization", 0, ...              % <-- Slight L2 added for stability
+        "LearnRateSchedule", "piecewise", ...      % <-- ADDED: Slows down over time
+        "LearnRateDropPeriod", 50, ...             % <-- ADDED: Drops the rate every 25 epochs
+        "LearnRateDropFactor", 0.5, ...
+        "L2Regularization", 1e-3, ...              % <-- Forced to 0 for overfitting
         "Shuffle", "every-epoch", ...
-        "Plots", "none", ... 
+        "Plots", "training-progress", ... % "none" , "training-progress"
         "Verbose", false, ... 
         "ValidationData", {X_test_1D, X_test_1D}, ...
         "ValidationFrequency", val_freq, ...
@@ -59,8 +83,5 @@ function [net, info] = trainEEG_CAE(X_train_1D, X_test_1D, cfg)
         "OutputNetwork", "best-validation-loss", ...
         "ExecutionEnvironment", "auto");
     
-    % -------------------
-    % 3) Train
-    % -------------------
     [net, info] = trainNetwork(X_train_1D, X_train_1D, layers, options);
 end
