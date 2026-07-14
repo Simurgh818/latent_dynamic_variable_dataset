@@ -1,4 +1,4 @@
-function [net, info] = trainEEG_CAE_3(X_train_1D, X_test_1D, cfg)
+function [net, info] = trainEEG_CAE_4(X_train_1D, X_test_1D, cfg)
     arguments
         X_train_1D double 
         X_test_1D  double 
@@ -11,6 +11,7 @@ function [net, info] = trainEEG_CAE_3(X_train_1D, X_test_1D, cfg)
         cfg.bandWeights double = [1 1 1 2 3]   
         cfg.lambdaPSD double = 0.5             
         cfg.lambdaPower double = 0.5           
+        cfg.lambdaICA double = 0.1    % <-- ADDED: Penalty weight for ICA cross-covariance        
     end
     
     WindowLength = size(X_train_1D, 2);
@@ -52,16 +53,12 @@ function [net, info] = trainEEG_CAE_3(X_train_1D, X_test_1D, cfg)
     ]);
 
     % ==========================================
-    % 3. FUSION & BOTTLENECK (FIXED)
+    % 3. BOTTLENECK (Fusion removed, Native Compression)
     % ==========================================
-    % Isolate the concatenation layer
     lgraph = addLayers(lgraph, depthConcatenationLayer(5, "Name", "enc_concat"));
-    
-    % Define the rest as a separate sequential block
     lgraph = addLayers(lgraph, [
-        convolution2dLayer([1 1], total_filters, "Padding", "same", "Name", "cross_band_fusion")
-        leakyReluLayer(0.01, "Name", "fusion_relu")
         dropoutLayer(0.2, "Name", "dropout_enc")
+        % Bottleneck handles fusion natively across all 160 concatenated channels
         convolution2dLayer([1 5], cfg.bottleneckSize, "Padding", "same", "Name", "bottleneck")
     ]);
 
@@ -98,59 +95,68 @@ function [net, info] = trainEEG_CAE_3(X_train_1D, X_test_1D, cfg)
     ]);
 
     % ==========================================
-    % 6. ADDITION & FREQUENCY-AWARE LOSS (FIXED)
+    % 6. ADDITION & THE ICA OUTPUT HACK
     % ==========================================
-    % Isolate the addition layer
     lgraph = addLayers(lgraph, additionLayer(5, "Name", "dec_add"));
+    lgraph = addLayers(lgraph, groupedConvolution2dLayer([1 1], NumChannelsPerBand, cfg.numBands, "Padding", "same", "Name", "reconstruction"));
     
-    % Define the final reconstruction layers separately
-    lgraph = addLayers(lgraph, [
-        groupedConvolution2dLayer([1 1], NumChannelsPerBand, cfg.numBands, "Padding", "same", "Name", "reconstruction")
-        frequencyAwareMSELayer("freq_aware_loss", cfg.numBands, NumChannelsPerBand, cfg.bandWeights, cfg.lambdaPSD, cfg.lambdaPower)
-    ]);
+    % --> THE HACK: Concatenate the reconstruction and the bottleneck together!
+    lgraph = addLayers(lgraph, depthConcatenationLayer(2, "Name", "output_concat"));
+    
+    lgraph = addLayers(lgraph, disentangledMSELayer("ica_freq_loss", cfg.numBands, NumChannelsPerBand, cfg.bandWeights, cfg.lambdaPSD, cfg.lambdaPower, cfg.lambdaICA, cfg.bottleneckSize));
 
     % ==========================================
-    % 7. CONNECT THE GRAPH (FIXED)
+    % 7. CONNECT THE GRAPH 
     % ==========================================
-    % Connect Input to Encoder Branches
     lgraph = connectLayers(lgraph, "input", "enc_b1_conv");
     lgraph = connectLayers(lgraph, "input", "enc_b2_conv");
     lgraph = connectLayers(lgraph, "input", "enc_b3_conv");
     lgraph = connectLayers(lgraph, "input", "enc_b4_conv");
     lgraph = connectLayers(lgraph, "input", "enc_b5_conv");
     
-    % Connect Encoder Branches to Concatenation
     lgraph = connectLayers(lgraph, "enc_b1_relu", "enc_concat/in1");
     lgraph = connectLayers(lgraph, "enc_b2_relu", "enc_concat/in2");
     lgraph = connectLayers(lgraph, "enc_b3_relu", "enc_concat/in3");
     lgraph = connectLayers(lgraph, "enc_b4_relu", "enc_concat/in4");
     lgraph = connectLayers(lgraph, "enc_b5_relu", "enc_concat/in5");
     
-    % Connect Concatenation to Fusion Block
-    lgraph = connectLayers(lgraph, "enc_concat", "cross_band_fusion");
+    % Fused concatenation passes straight to dropout and bottleneck
+    lgraph = connectLayers(lgraph, "enc_concat", "dropout_enc");
     
-    % --> THE MISSING LINK: Connect Encoder to Decoder! <--
     lgraph = connectLayers(lgraph, "bottleneck", "dec_expand");
     
-    % Connect Bottleneck Expansion to Decoder Branches
     lgraph = connectLayers(lgraph, "dec_relu_expand", "dec_b1_conv");
     lgraph = connectLayers(lgraph, "dec_relu_expand", "dec_b2_conv");
     lgraph = connectLayers(lgraph, "dec_relu_expand", "dec_b3_conv");
     lgraph = connectLayers(lgraph, "dec_relu_expand", "dec_b4_conv");
     lgraph = connectLayers(lgraph, "dec_relu_expand", "dec_b5_conv");
     
-    % Connect Decoder Branches to Addition
     lgraph = connectLayers(lgraph, "dec_b1_relu", "dec_add/in1");
     lgraph = connectLayers(lgraph, "dec_b2_relu", "dec_add/in2");
     lgraph = connectLayers(lgraph, "dec_b3_relu", "dec_add/in3");
     lgraph = connectLayers(lgraph, "dec_b4_relu", "dec_add/in4");
     lgraph = connectLayers(lgraph, "dec_b5_relu", "dec_add/in5");
     
-    % Connect Addition to Final Output Block
     lgraph = connectLayers(lgraph, "dec_add", "reconstruction");
+
+    % --> Connect the Hack Layers <--
+    lgraph = connectLayers(lgraph, "reconstruction", "output_concat/in1");
+    lgraph = connectLayers(lgraph, "bottleneck", "output_concat/in2");
+    lgraph = connectLayers(lgraph, "output_concat", "ica_freq_loss");
     
     % ==========================================
-    % 8. TRAINING OPTIONS
+    % 8. PADDING TARGET DATA (To bypass MATLAB restrictions)
+    % ==========================================
+    % We must pad the target tensors with fake "k" channels so their size 
+    % matches the output_concat size. (These zeros are ignored in the loss layer).
+    pad_train = zeros(1, WindowLength, cfg.bottleneckSize, size(X_train_1D, 4));
+    pad_test  = zeros(1, WindowLength, cfg.bottleneckSize, size(X_test_1D, 4));
+    
+    T_train_padded = cat(3, X_train_1D, pad_train);
+    T_test_padded  = cat(3, X_test_1D, pad_test);
+
+    % ==========================================
+    % 9. TRAINING OPTIONS
     % ==========================================
     val_freq = max(1, floor(size(X_train_1D, 4) / cfg.batchSize));
     
@@ -165,12 +171,12 @@ function [net, info] = trainEEG_CAE_3(X_train_1D, X_test_1D, cfg)
         "Shuffle", "every-epoch", ...
         "Plots", "training-progress", ...
         "Verbose", false, ...
-        "ValidationData", {X_test_1D, X_test_1D}, ...
+        "ValidationData", {X_test_1D, T_test_padded}, ...   % <-- Using Padded Target
         "ValidationFrequency", val_freq, ...
         "ValidationPatience", 30, ...
         "CheckpointPath", cfg.checkpointPath, ...
         "OutputNetwork", "best-validation-loss", ...
         "ExecutionEnvironment", "auto");
     
-    [net, info] = trainNetwork(X_train_1D, X_train_1D, lgraph, options);
+    [net, info] = trainNetwork(X_train_1D, T_train_padded, lgraph, options); % <-- Using Padded Target
 end

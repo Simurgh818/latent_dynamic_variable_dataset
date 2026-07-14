@@ -22,6 +22,110 @@ h_f_colors = lines(param.N_F);
 fs_new = param.fs;
 
 %% 2. Train Multi-Band Temporal Convolutional Autoencoder
+% batch_size = 32; % <-- DECREASED massively for STFT dimensions
+% 
+% % --- 2.1 Calculate Spectrograms (STFT) ---
+% disp('Extracting 2D Spectrogram Features...');
+% window = round(param.fs * 0.5);   
+% overlap = round(param.fs * 0.495); % 400ms overlap (step size of 100ms), 495 ms, step size of 5ms 
+% nfft = window;
+% 
+% [~, F, T_train] = spectrogram(X_train(1,:), window, overlap, nfft, param.fs);
+% freq_idx = F <= 50; 
+% NumFreqs = sum(freq_idx);
+% 
+% X_train_spec = zeros(size(X_train,1), NumFreqs, 1, length(T_train));
+% for ch = 1:size(X_train,1)
+%     [S, ~, ~] = spectrogram(X_train(ch,:), window, overlap, nfft, param.fs);
+%     X_train_spec(ch, :, 1, :) = log(abs(S(freq_idx, :)) + 1); 
+% end
+% 
+% [~, ~, T_test] = spectrogram(X_test(1,:), window, overlap, nfft, param.fs);
+% X_test_spec = zeros(size(X_test,1), NumFreqs, 1, length(T_test));
+% for ch = 1:size(X_test,1)
+%     [S, ~, ~] = spectrogram(X_test(ch,:), window, overlap, nfft, param.fs);
+%     X_test_spec(ch, :, 1, :) = log(abs(S(freq_idx, :)) + 1);
+% end
+% 
+% % --- 2.2 Train the Network ---
+% ckpt_dir = tempname; 
+% mkdir(ckpt_dir); 
+% 
+% [net, info] = trainEEG_CAE(X_train_spec, X_test_spec,  ... % <-- RENAMED CALL
+%     'bottleneckSize', bottleNeck, ...
+%     'epochs', 20, ... 
+%     'batchSize', batch_size, ...
+%     'learnRate', 1e-3, ...
+%     'checkpointPath', ckpt_dir);
+% 
+% % --- 2.3 Extract Latents ---
+% Z_train_stft = double(activations(net, X_train_spec, 'bottleneck', 'OutputAs','rows'));
+% Z_test_stft  = double(activations(net, X_test_spec,  'bottleneck', 'OutputAs','rows'));
+% 
+% % --- 2.4 Interpolate Latents back to Native EEG Time Resolution ---
+% orig_time_train = (0:size(H_train,1)-1) / param.fs;
+% orig_time_test  = (0:size(H_test,1)-1) / param.fs;
+% 
+% Z_train_c = interp1(T_train, Z_train_stft, orig_time_train, 'linear', 'extrap');
+% Z_test_c  = interp1(T_test, Z_test_stft, orig_time_test, 'linear', 'extrap');
+% 
+% H_train   = double(H_train);
+% H_test    = double(H_test);
+% 
+% minLen = min(size(Z_train_c,1), size(H_train,1));
+% Z_train_c = Z_train_c(1:minLen,:);
+% H_train   = H_train(1:minLen,:);
+% 
+% minLenTest = min(size(Z_test_c,1), size(H_test,1));
+% Z_test_c  = Z_test_c(1:minLenTest,:);
+% H_test    = H_test(1:minLenTest,:);
+%% --- 3.5 Evaluate Checkpoints every N Epochs ---
+% disp('Evaluating Checkpoints for Z-Z_hat Correlation...');
+% ckpt_files = dir(fullfile(ckpt_dir, 'net_checkpoint__*.mat'));
+% iters = zeros(length(ckpt_files), 1);
+% for i = 1:length(ckpt_files)
+%     parts = split(ckpt_files(i).name, '__');
+%     iters(i) = str2double(parts{2});
+% end
+% [sorted_iters, sort_idx] = sort(iters);
+% ckpt_files = ckpt_files(sort_idx);
+% 
+% % FIXED: Now dynamically calculates epochs using the 4D Spectrogram tensor
+% iters_per_epoch = max(1, floor(size(X_train_spec, 4) / batch_size)); 
+% eval_every_n_epochs = 2;
+% max_epoch_reached = floor(max(sorted_iters) / iters_per_epoch);
+% target_epochs = eval_every_n_epochs : eval_every_n_epochs : max_epoch_reached;
+% target_iters = target_epochs * iters_per_epoch;
+% history_corr = nan(length(target_epochs), param.N_F);
+% 
+% for i = 1:length(target_epochs)
+%     [~, closest_idx] = min(abs(sorted_iters - target_iters(i)));
+%     ckpt_data = load(fullfile(ckpt_dir, ckpt_files(closest_idx).name));
+%     temp_net = ckpt_data.net; 
+% 
+%     % FIXED: Extract STFT Latents from the checkpoint network
+%     Z_train_stft_tmp = double(activations(temp_net, X_train_spec, 'bottleneck', 'OutputAs','rows'));
+%     Z_test_stft_tmp  = double(activations(temp_net, X_test_spec,  'bottleneck', 'OutputAs','rows'));
+% 
+%     % FIXED: Interpolate back to continuous time using your exact Section 2.4 logic
+%     Z_train_c_tmp = interp1(T_train, Z_train_stft_tmp, orig_time_train, 'linear', 'extrap');
+%     Z_test_c_tmp  = interp1(T_test, Z_test_stft_tmp, orig_time_test, 'linear', 'extrap');
+% 
+%     % Match lengths to Ground Truth
+%     Z_train_tmp = Z_train_c_tmp(1:minLen,:);
+%     Z_test_tmp  = Z_test_c_tmp(1:minLenTest,:);
+% 
+%     % Subspace mapping 
+%     W_multi = pinv(Z_train_tmp) * H_train;
+%     Z_recon_test_tmp = Z_test_tmp * W_multi;
+% 
+%     % Calculate Pearson Correlation
+%     for f = 1:param.N_F
+%         c = corrcoef(H_test(:,f), Z_recon_test_tmp(:,f));
+%         history_corr(i, f) = c(1,2);
+%     end
+% end
+% rmdir(ckpt_dir, 's');
 batch_size = 32; 
 L = 500; % 1-second chunks (fs=500)
 
@@ -64,15 +168,16 @@ X_test_1D(1, :, :, :) = permute(X_test_chunked, [2, 1, 3]);
 % --- 2.5 Train the Network ---
 ckpt_dir = tempname; 
 mkdir(ckpt_dir); 
-[net, info] = trainEEG_CAE_2(X_train_1D, X_test_1D,  ...
+[net, info] = trainEEG_CAE_4(X_train_1D, X_test_1D,  ...
     'bottleneckSize', bottleNeck, ...
-    'epochs', 100, ... 
+    'epochs', 250, ... 
     'batchSize', batch_size, ...
-    'learnRate', 1e-3, ...
+    'learnRate', 5e-4, ...
     'checkpointPath', ckpt_dir,...
-    'bandWeights', [1 1.3 1.6 2.8 4]); %,...
-    % 'lambdaPSD',0.5, ...
-    % 'lambdaPower',0.5);
+    'bandWeights', [1 1 1 1 1],...
+    'lambdaPSD',0.5, ...
+    'lambdaPower',0.5, ...
+    'lambdaICA',0.1);
 
 % --- 2.6 Extract Latents ---
 Z_train_raw = double(activations(net, X_train_1D, 'bottleneck'));
@@ -120,26 +225,26 @@ for i = 1:length(target_epochs)
     [~, closest_idx] = min(abs(sorted_iters - target_iters(i)));
     ckpt_data = load(fullfile(ckpt_dir, ckpt_files(closest_idx).name));
     temp_net = ckpt_data.net; 
-    
+
     % Extract Latents
     Z_train_raw_tmp = double(activations(temp_net, X_train_1D, 'bottleneck'));
     Z_test_raw_tmp  = double(activations(temp_net, X_test_1D,  'bottleneck'));
-    
+
     % Flatten & Truncate
     Z_train_flat_tmp = reshape(permute(Z_train_raw_tmp, [2, 4, 3, 1]), [L * num_windows_train, bottleNeck]);
     Z_test_flat_tmp  = reshape(permute(Z_test_raw_tmp, [2, 4, 3, 1]), [L * num_windows_test, bottleNeck]);
-    
+
     Z_train_tmp = Z_train_flat_tmp(1:size(X_train, 2), :);
     Z_test_tmp  = Z_test_flat_tmp(1:size(X_test, 2), :);
-    
+
     % Match lengths
     Z_train_tmp = Z_train_tmp(1:minLen,:);
     Z_test_tmp  = Z_test_tmp(1:minLenTest,:);
-    
+
     % Subspace mapping 
     W_multi = pinv(Z_train_tmp) * H_train;
     Z_recon_test_tmp = Z_test_tmp * W_multi;
-    
+
     % Calculate Pearson Correlation
     for f = 1:param.N_F
         c = corrcoef(H_test(:,f), Z_recon_test_tmp(:,f));
@@ -174,6 +279,8 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
     hold on;
     
     % --- FIXED: Now uses the 1D Temporal dimensions safely ---
+    % --- FIXED: Now uses the 2D Spectral dimensions safely ---
+    % iters_per_epoch = max(1, floor(size(X_train_spec, 4) / batch_size));
     iters_per_epoch = max(1, floor(size(X_train_1D, 4) / batch_size));
     
     % Convert iteration indices to epoch units
