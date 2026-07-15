@@ -165,23 +165,28 @@ X_test_chunked = reshape(X_test_padded, [size(X_test_stacked, 1), L, num_windows
 X_test_1D = zeros(1, L, size(X_test_stacked, 1), num_windows_test);
 X_test_1D(1, :, :, :) = permute(X_test_chunked, [2, 1, 3]);
 
-% --- 2.5 Train the Network ---
+% --- 2.5 Train the Network (Updated for VAE) ---
 ckpt_dir = tempname; 
 mkdir(ckpt_dir); 
-[net, info] = trainEEG_CAE_4(X_train_1D, X_test_1D,  ...
+[net, info] = trainEEG_VAE(X_train_1D, X_test_1D,  ...  % <-- Changed to trainEEG_VAE
     'bottleneckSize', bottleNeck, ...
     'epochs', 100, ... 
     'batchSize', batch_size, ...
     'learnRate', 1e-3, ...
     'checkpointPath', ckpt_dir,...
     'bandWeights', [1 1 1 1 1],...
-    'lambdaPSD',1, ...
-    'lambdaPower',1, ...
-    'lambdaICA',0.01);
+    'lambdaPSD', 1, ...
+    'lambdaPower', 1, ...
+    'beta', 1.0);                                       % <-- Changed lambdaICA to beta
 
-% --- 2.6 Extract Latents ---
-Z_train_raw = double(activations(net, X_train_1D, 'bottleneck'));
-Z_test_raw  = double(activations(net, X_test_1D,  'bottleneck'));
+% --- 2.6 Extract Latents (Deterministic Mean Inference) ---
+% Extract the full [1 x L x 2k x Batch] parameter tensor
+Z_train_params = double(activations(net, X_train_1D, 'vae_parameters'));
+Z_test_params  = double(activations(net, X_test_1D,  'vae_parameters'));
+
+% Slice out only the first 'k' channels (the pure Mu vector)
+Z_train_raw = Z_train_params(:, :, 1:bottleNeck, :);
+Z_test_raw  = Z_test_params(:, :, 1:bottleNeck, :);
 
 % Re-flatten into continuous time
 Z_train_flat = reshape(permute(Z_train_raw, [2, 4, 3, 1]), [L * num_windows_train, bottleNeck]);
@@ -197,6 +202,7 @@ H_test    = double(H_test);
 minLen = min(size(Z_train_c,1), size(H_train,1));
 Z_train_c = Z_train_c(1:minLen,:);
 H_train   = H_train(1:minLen,:);
+
 minLenTest = min(size(Z_test_c,1), size(H_test,1));
 Z_test_c  = Z_test_c(1:minLenTest,:);
 H_test    = H_test(1:minLenTest,:);
@@ -204,7 +210,6 @@ H_test    = H_test(1:minLenTest,:);
 %% --- 3.5 Evaluate Checkpoints every N Epochs ---
 disp('Evaluating Checkpoints for Z-Z_hat Correlation...');
 ckpt_files = dir(fullfile(ckpt_dir, 'net_checkpoint__*.mat'));
-
 iters = zeros(length(ckpt_files), 1);
 for i = 1:length(ckpt_files)
     parts = split(ckpt_files(i).name, '__');
@@ -212,10 +217,8 @@ for i = 1:length(ckpt_files)
 end
 [sorted_iters, sort_idx] = sort(iters);
 ckpt_files = ckpt_files(sort_idx);
-
 iters_per_epoch = max(1, floor(size(X_train_1D, 4) / batch_size)); 
 eval_every_n_epochs = 2;
-
 max_epoch_reached = floor(max(sorted_iters) / iters_per_epoch);
 target_epochs = eval_every_n_epochs : eval_every_n_epochs : max_epoch_reached;
 target_iters = target_epochs * iters_per_epoch;
@@ -225,26 +228,28 @@ for i = 1:length(target_epochs)
     [~, closest_idx] = min(abs(sorted_iters - target_iters(i)));
     ckpt_data = load(fullfile(ckpt_dir, ckpt_files(closest_idx).name));
     temp_net = ckpt_data.net; 
-
-    % Extract Latents
-    Z_train_raw_tmp = double(activations(temp_net, X_train_1D, 'bottleneck'));
-    Z_test_raw_tmp  = double(activations(temp_net, X_test_1D,  'bottleneck'));
-
+    
+    % Extract VAE Parameters and Slice Mu
+    Z_train_params_tmp = double(activations(temp_net, X_train_1D, 'vae_parameters'));
+    Z_test_params_tmp  = double(activations(temp_net, X_test_1D,  'vae_parameters'));
+    
+    Z_train_raw_tmp = Z_train_params_tmp(:, :, 1:bottleNeck, :);
+    Z_test_raw_tmp  = Z_test_params_tmp(:, :, 1:bottleNeck, :);
+    
     % Flatten & Truncate
     Z_train_flat_tmp = reshape(permute(Z_train_raw_tmp, [2, 4, 3, 1]), [L * num_windows_train, bottleNeck]);
     Z_test_flat_tmp  = reshape(permute(Z_test_raw_tmp, [2, 4, 3, 1]), [L * num_windows_test, bottleNeck]);
-
     Z_train_tmp = Z_train_flat_tmp(1:size(X_train, 2), :);
     Z_test_tmp  = Z_test_flat_tmp(1:size(X_test, 2), :);
-
+    
     % Match lengths
     Z_train_tmp = Z_train_tmp(1:minLen,:);
     Z_test_tmp  = Z_test_tmp(1:minLenTest,:);
-
+    
     % Subspace mapping 
     W_multi = pinv(Z_train_tmp) * H_train;
     Z_recon_test_tmp = Z_test_tmp * W_multi;
-
+    
     % Calculate Pearson Correlation
     for f = 1:param.N_F
         c = corrcoef(H_test(:,f), Z_recon_test_tmp(:,f));
