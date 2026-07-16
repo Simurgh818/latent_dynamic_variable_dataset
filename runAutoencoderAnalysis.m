@@ -22,7 +22,7 @@ h_f_colors = lines(param.N_F);
 fs_new = param.fs;
 
 %% 2. Train Multi-Band Temporal Convolutional Autoencoder
-batch_size = 32; % Increased to 32 to match the optimal CAE settings
+batch_size = 16; % Increased to 32 to match the optimal CAE settings
 L = 500; % 1-second chunks (fs=500)
 disp('Chunking Unfiltered Broadband EEG...');
 

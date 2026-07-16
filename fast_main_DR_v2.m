@@ -44,12 +44,12 @@ end
 
 %% Loop through experiments
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 1; % 10 datasets
-k_range    = 10:10; % 10 k components
+nDatasets  = 2; % 10 datasets
+k_range    = 5:10; % 10 k components
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = { 'AE'};  % 'PCA', 'AE','ICA'
+methods = {'PCA', 'AE'};  % 'PCA', 'AE','ICA'
 % --- Define Marker & Line Styles for distinct plotting ---
 method_markers = {'o', 's', '^', 'd', 'v', 'p'}; % Circle, Square, Triangle, Diamond, etc.
 method_lines = {'-', '--', '-.', ':', '-', '--'}; % Solid, Dashed, Dash-Dot, Dotted, etc.
