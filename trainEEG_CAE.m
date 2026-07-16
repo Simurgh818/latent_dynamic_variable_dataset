@@ -1,82 +1,68 @@
-function [net, info] = trainEEG_CAE(X_train_spec, X_test_spec, cfg)
-    % Train a 2D Spectrogram Convolutional Autoencoder 
+function [net, info] = trainEEG_CAE(X_train_1D, X_test_1D, cfg)
+    % Train a 1D Temporal Convolutional Autoencoder (CAE)
+    % EXACT ARCHITECTURE: Single Layer Encoder (Kernel 15, 64 Filters), Leaky ReLU
     
     arguments
-        X_train_spec double 
-        X_test_spec  double 
+        X_train_1D double 
+        X_test_1D  double 
         cfg.bottleneckSize (1,1) double
         cfg.epochs double = 250
-        cfg.batchSize double = 32
+        cfg.batchSize double = 32 
         cfg.learnRate double = 1e-3
         cfg.checkpointPath string = ""
-        % Kept for compatibility if caller accidentally passes it
-        cfg.numBands double = 5 
     end
     
-    % Dynamically extract Spectrogram dimensions
-    % X_train_spec is expected to be [Channels x Frequencies x 1 x TimeWindows]
-    Height   = size(X_train_spec, 1); % e.g., 32 channels
-    Width    = size(X_train_spec, 2); % e.g., 51 frequency bins
-    Depth    = size(X_train_spec, 3); % Exactly 1
+    % Dynamically extract Dimensions
+    % X_train_1D is expected to be [1 x TimeWindows x Channels x Trials]
+    WindowLength  = size(X_train_1D, 2); 
+    TotalChannels = size(X_train_1D, 3); 
     
     % -------------------
-    % 1) Build the 2D Image Layers
+    % 1) Build the 1D Temporal Layers
     % -------------------
     layers = [
-        % Input: [Height x Width x 1] Spectrogram Images
-        imageInputLayer([Height Width Depth], "Normalization", "zscore", "Name", "input")
+        % Input: [1 x TimeWindows x Channels]
+        imageInputLayer([1 WindowLength TotalChannels], "Normalization", "zscore", "Name", "input")
         
-        % --- 2D ENCODER ---
-        % Uses standard 2D convolutions to find patterns across Channels (space) and Frequencies (spectrum)
-        convolution2dLayer([3 3], 16, "Padding", "same", "Name", "enc_conv1")
-        leakyReluLayer(0.01, "Name", "enc_relu1")
+        % --- 1D TEMPORAL ENCODER (Exactly ONE Conv Layer) ---
+        convolution2dLayer([1 15], 256, "Padding", "same", "Name", "enc_conv1")
+        leakyReluLayer(0.01, "Name", "enc_leakyrelu1")
         
-        convolution2dLayer([3 3], 32, "Padding", "same", "Name", "enc_conv2")
-        leakyReluLayer(0.01, "Name", "enc_relu2")
+        % --- BOTTLENECK ---
+        % Uses a 1x1 kernel to strictly mix the 64 feature maps into your requested 'k' latents
+        convolution2dLayer([1 1], cfg.bottleneckSize, "Padding", "same", "Name", "bottleneck")
         
-        % THE ANTI-OVERFITTER: Randomly zeros out 20% of connections
-        dropoutLayer(0.2, "Name", "dropout_enc")
+        % --- 1D TEMPORAL DECODER (Exactly ONE Conv Layer) ---
+        convolution2dLayer([1 15], 256, "Padding", "same", "Name", "dec_conv1")
+        leakyReluLayer(0.01, "Name", "dec_leakyrelu1")
         
-        % --- BOTTLENECK (The Squeeze) ---
-        % 'valid' padding with a filter the exact size of the image crushes it to [1 x 1 x bottleneckSize]
-        convolution2dLayer([Height Width], cfg.bottleneckSize, "Padding", 0, "Name", "bottleneck")
-        
-        % --- DECODER (The Expansion) ---
-        % Transposed convolution flawlessly expands [1 x 1] back out to [Height x Width]
-        transposedConv2dLayer([Height Width], 32, "Name", "dec_expand")
-        leakyReluLayer(0.01, "Name", "dec_relu_expand")
-        
-        % --- 2D DECODER BRUSHES ---
-        convolution2dLayer([3 3], 16, "Padding", "same", "Name", "dec_conv1")
-        leakyReluLayer(0.01, "Name", "dec_relu1")
-        
-        % Final output perfectly matches the original 1-channel spectrogram depth
-        convolution2dLayer([3 3], Depth, "Padding", "same", "Name", "reconstruction")
+        % Final reconstruction back to raw EEG channels
+        convolution2dLayer([1 1], TotalChannels, "Padding", "same", "Name", "reconstruction")
         regressionLayer("Name", "mse")
     ];
 
     % -------------------
     % 2) Training Options
     % -------------------
-    val_freq = max(1, floor(size(X_train_spec, 4) / cfg.batchSize));
+    val_freq = max(1, floor(size(X_train_1D, 4) / cfg.batchSize));
     
     options = trainingOptions("adam", ...
         "MaxEpochs", cfg.epochs, ...
         "MiniBatchSize", cfg.batchSize, ...
         "InitialLearnRate", cfg.learnRate, ...
-        "LearnRateSchedule", "piecewise", ...      
-        "LearnRateDropPeriod", 50, ...             
-        "LearnRateDropFactor", 0.5, ...
-        "L2Regularization", 1e-4, ...              
+        ... % "LearnRateSchedule", "piecewise", ...      
+        ... % "LearnRateDropPeriod", 50, ...             
+        ... % "LearnRateDropFactor", 0.5, ...
+        "L2Regularization", 0, ...              
         "Shuffle", "every-epoch", ...
         "Plots", "training-progress", ... 
         "Verbose", false, ... 
-        "ValidationData", {X_test_spec, X_test_spec}, ...
+        "ValidationData", {X_test_1D, X_test_1D}, ...
         "ValidationFrequency", val_freq, ...
         "ValidationPatience", 30, ... 
         "CheckpointPath", cfg.checkpointPath, ...
         "OutputNetwork", "best-validation-loss", ...
         "ExecutionEnvironment", "auto");
     
-    [net, info] = trainNetwork(X_train_spec, X_train_spec, layers, options);
+    [net, info] = trainNetwork(X_train_1D, X_train_1D, layers, options);
 end

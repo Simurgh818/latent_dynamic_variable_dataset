@@ -29,17 +29,17 @@ function [net, info] = trainEEG_VAE(X_train_1D, X_test_1D, cfg)
     % Added Dropout and switched to Tanh to mirror successful CAE
     % ==========================================
     lgraph = addLayers(lgraph, [
-        convolution2dLayer([1 15], 64, "Padding", "same", "Name", "enc_conv1") 
+        convolution2dLayer([1 31], 64, "Padding", "same", "Name", "enc_conv1") 
         groupNormalizationLayer("all-channels", "Name", "enc_gn1")
         tanhLayer("Name", "enc_tanh1")
         dropoutLayer(0.2, "Name", "dropout_enc1")
         
-        convolution2dLayer([1 9], 32, "Padding", "same", "Name", "enc_conv2") 
+        convolution2dLayer([1 15], 32, "Padding", "same", "Name", "enc_conv2") 
         groupNormalizationLayer("all-channels", "Name", "enc_gn2")
         tanhLayer("Name", "enc_tanh2")
         dropoutLayer(0.2, "Name", "dropout_enc2")
         
-        convolution2dLayer([1 5], 16, "Padding", "same", "Name", "enc_conv3")  
+        convolution2dLayer([1 7], 16, "Padding", "same", "Name", "enc_conv3")  
         groupNormalizationLayer("all-channels", "Name", "enc_gn3")
         tanhLayer("Name", "enc_tanh3")
         dropoutLayer(0.2, "Name", "dropout_enc3")
@@ -53,15 +53,15 @@ function [net, info] = trainEEG_VAE(X_train_1D, X_test_1D, cfg)
     % 3. DEEP TEMPORAL DECODER (Funneling UP)
     % ==========================================
     lgraph = addLayers(lgraph, [
-        convolution2dLayer([1 5], 16, "Padding", "same", "Name", "dec_conv1")  
+        convolution2dLayer([1 7], 16, "Padding", "same", "Name", "dec_conv1")  
         groupNormalizationLayer("all-channels", "Name", "dec_gn1")
         tanhLayer("Name", "dec_tanh1")
         
-        convolution2dLayer([1 9], 32, "Padding", "same", "Name", "dec_conv2") 
+        convolution2dLayer([1 15], 32, "Padding", "same", "Name", "dec_conv2") 
         groupNormalizationLayer("all-channels", "Name", "dec_gn2")
         tanhLayer("Name", "dec_tanh2")
         
-        convolution2dLayer([1 15], 64, "Padding", "same", "Name", "dec_conv3") 
+        convolution2dLayer([1 31], 64, "Padding", "same", "Name", "dec_conv3") 
         groupNormalizationLayer("all-channels", "Name", "dec_gn3")
         tanhLayer("Name", "dec_tanh3")
         
