@@ -121,10 +121,11 @@ num_spatial_realizations = 2; % # of datasets
 for i_spat = 1:num_spatial_realizations
     
     % =====================================================================
-    % Restore the full 13-second latents for this specific loop iteration
+    % Restore the full pristine latents for this specific loop iteration
     all_h_F = all_h_F_master; 
     % =====================================================================
-
+    
+    % --- THE MISSING SPATIAL GENERATION CODE ---
     % Source locations and parameters
     pos_src_locs = rand(num_latents, 2)*1.5 - 0.75;
     neg_src_locs = rand(num_latents, 2)*1.5 - 0.75;
@@ -151,110 +152,67 @@ for i_spat = 1:num_spatial_realizations
         spatial_comps(:, i_fpl) = interp2(mesh_x, mesh_y, all_comp_masks(:, :, i_fpl), eeg_loc_x, eeg_loc_y);
         spatial_comps(:, i_fpl) = spatial_comps(:, i_fpl) / norm(spatial_comps(:, i_fpl));
     end
+    % ---------------------------------------------
     
-    % Nonlinear generation (tanh)
+    % =========================================================================
+    % --- BIOLOGICAL NONLINEAR INTERACTIONS (The "Curved Manifold") ---
+    % Moving the nonlinearity from the measurement phase to the neural population 
+    % =========================================================================
+    
+    % 1. Cross-Frequency Phase-Amplitude Coupling (PAC)
+    % Delta phase (2 Hz, Latent 1) modulates Gamma amplitude (50 Hz, Latent 6)
+    idx_delta = 1;
+    idx_gamma = 6;
+    pac_strength = 0.5; % Controls depth of modulation
+    all_h_F(idx_gamma, :) = all_h_F(idx_gamma, :) .* (1 + pac_strength * all_h_F(idx_delta, :));
+    
+    % 2. Multiplicative Gain Modulation
+    % Alpha (10 Hz, Latent 3) acts as an attentional gate on Beta 1 (18 Hz, Latent 4)
+    idx_alpha = 3;
+    idx_beta  = 4;
+    gain_alpha = 0.4; % The alpha gating parameter
+    all_h_F(idx_beta, :) = all_h_F(idx_beta, :) .* (1 + gain_alpha * all_h_F(idx_alpha, :));
+    
+    % Re-normalize interacting latents to prevent variance explosion
+    all_h_F(idx_gamma, :) = all_h_F(idx_gamma, :) / std(all_h_F(idx_gamma, :));
+    all_h_F(idx_beta, :)  = all_h_F(idx_beta, :)  / std(all_h_F(idx_beta, :));
+    
+    % =========================================================================
+    % --- LINEAR SPATIAL MIXING & VOLUME CONDUCTION ---
+    % =========================================================================
     select_comps = 1:num_latents;
-
-    % 1. Base linear mixing (The part PCA handles well)
+    
+    % Linear projection to sensors (Volume Conduction)
     wx_vals = spatial_comps(:, select_comps) * all_h_F(select_comps, :);
-    gain_par = 2; % try 2
-    bias_par = 1.2; % try 1.2
-    sim_eeg_vals = tanh(gain_par*wx_vals + bias_par);
+    sim_eeg_vals = wx_vals;
     
-    % % 2. Identify latents based on your param.f_peak array
-    % idx_delta = 1; % 2 Hz (Delta)
-    % idx_beta  = 5; % 24 Hz (Beta)
-    % 
-    % % 3. Create the Multiplicative PAC interaction
-    % pac_interaction = all_h_F(idx_delta, :) .* all_h_F(idx_beta, :);
-    % 
-    % % 4. Create a fixed spatial mask for this interaction to project it to the scalp
-    % % We use rng(i_spat) so the interaction mask is consistent for this specific dataset
-    % rng(i_spat, 'twister');
-    % pac_spatial_mask = randn(num_channels, 1) * 0.5; 
-    % 
-    % % 5. Combine linear mixing + Non-linear PAC interaction 
-    % % =========================================================================
-    % % --- AUTOMATED PAC TUNING ---
-    % % Test different coupling strengths to find the biological window
-    % % =========================================================================
-    % test_strengths = 0.0 : 0.05 : 1.0;
-    % measured_MIs = zeros(length(test_strengths), 1);
-    % 
-    % % Find the channel with the highest PAC weight to measure the upper bound
-    % [~, target_ch] = max(abs(pac_spatial_mask));
-    % 
-    % for c_idx = 1:length(test_strengths)
-    %     test_cs = test_strengths(c_idx);
-    %     test_eeg = wx_vals + test_cs * (pac_spatial_mask * pac_interaction);
-    % 
-    %     % Add background noise (crucial, because noise dilutes the MI!)
-    %     test_bg = pinknoise(size(test_eeg, 2), num_channels)';
-    %     test_eeg = test_eeg + 2.0 * test_bg;
-    % 
-    %     % 1. Extract Delta and Beta from the mixed sensor data
-    %     delta_filtered = bandpass(test_eeg(target_ch, :), [1 3], fs);
-    %     beta_filtered  = bandpass(test_eeg(target_ch, :), [20 28], fs);
-    % 
-    %     % 2. Calculate Phase and Amplitude
-    %     phase_delta = angle(hilbert(delta_filtered));
-    %     amp_beta    = abs(hilbert(beta_filtered));
-    % 
-    %     % 3. Run Tort MI (18 bins is the standard in literature)
-    %     measured_MIs(c_idx) = calculateTortMI(phase_delta, amp_beta, 18);
-    % end
-    % 
-    % % Plot the Tuning Curve
-    % figure('Name', 'PAC Tuning Curve', 'Position', [200 200 600 400]);
-    % plot(test_strengths, measured_MIs, 'k-o', 'LineWidth', 2); hold on;
-    % yline(0.005, 'r--', 'Min Biological PAC');
-    % yline(0.05, 'r--', 'Max Biological PAC');
-    % xlabel('Mathematical Coupling Strength');
-    % ylabel("Tort's Modulation Index (MI)");
-    % title('Tuning PAC to Biological Realism');
-    % grid on;
-    % 
-    % % Find the optimal coupling strength that gets closest to MI = 0.02
-    % [~, best_idx] = min(abs(measured_MIs - 0.02));
-    % optimal_coupling_strength = test_strengths(best_idx);
-    % 
-    % fprintf('Optimal Coupling Strength chosen: %.2f (MI = %.4f)\n', ...
-    %          optimal_coupling_strength, measured_MIs(best_idx));
-    % 
-    % % =========================================================================
-    % 
-    % % Use the optimally tuned strength to generate the final EEG
-    % sim_eeg_vals = wx_vals + optimal_coupling_strength * (pac_spatial_mask * pac_interaction);
-    
-    % Add Pink Noise and Scale 
+    % Add Pink Sensor Noise
     pink_bg = pinknoise(size(sim_eeg_vals, 2), num_channels)'; 
     sim_eeg_vals = sim_eeg_vals + 2.0 * pink_bg; 
-    sim_eeg_vals = sim_eeg_vals * 16; % 16 before
+    
+    % Scale to microvolts
+    sim_eeg_vals = sim_eeg_vals * 16; 
     
     % --- APPLY BANDPASS FILTER HERE ---
     sim_eeg_vals = filtfilt(bp_b, bp_a, sim_eeg_vals')'; 
-
-    % This strips out the massive OU drift so correlation doesn't collapse
     all_h_F = filtfilt(bp_b, bp_a, all_h_F')';
-    % =========================================================================
-    % --- HARDCODED DATA TRIMMING (3-Second Burn-in) ---
-    % Discard the first 6 seconds to account for filter transients 
-    % and Ornstein-Uhlenbeck initialization.
-    % =========================================================================
     
+    % =========================================================================
+    % --- HARDCODED DATA TRIMMING (6-Second Burn-in) ---
+    % =========================================================================
     burn_in_samples = burn_in_seconds * fs; 
     
     sim_eeg_vals(:, 1:burn_in_samples) = [];
     all_h_F(:, 1:burn_in_samples) = []; % Only modifies THIS iteration's copy
+    wx_vals(:, 1:burn_in_samples) = []; % Trim this so the save function doesn't fail
     
     % Calculate the new effective duration for saving files
     T_clean = T - burn_in_seconds;
-    % =========================================================================
     
-    % Plot zoom-in view (Now showing the start of the CLEAN data)
+    % Plot zoom-in view 
     figure('Name', sprintf('Zoom Channel 18 - Spat %d', i_spat));
     T_subject = 3.5;
-    T_plot = min(T_subject, T_clean); % Safety check in case T_clean is short
+    T_plot = min(T_subject, T_clean); 
     time_ms_eeg = linspace(0, T_plot, T_plot * fs); 
     plot(time_ms_eeg, sim_eeg_vals(18, 1:length(time_ms_eeg)), 'b');
     xlim([0 T_plot]); xlabel('Time (sec)'); ylabel('Channel 18 (uV)');
@@ -270,26 +228,24 @@ for i_spat = 1:num_spatial_realizations
     train_true_hF = all_h_F(:, train_t_range);
     test_true_hF = all_h_F(:, test_t_range);
     
-    % Save data
+    % Save data (wx_vals is safely defined now)
     save(fullfile(output_dir, sprintf('simEEG_set4_spat%02d_dur%d.mat', i_spat, T_clean)), "sim_eeg_vals", "all_h_F", "dt","param", "T_clean");
+    
+    % gain_par and bias_par have been removed since we dropped the tanh, so we remove them from the save call
     save(fullfile(output_dir, sprintf('simEEG_set4_spat%02d_dur%d_key.mat', i_spat, T_clean)), "sim_eeg_vals", "all_h_F", ...
-        "pos_src_locs", "neg_src_locs", "src_widths", "src_pks", "select_comps", "spatial_comps", "gain_par", "bias_par",...
-        "T_clean", "wx_vals");
+        "pos_src_locs", "neg_src_locs", "src_widths", "src_pks", "select_comps", "spatial_comps", "T_clean", "wx_vals");
     
     % Combined Welch PSD Plot
     [pxx_sim, f_psd_sim] = pwelch(sim_eeg_vals', win_len, n_overlap, [], fs);
     
     figure('Name', sprintf('Combined PSD - Spat %d', i_spat), 'Position', [100 100 800 600]);
     
-    % 1. Plot background individual channels
     loglog(f_psd_rEEG, pxx_rEEG, 'Color', [0.8 0.8 0.8], 'HandleVisibility', 'off'); hold on; 
     loglog(f_psd_sim, pxx_sim, 'Color', [0.7 0.85 1], 'HandleVisibility', 'off'); 
     
-    % 2. Plot Mean Power Lines
     loglog(f_psd_rEEG, mean(pxx_rEEG, 2), 'k', 'LineWidth', 2, 'DisplayName', 'Real EEG Mean'); 
     loglog(f_psd_sim, mean(pxx_sim, 2), 'b', 'LineWidth', 2, 'DisplayName', 'Synthetic EEG Mean');
     
-    % 3. Align 1/f reference line to the REAL EEG within the valid 2-50 Hz range
     f_valid_rEEG = f_psd_rEEG(f_psd_rEEG > 0); 
     ref_1of_rEEG = 1./f_valid_rEEG; 
     

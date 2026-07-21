@@ -37,7 +37,7 @@ switch method
         
    case 'ICA'
         [outICA] = runICAAnalysis(data.eeg_train, data.eeg_test, ...
-             data.H_train, data.H_test, k, local_param, method_dir);
+             data.H_train, data.H_test, k, local_param, method_dir, false); %true
         out = outICA;
         if isfield(outICA, 'Comp_latent_matching_corr'), corr_table = outICA.Comp_latent_matching_corr; end
         if isfield(outICA, 'Comp_latent_matching_matrix'),   Comp_latent_matching_matrix   = outICA.Comp_latent_matching_matrix;   end

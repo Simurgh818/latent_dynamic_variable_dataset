@@ -1,4 +1,4 @@
-function [outICA] = runICAAnalysis(eeg_train, eeg_test, h_train, h_test, num_comps, param, method_dir)
+function [outICA] = runICAAnalysis(eeg_train, eeg_test, h_train, h_test, num_comps, param, method_dir, use_amica)
 % runICAAnalysis EEGLAB ICA + PCA whitening with detailed Frequency Analysis
 %
 % Inputs:
@@ -7,6 +7,12 @@ function [outICA] = runICAAnalysis(eeg_train, eeg_test, h_train, h_test, num_com
 %   num_comps           : Number of ICA components (k)
 %   param               : Struct with .fs, .N_F, .f_peak
 %   method_dir          : Parent folder for results
+%   use_amica           : (Optional) Boolean flag. If true, uses AMICA. Default = false.
+
+%% 0. Default Arguments
+if nargin < 8 || isempty(use_amica)
+    use_amica = false;
+end
 
 %% 1. Setup and Directory
 if ~exist(method_dir, 'dir')
@@ -25,7 +31,6 @@ eeg_test_centered  = bsxfun(@minus, eeg_test, train_mean);
 % Compute the rank of the spatial covariance matrix (Channels x Channels)
 data_cov  = cov(eeg_train_centered');
 data_rank = rank(data_cov); 
-
 if num_comps > data_rank
     warning('Requested %d components, but spatial data rank is %d. Capping components.', num_comps, data_rank);
     k = data_rank;
@@ -33,22 +38,65 @@ else
     k = num_comps;
 end
 
-%% 4. Run ICA (Switched to EEGLAB's native Infomax ICA)
+%% 4. Run ICA (Toggle between AMICA and Infomax)
 try
-    % runica is the EEGLAB gold standard and handles PCA reduction perfectly
-    [weights, sphere] = runica(eeg_train_centered, ... 
-        'pca', k, ...
-        'maxsteps', 2000);
-    
-    % The full spatial unmixing matrix (k x Channels)
-    W = weights * sphere;
+    if use_amica
+        fprintf('\nRunning AMICA (Adaptive Mixture ICA)...\n');
+        
+        % 1. Create a safe, space-free temporary directory for AMICA
+        amica_tmp_dir = fullfile(tempdir, sprintf('amica_tmp_k%d_%d', k, randi(10000)));
+        if ~exist(amica_tmp_dir, 'dir')
+            mkdir(amica_tmp_dir);
+        end
+        
+        % 2. Temporarily switch MATLAB's working directory 
+        % This prevents the temporary .fdt file from inheriting spaces in its path
+        orig_dir = pwd;
+        cd(tempdir);
+        
+        try
+            % 3. Run AMICA in the space-free environment
+            [weights, sphere, ~] = runamica15(eeg_train_centered, ...
+                'num_models', 1, ...
+                'outdir', amica_tmp_dir, ...
+                'pcakeep', k, ...
+                'max_iter', 2000);
+            
+            % Restore original working directory immediately after success
+            cd(orig_dir); 
+        catch amica_ME
+            % Ensure we restore the directory even if AMICA crashes
+            cd(orig_dir); 
+            rethrow(amica_ME);
+        end
+        
+        % 4. Copy the results back to your actual OneDrive method_dir
+        amica_final_dir = fullfile(method_dir, ['amica_out' file_suffix]);
+        if ~exist(amica_final_dir, 'dir')
+            mkdir(amica_final_dir);
+        end
+        copyfile(amica_tmp_dir, amica_final_dir);
+        
+        % 5. Clean up the temp directory to save hard drive space
+        rmdir(amica_tmp_dir, 's');
+        
+        W = weights * sphere;
+    else
+        fprintf('\nRunning Infomax ICA (runica)...\n');
+        % runica is the EEGLAB gold standard and handles PCA reduction perfectly
+        [weights, sphere] = runica(eeg_train_centered, ... 
+            'pca', k, ...
+            'maxsteps', 2000);
+            
+        W = weights * sphere;
+    end
     
     % Project the data into component space and transpose to (Time x k)
     icasig_train = (W * eeg_train_centered)'; 
     icasig_test  = (W * eeg_test_centered)';
     
 catch ME
-    fprintf('runica failed. Falling back to MATLAB "rica". Error: %s \n', ME.message);
+    fprintf('ICA/AMICA failed. Falling back to MATLAB "rica". Error: %s \n', ME.message);
     Mdl = rica(eeg_train_centered', k); 
     icasig_train = transform(Mdl, eeg_train_centered');
     icasig_test  = transform(Mdl, eeg_test_centered');
@@ -140,5 +188,4 @@ outICA.direct_Component_Corr = direct_Component_Corr_ica;
 outICA.Comp_latent_matching_matrix = R_ICA; 
 outICA.spectral_R2  = ica_R2_scores;
 close all;
-
 end
