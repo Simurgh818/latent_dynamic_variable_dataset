@@ -49,7 +49,7 @@ k_range    = 10:10; % 10 k components
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'ICA'};  % 'PCA', 'AE','ICA'
+methods = {'AE'};  % 'PCA', 'AE','ICA'
 % --- Define Marker & Line Styles for distinct plotting ---
 method_markers = {'o', 's', '^', 'd', 'v', 'p'}; % Circle, Square, Triangle, Diamond, etc.
 method_lines = {'-', '--', '-.', ':', '-', '--'}; % Solid, Dashed, Dash-Dot, Dotted, etc.
@@ -531,7 +531,7 @@ target_k = 10;
 ki_target = find(k_range == target_k);
 
 if ~isempty(ki_target)
-    fig2 = figure('Position', [50 50 1700 600]);
+    fig2 = figure('Position', [0 100 1700 600]);
     tiledlayout(1, 2, 'Padding', 'compact');
     
     for c = 1:numel(conditions)
