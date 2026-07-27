@@ -31,7 +31,9 @@ score_test_k  = score_test(:, 1:k);
 % ============================================================
 if (isempty(getCurrentTask()) & k==10)
     plotTimeDomainReconstruction(h_test, h_recon_test, param, 'PCA', k, direct_Component_Corr_pca, method_dir);
-    plotCTraces(k, param, score_test, method_dir, file_suffix);
+   
+    % Pass the RAW components, TRUE latents, and the MATCHING TABLE
+    plotCTraces(k, param, score_train_k, h_train, Comp_latent_matching_corr_pca, method_dir, file_suffix);
     
     save_path = fullfile(method_dir, ['PCA_ExplainedVariance' file_suffix '.png']);
     plotCumulativeVariance(explained, k, 'PCA', save_path);

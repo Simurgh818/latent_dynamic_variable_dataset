@@ -113,7 +113,7 @@ if (isempty(getCurrentTask()) && num_comps==10)
     % Time domain plot
     plotTimeDomainReconstruction(h_test, h_rec_test, param, 'ICA', num_comps, direct_Component_Corr_ica, method_dir);
     % Independent Component traces plot
-    plotCTraces(num_comps, param, h_rec_test, method_dir, file_suffix);
+    plotCTraces(param.N_F, param, icasig_train, h_train, Comp_latent_matching_corr, method_dir, file_suffix);
     
     % Frequency Analysis FFT
     save_path_fft = fullfile(method_dir, ['ICA_FFT_True_vs_Recon' file_suffix '.png']);
