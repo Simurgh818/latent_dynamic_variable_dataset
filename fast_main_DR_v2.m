@@ -45,11 +45,11 @@ end
 %% Loop through experiments
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
 nDatasets  = 1; % 10 datasets
-k_range    = 1:10; % 10 k components
+k_range    = 10:10; % 10 k components
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'PCA', 'ICA'};  % 'PCA', 'AE','ICA'
+methods = {'AE'};  % 'PCA', 'AE','ICA'
 % --- Define Marker & Line Styles for distinct plotting ---
 method_markers = {'o', 's', '^', 'd', 'v', 'p'}; % Circle, Square, Triangle, Diamond, etc.
 method_lines = {'-', '--', '-.', ':', '-', '--'}; % Solid, Dashed, Dash-Dot, Dotted, etc.
@@ -93,39 +93,40 @@ for c = 1:numel(conditions)
         else
             eegFilename  = sprintf('simEEG_%s_spat%d_dur%d', cond, d, param.duration(1));
         end
-        testFilename = sprintf('simEEG_set4_spat01_dur1728');
         dataset_name = eegFilename;
         
-        % --- 2. Load Train Data ---
-        loader_train = load(fullfile(input_dir, [eegFilename '.mat']));
-        s_eeg_train  = double(loader_train.sim_eeg_vals);
-        h_f_train    = double(loader_train.all_h_F');
+        % --- 2. Load Single Dataset ---
+        loader = load(fullfile(input_dir, [eegFilename '.mat']));
+        s_eeg_all   = double(loader.sim_eeg_vals);
+        h_f_all     = double(loader.all_h_F');
+        f_peak      = loader.param.f_peak;
         
         % Recalculate parameters locally
-        local_param = loader_train.param; 
-        fs          = 1 / loader_train.dt;
+        local_param = loader.param; 
+        fs         = 1 / loader.dt;
         local_param.fs = fs;
         
-        % --- 3. Load Independent Test Data ---
-        loader_test = load(fullfile(input_dir, [testFilename '.mat']));
-        s_eeg_test  = double(loader_test.sim_eeg_vals);
-        h_f_test    = double(loader_test.all_h_F');
-        
-        % Determine local results directory
+        % Determine results directory for this dataset
         subfolderName = ['results_' eegFilename];
         local_results_dir = fullfile(baseFolder, subfolderName);
         if ~exist(local_results_dir, 'dir')
             mkdir(local_results_dir);
         end
         
-        % --- 4. Assign Train/Test Partitions (Strict Independence) ---
-        eeg_train = s_eeg_train; 
-        eeg_test  = s_eeg_test;
+        % --- 3. Split 80:20 (Train/Test) ---
+        idx_split = floor(0.8 * size(s_eeg_all, 2));
         
-        % Normalize latents individually to zero-mean, unit-variance to prevent scaling leakage
-        H_train = h_f_train ./ std(h_f_train, 0, 1);
-        H_test  = h_f_test ./ std(h_f_test, 0, 1);   
-       
+        eeg_train = s_eeg_all(:, 1:idx_split);
+        eeg_test  = s_eeg_all(:, idx_split+1:end);
+        
+        h_f_train = h_f_all(1:idx_split, :);
+        h_f_test  = h_f_all(idx_split+1:end, :);
+        
+        % --- 4. Strict Z-Score Normalization ---
+        % zscore automatically subtracts the mean AND divides by std
+        H_train = zscore(h_f_train, 0, 1);
+        H_test  = zscore(h_f_test, 0, 1);
+        
         data.eeg_train = eeg_train;
         data.eeg_test  = eeg_test;
         data.H_train   = H_train;

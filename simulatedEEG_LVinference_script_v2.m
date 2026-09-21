@@ -237,7 +237,7 @@ for i_spat = 1:num_spatial_realizations
     % This strips out the massive OU drift so correlation doesn't collapse
     all_h_F = filtfilt(bp_b, bp_a, all_h_F')';
     % =========================================================================
-    % --- HARDCODED DATA TRIMMING (6-Second Burn-in) ---
+    % --- HARDCODED DATA TRIMMING (3-Second Burn-in) ---
     % Discard the first 6 seconds to account for filter transients 
     % and Ornstein-Uhlenbeck initialization.
     % =========================================================================
