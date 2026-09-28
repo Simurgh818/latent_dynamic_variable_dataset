@@ -1,4 +1,4 @@
-function [outAE] = runAutoencoderAnalysis(X_train, X_test, H_train, H_test, bottleNeck, param,  results_dir)
+function [outAE] = runAutoencoderAnalysis_2(X_train, X_test, H_train, H_test, bottleNeck, param,  results_dir)
 % runAutoencoderAnalysis Trains AE + Linear Mapping and generates diagnostic plots
 %
 % Inputs:
@@ -21,89 +21,265 @@ file_suffix = sprintf('_k%d', bottleNeck);
 h_f_colors = lines(param.N_F); 
 fs_new = param.fs;
 
-%% 2. Train Autoencoder (Unsupervised)
-batch_size = 256; % 512
+%% 2. Train Multi-Band Temporal Convolutional Autoencoder
+% ==========================================
+% SECTION 2: CHUNKING & TRAINING CAE_5
+% ==========================================
+batch_size = 64; % Increased to 32 to match the optimal CAE settings
+L = 500; % 1-second chunks (fs=500)
+
+disp('Chunking Unfiltered Broadband EEG...');
+
+% --- 2.1 Pad and Chunk Train Data (Using raw X_train) ---
+pad_len_train = ceil(size(X_train, 2) / L) * L - size(X_train, 2);
+X_train_padded = [X_train, zeros(size(X_train, 1), pad_len_train)];
+
+num_windows_train = size(X_train_padded, 2) / L;
+X_train_chunked = reshape(X_train_padded, [size(X_train, 1), L, num_windows_train]);
+
+% Create 1D Tensor: [1 x Time x 31 Channels x Batch]
+X_train_1D = zeros(1, L, size(X_train, 1), num_windows_train);
+X_train_1D(1, :, :, :) = permute(X_train_chunked, [2, 1, 3]);
+
+% --- 2.2 Pad and Chunk Test Data (Using raw X_test) ---
+pad_len_test = ceil(size(X_test, 2) / L) * L - size(X_test, 2);
+X_test_padded = [X_test, zeros(size(X_test, 1), pad_len_test)];
+
+num_windows_test = size(X_test_padded, 2) / L;
+X_test_chunked = reshape(X_test_padded, [size(X_test, 1), L, num_windows_test]);
+
+X_test_1D = zeros(1, L, size(X_test, 1), num_windows_test);
+X_test_1D(1, :, :, :) = permute(X_test_chunked, [2, 1, 3]);
+
+% --- 2.3 Train the 1D Temporal CAE_5 ---
 ckpt_dir = tempname; 
-mkdir(ckpt_dir); % We must explicitly create the randomized folder
+mkdir(ckpt_dir); 
 
-[net, info] = trainEEGAutoencoder(X_train, X_test,  ...
-    'encoderLayerSizes', [256, 128], ...
+[net, info] = trainEEG_CAE_5(X_train_1D, X_test_1D,  ... 
     'bottleneckSize', bottleNeck, ...
-    'decoderLayerSizes', [128,256], ...
-    'encoderActivations', {'leakyrelu','leakyrelu'}, ...
-    'decoderActivations', {'leakyrelu','leakyrelu'}, ...
-    'outputActivation', "none", ...
-    'epochs', 50, ... % TODO test 100
+    'epochs', 100, ... 
     'batchSize', batch_size, ...
-    'learnRate', 1e-3, ...
-    'checkpointPath', ckpt_dir);
+    'learnRate', 1e-3, ... 
+    'checkpointPath', ckpt_dir, ...
+    'lambdaICA', 0.01);
 
-% Extract Latents
-Z_train_c = double(activations(net, X_train.', 'bottleneck', 'OutputAs','rows'));
-Z_test_c  = double(activations(net, X_test.',  'bottleneck', 'OutputAs','rows'));
+% --- 2.6 Extract Latents (Direct Deterministic Inference) ---
+% Extract the full [1 x L x k x Batch] latent tensor directly from the bottleneck
+Z_train_raw = double(activations(net, X_train_1D, 'bottleneck'));
+Z_test_raw  = double(activations(net, X_test_1D,  'bottleneck'));
+
+% Re-flatten into continuous time
+Z_train_flat = reshape(permute(Z_train_raw, [2, 4, 3, 1]), [L * num_windows_train, bottleNeck]);
+Z_test_flat  = reshape(permute(Z_test_raw, [2, 4, 3, 1]), [L * num_windows_test, bottleNeck]);
+
+% Truncate padding to match Ground Truth H
+Z_train_c = Z_train_flat(1:size(X_train, 2), :);
+Z_test_c  = Z_test_flat(1:size(X_test, 2), :);
+
 H_train   = double(H_train);
 H_test    = double(H_test);
 
-% Ensure matching lengths
 minLen = min(size(Z_train_c,1), size(H_train,1));
 Z_train_c = Z_train_c(1:minLen,:);
 H_train   = H_train(1:minLen,:);
+
 minLenTest = min(size(Z_test_c,1), size(H_test,1));
 Z_test_c  = Z_test_c(1:minLenTest,:);
 H_test    = H_test(1:minLenTest,:);
 
-%% --- NEW: 3.5 Evaluate Checkpoints every 5 Epochs ---
+% ==========================================
+% SECTION 3.5: EVALUATE CHECKPOINTS EVERY N EPOCHS
+% ==========================================
 disp('Evaluating Checkpoints for Z-Z_hat Correlation...');
 ckpt_files = dir(fullfile(ckpt_dir, 'net_checkpoint__*.mat'));
 
-% Extract iterations to sort them chronologically
-iters = zeros(length(ckpt_files), 1);
-for i = 1:length(ckpt_files)
-    parts = split(ckpt_files(i).name, '__');
-    iters(i) = str2double(parts{2});
-end
-[sorted_iters, sort_idx] = sort(iters);
-ckpt_files = ckpt_files(sort_idx);
-
-iters_per_epoch = floor(size(X_train, 2) / batch_size);
-eval_every_n_epochs = 5;
-
-% Create target epochs up to the point early stopping was triggered
-max_epoch_reached = floor(max(sorted_iters) / iters_per_epoch);
-target_epochs = eval_every_n_epochs : eval_every_n_epochs : max_epoch_reached;
-target_iters = target_epochs * iters_per_epoch;
-
-history_corr = nan(length(target_epochs), param.N_F);
-
-for i = 1:length(target_epochs)
-    % Find closest checkpoint to target iteration
-    [~, closest_idx] = min(abs(sorted_iters - target_iters(i)));
-    
-    % Load network state at this epoch
-    ckpt_data = load(fullfile(ckpt_dir, ckpt_files(closest_idx).name));
-    temp_net = ckpt_data.net; 
-    
-    % Extract latents using the temporary past network
-    Z_train_tmp = double(activations(temp_net, X_train.', 'bottleneck', 'OutputAs','rows'));
-    Z_test_tmp  = double(activations(temp_net, X_test.',  'bottleneck', 'OutputAs','rows'));
-    
-    % Match lengths
-    Z_train_tmp = Z_train_tmp(1:minLen,:);
-    Z_test_tmp  = Z_test_tmp(1:minLenTest,:);
-    
-    % Subspace mapping (Identical math to your computePerformanceMetrics)
-    W_multi = pinv(Z_train_tmp) * H_train;
-    Z_recon_test_tmp = Z_test_tmp * W_multi;
-    
-    % Calculate Pearson Correlation
-    for f = 1:param.N_F
-        c = corrcoef(H_test(:,f), Z_recon_test_tmp(:,f));
-        history_corr(i, f) = c(1,2);
+if ~isempty(ckpt_files)
+    iters = zeros(length(ckpt_files), 1);
+    for i = 1:length(ckpt_files)
+        parts = split(ckpt_files(i).name, '__');
+        iters(i) = str2double(parts{2});
     end
+
+    [sorted_iters, sort_idx] = sort(iters);
+    ckpt_files = ckpt_files(sort_idx);
+
+    iters_per_epoch = max(1, floor(size(X_train_1D, 4) / batch_size)); 
+    eval_every_n_epochs = 2;
+    max_epoch_reached = floor(max(sorted_iters) / iters_per_epoch);
+    target_epochs = eval_every_n_epochs : eval_every_n_epochs : max_epoch_reached;
+    target_iters = target_epochs * iters_per_epoch;
+
+    history_corr = nan(length(target_epochs), param.N_F);
+
+    for i = 1:length(target_epochs)
+        [~, closest_idx] = min(abs(sorted_iters - target_iters(i)));
+        ckpt_data = load(fullfile(ckpt_dir, ckpt_files(closest_idx).name));
+        temp_net = ckpt_data.net; 
+
+        % Extract CAE Latents directly from bottleneck
+        Z_train_raw_tmp = double(activations(temp_net, X_train_1D, 'bottleneck'));
+        Z_test_raw_tmp  = double(activations(temp_net, X_test_1D,  'bottleneck'));
+
+        % Flatten & Truncate
+        Z_train_flat_tmp = reshape(permute(Z_train_raw_tmp, [2, 4, 3, 1]), [L * num_windows_train, bottleNeck]);
+        Z_test_flat_tmp  = reshape(permute(Z_test_raw_tmp, [2, 4, 3, 1]), [L * num_windows_test, bottleNeck]);
+
+        Z_train_tmp = Z_train_flat_tmp(1:size(X_train, 2), :);
+        Z_test_tmp  = Z_test_flat_tmp(1:size(X_test, 2), :);
+
+        % Match lengths
+        Z_train_tmp = Z_train_tmp(1:minLen,:);
+        Z_test_tmp  = Z_test_tmp(1:minLenTest,:);
+
+        % Subspace mapping 
+        W_multi = pinv(Z_train_tmp) * H_train;
+        Z_recon_test_tmp = Z_test_tmp * W_multi;
+
+        % Calculate Pearson Correlation
+        for f = 1:param.N_F
+            c = corrcoef(H_test(:,f), Z_recon_test_tmp(:,f));
+            history_corr(i, f) = c(1,2);
+        end
+    end
+else
+    warning('No checkpoint files found in %s', ckpt_dir);
+    history_corr = [];
 end
 
-% Clean up checkpoints to free up hard drive space!
-rmdir(ckpt_dir, 's');
+if exist(ckpt_dir, 'dir')
+    rmdir(ckpt_dir, 's');
+end
+%% For VAE
+% ==========================================
+% SECTION 2: CHUNKING & TRAINING VAE_2
+% ==========================================
+% batch_size = 16; 
+% L = 500;        % 1-second chunks (fs = 500 Hz)
+% 
+% disp('Chunking Unfiltered Broadband EEG...');
+% 
+% % --- 2.1 Pad and Chunk Train Data ---
+% pad_len_train = ceil(size(X_train, 2) / L) * L - size(X_train, 2);
+% X_train_padded = [X_train, zeros(size(X_train, 1), pad_len_train)];
+% 
+% num_windows_train = size(X_train_padded, 2) / L;
+% X_train_chunked = reshape(X_train_padded, [size(X_train, 1), L, num_windows_train]);
+% 
+% X_train_1D = zeros(1, L, size(X_train, 1), num_windows_train);
+% X_train_1D(1, :, :, :) = permute(X_train_chunked, [2, 1, 3]);
+% 
+% % --- 2.2 Pad and Chunk Test Data ---
+% pad_len_test = ceil(size(X_test, 2) / L) * L - size(X_test, 2);
+% X_test_padded = [X_test, zeros(size(X_test, 1), pad_len_test)];
+% 
+% num_windows_test = size(X_test_padded, 2) / L;
+% X_test_chunked = reshape(X_test_padded, [size(X_test, 1), L, num_windows_test]);
+% 
+% X_test_1D = zeros(1, L, size(X_test, 1), num_windows_test);
+% X_test_1D(1, :, :, :) = permute(X_test_chunked, [2, 1, 3]);
+% 
+% % --- 2.3 Train the VAE_2 ---
+% ckpt_dir = tempname; 
+% mkdir(ckpt_dir); 
+% 
+% [net, info] = trainEEG_VAE_2(X_train_1D, X_test_1D,  ... 
+%     'bottleneckSize', bottleNeck, ...
+%     'epochs', 100, ... 
+%     'batchSize', batch_size, ...
+%     'learnRate', 1e-3, ...                           
+%     'checkpointPath', ckpt_dir, ...
+%     'beta', 0);
+% 
+% % --- 2.4 Prepare Padded Targets for Training Call Matching ---
+% pad_train = zeros(1, L, bottleNeck * 2, size(X_train_1D, 4));
+% pad_test  = zeros(1, L, bottleNeck * 2, size(X_test_1D, 4));
+% T_train_padded_target = cat(3, X_train_1D, pad_train);
+% T_test_padded_target  = cat(3, X_test_1D, pad_test);
+% 
+% % --- 2.6 Extract Latents (Deterministic Mean Inference) ---
+% Z_train_params = double(activations(net, X_train_1D, 'vae_parameters'));
+% Z_test_params  = double(activations(net, X_test_1D,  'vae_parameters'));
+% 
+% Z_train_raw = Z_train_params(:, :, 1:bottleNeck, :);
+% Z_test_raw  = Z_test_params(:, :, 1:bottleNeck, :);
+% 
+% Z_train_flat = reshape(permute(Z_train_raw, [2, 4, 3, 1]), [L * num_windows_train, bottleNeck]);
+% Z_test_flat  = reshape(permute(Z_test_raw, [2, 4, 3, 1]), [L * num_windows_test, bottleNeck]);
+% 
+% Z_train_c = Z_train_flat(1:size(X_train, 2), :);
+% Z_test_c  = Z_test_flat(1:size(X_test, 2), :);
+% 
+% H_train   = double(H_train);
+% H_test    = double(H_test);
+% 
+% minLen = min(size(Z_train_c,1), size(H_train,1));
+% Z_train_c = Z_train_c(1:minLen,:);
+% H_train   = H_train(1:minLen,:);
+% 
+% minLenTest = min(size(Z_test_c,1), size(H_test,1));
+% Z_test_c  = Z_test_c(1:minLenTest,:);
+% H_test    = H_test(1:minLenTest,:);
+% 
+% % ==========================================
+% % SECTION 3.5: EVALUATE CHECKPOINTS EVERY N EPOCHS
+% % ==========================================
+% disp('Evaluating Checkpoints for Z-Z_hat Correlation...');
+% ckpt_files = dir(fullfile(ckpt_dir, 'net_checkpoint__*.mat'));
+% 
+% if ~isempty(ckpt_files)
+%     iters = zeros(length(ckpt_files), 1);
+%     for i = 1:length(ckpt_files)
+%         parts = split(ckpt_files(i).name, '__');
+%         iters(i) = str2double(parts{2});
+%     end
+% 
+%     [sorted_iters, sort_idx] = sort(iters);
+%     ckpt_files = ckpt_files(sort_idx);
+% 
+%     iters_per_epoch = max(1, floor(size(X_train_1D, 4) / batch_size)); 
+%     eval_every_n_epochs = 2;
+%     max_epoch_reached = floor(max(sorted_iters) / iters_per_epoch);
+%     target_epochs = eval_every_n_epochs : eval_every_n_epochs : max_epoch_reached;
+%     target_iters = target_epochs * iters_per_epoch;
+% 
+%     history_corr = nan(length(target_epochs), param.N_F);
+% 
+%     for i = 1:length(target_epochs)
+%         [~, closest_idx] = min(abs(sorted_iters - target_iters(i)));
+%         ckpt_data = load(fullfile(ckpt_dir, ckpt_files(closest_idx).name));
+%         temp_net = ckpt_data.net; 
+% 
+%         Z_train_params_tmp = double(activations(temp_net, X_train_1D, 'vae_parameters'));
+%         Z_test_params_tmp  = double(activations(temp_net, X_test_1D,  'vae_parameters'));
+% 
+%         Z_train_raw_tmp = Z_train_params_tmp(:, :, 1:bottleNeck, :);
+%         Z_test_raw_tmp  = Z_test_params_tmp(:, :, 1:bottleNeck, :);
+% 
+%         Z_train_flat_tmp = reshape(permute(Z_train_raw_tmp, [2, 4, 3, 1]), [L * num_windows_train, bottleNeck]);
+%         Z_test_flat_tmp  = reshape(permute(Z_test_raw_tmp, [2, 4, 3, 1]), [L * num_windows_test, bottleNeck]);
+% 
+%         Z_train_tmp = Z_train_flat_tmp(1:size(X_train, 2), :);
+%         Z_test_tmp  = Z_test_flat_tmp(1:size(X_test, 2), :);
+% 
+%         Z_train_tmp = Z_train_tmp(1:minLen,:);
+%         Z_test_tmp  = Z_test_tmp(1:minLenTest,:);
+% 
+%         W_multi = pinv(Z_train_tmp) * H_train;
+%         Z_recon_test_tmp = Z_test_tmp * W_multi;
+% 
+%         for f = 1:param.N_F
+%             c = corrcoef(H_test(:,f), Z_recon_test_tmp(:,f));
+%             history_corr(i, f) = c(1,2);
+%         end
+%     end
+% else
+%     warning('No checkpoint files found in %s', ckpt_dir);
+%     history_corr = [];
+% end
+% 
+% if exist(ckpt_dir, 'dir')
+%     rmdir(ckpt_dir, 's');
+% end
 %% 4. Compute Performance Metrics
 [H_recon_train, H_recon_test, Comp_latent_matching_corr, R_AE, direct_Component_Corr_ae, AE_R2_scores, freq_data] = ...
     computePerformanceMetrics(Z_train_c, Z_test_c, H_train, H_test, 'AE', bottleNeck, param);
@@ -126,13 +302,14 @@ end
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
 if (isempty(getCurrentTask()) & bottleNeck==10)
-    %% Plot 0: Training and Validation Loss Curve
+  %% Plot 0: Training and Validation Loss Curve
     fig_loss = figure('Name', 'Autoencoder Loss Curve', 'Position', [100, 100, 800, 500], 'Visible', 'off');
     hold on;
     
-    % --- NEW: Calculate Iterations per Epoch ---
-    % Assuming X_train is [Channels x Time]. If it's [Time x Channels], change to size(X_train, 1)
-    iters_per_epoch = floor(size(X_train, 2) / batch_size); 
+    % --- FIXED: Now uses the 1D Temporal dimensions safely ---
+    % --- FIXED: Now uses the 2D Spectral dimensions safely ---
+    % iters_per_epoch = max(1, floor(size(X_train_spec, 4) / batch_size));
+    iters_per_epoch = max(1, floor(size(X_train_1D, 4) / batch_size));
     
     % Convert iteration indices to epoch units
     train_epochs = (1:length(info.TrainingLoss)) / iters_per_epoch;
@@ -140,19 +317,19 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
     % info.TrainingLoss is recorded every iteration
     plot(train_epochs, info.TrainingLoss, 'LineWidth', 1.5, 'Color', [0 0.4470 0.7410], 'DisplayName', 'Training Loss');
     
-    % info.ValidationLoss is recorded at validation frequencies (contains NaNs in between)
+    % info.ValidationLoss is recorded at validation frequencies
     val_idx = find(~isnan(info.ValidationLoss));
     if ~isempty(val_idx)
         val_epochs = val_idx / iters_per_epoch; % Convert validation iterations to epochs
         plot(val_epochs, info.ValidationLoss(val_idx), '-o', 'LineWidth', 2, 'Color', [0.8500 0.3250 0.0980], 'DisplayName', 'Validation Loss');
     end
     
-    % --- NEW: Set Y-Axis to Logarithmic Scale ---
-    set(gca,'XScale', 'log','YScale', 'log');
+    % --- Set Y-Axis to Logarithmic Scale ---
+    set(gca,'XScale', 'log', 'YScale', 'log'); 
     
-    xlabel('Epochs (Log Scale)', 'FontSize', 14);
+    xlabel('Epochs', 'FontSize', 14);
     ylabel('MSE Loss (Log Scale)', 'FontSize', 14);
-    title(sprintf('AE Training Curve (k=%d)', bottleNeck), 'FontSize', 16);
+    title(sprintf('CAE Training Curve (k=%d)', bottleNeck), 'FontSize', 16);
     legend('Location', 'northeast', 'FontSize', 12);
     grid on;
     
@@ -186,7 +363,7 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
         close(fig_corr_evol);
     end
     %% Plot 1 & 2: Component Traces
-    plotCTraces(bottleNeck, param, H_recon_test, method_dir, file_suffix);
+    plotCTraces(param.N_F, param, Z_train_c, H_train, Comp_latent_matching_corr, method_dir, file_suffix);
     
     %% Plot 3: Detailed Reconstruction (Train & Test Split)
     fig3 = figure('Name','True vs. AE Latents', 'Position', [50, 100, 1500, 150*param.N_F], 'Visible', 'off');
@@ -322,6 +499,8 @@ end
 outAE = struct();
 outAE.net = net;
 outAE.info = info;
+outAE.history_corr     = history_corr;  % <-- ALWAYS SAVES CORR DATA
+outAE.target_epochs    = target_epochs;
 outAE.h_recon_train    = H_recon_train;
 outAE.h_recon_test     = H_recon_test;
 outAE.matched_R2       = freq_data.matched_R2;

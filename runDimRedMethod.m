@@ -57,7 +57,7 @@ switch method
         if isfield(outUMAP, 'direct_Component_Corr'), direct_Component_Corr = outUMAP.direct_Component_Corr; end
         
     case 'AE'
-        [outAE] = runAutoencoderAnalysis(data.eeg_train, data.eeg_test,...
+        [outAE] = runAutoencoderAnalysis_2(data.eeg_train, data.eeg_test,...
             data.H_train, data.H_test, k, local_param, local_results_dir);
         out = outAE;
         if isfield(outAE, 'Comp_latent_matching_corr'), corr_table = outAE.Comp_latent_matching_corr; end

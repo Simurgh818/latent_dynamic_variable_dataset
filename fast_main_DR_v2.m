@@ -80,7 +80,7 @@ for c = 1:numel(conditions)
     % Preallocate temporary storage for parallel workers
     dataset_results = cell(1, nDatasets);
     
-    % ---------------------------------------------------------------------
+   % ---------------------------------------------------------------------
     % PARALLEL LOOP
     % ---------------------------------------------------------------------
     for d = 1:nDatasets %parfor
@@ -95,25 +95,26 @@ for c = 1:numel(conditions)
         end
         dataset_name = eegFilename;
         
-        % --- 2. Load Single Dataset ---
+        % --- 2. Load Single Continuous Dataset ---
         loader = load(fullfile(input_dir, [eegFilename '.mat']));
         s_eeg_all   = double(loader.sim_eeg_vals);
         h_f_all     = double(loader.all_h_F');
-        f_peak      = loader.param.f_peak;
         
         % Recalculate parameters locally
         local_param = loader.param; 
-        fs         = 1 / loader.dt;
+        fs          = 1 / loader.dt;
         local_param.fs = fs;
         
-        % Determine results directory for this dataset
+        % Determine local results directory
         subfolderName = ['results_' eegFilename];
         local_results_dir = fullfile(baseFolder, subfolderName);
         if ~exist(local_results_dir, 'dir')
             mkdir(local_results_dir);
         end
         
-        % --- 3. Split 80:20 (Train/Test) ---
+        % --- 3. Strict 80:20 Contiguous Temporal Split ---
+        % Sequential partitioning ensures spatial geometry remains constant 
+        % while evaluating out-of-sample generalizability forward in time.
         idx_split = floor(0.8 * size(s_eeg_all, 2));
         
         eeg_train = s_eeg_all(:, 1:idx_split);
@@ -122,18 +123,17 @@ for c = 1:numel(conditions)
         h_f_train = h_f_all(1:idx_split, :);
         h_f_test  = h_f_all(idx_split+1:end, :);
         
-        % --- 4. Strict Z-Score Normalization ---
-        % zscore automatically subtracts the mean AND divides by std
-        H_train = zscore(h_f_train, 0, 1);
-        H_test  = zscore(h_f_test, 0, 1);
-        
+        % --- 4. Independent Partition Normalization ---
+        % Normalize latents to zero-mean, unit-variance computed strictly within 
+        % respective partitions to prevent statistical scaling leakage.
+        H_train = h_f_train ./ std(h_f_train, 0, 1);
+        H_test  = h_f_test ./ std(h_f_test, 0, 1);   
+       
         data.eeg_train = eeg_train;
         data.eeg_test  = eeg_test;
         data.H_train   = H_train;
         data.H_test    = H_test;
-        data.eeg       = s_eeg_all; % For backward compatibility in runDimRedMethod
-        data.H_ds      = zscore(h_f_all, 0, 1); % For backward compatibility
-        data.f_peak    = f_peak;
+        data.f_peak    = local_param.f_peak;
         
         % --- Method Loop ---
         dataset_res = struct();
@@ -177,6 +177,7 @@ for c = 1:numel(conditions)
                 if ~isempty(current_corr_table)
                     nRows = height(current_corr_table);
                     current_vars = current_corr_table.Properties.VariableNames;
+                    
                     % Only add columns if they DON'T exist yet
                     if ~ismember('method', current_vars)
                         current_corr_table.method = repmat(categorical(cellstr(method)), nRows, 1);
@@ -206,13 +207,12 @@ for c = 1:numel(conditions)
         snippets.time_vector = (time_idx - 1) / local_param.fs;
         snippets.H_test = data.H_test(time_idx, :); % Ground truth
         
-        snippets.eeg_train = data.eeg_train; % Can be large, consider snipping if memory is tight
+        snippets.eeg_train = data.eeg_train; 
         snippets.param = local_param;
         
         % Collect the reconstruction from each method at the max k
         for m = 1:numel(methods)
             method = methods{m};
-            % h_recon_test is already in dataset_res from the runMethod function
             % Ensure we only take the snippet window
             snippets.(method).h_recon_test = dataset_res.(method).h_recon_test(time_idx, :);
         end     

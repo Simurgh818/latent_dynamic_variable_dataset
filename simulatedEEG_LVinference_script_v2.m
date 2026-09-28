@@ -117,7 +117,7 @@ n_overlap_rEEG = win_len_rEEG/2;
 [pxx_rEEG, f_psd_rEEG] = pwelch(eeg_vals_real', win_len_rEEG, n_overlap_rEEG, [], fs_real);
 
 %% 6. Generate Full Component Images, Synthetic EEG, & Combined Plots
-num_spatial_realizations = 2; % # of datasets 
+num_spatial_realizations = 1; % # of datasets 
 for i_spat = 1:num_spatial_realizations
     
     % =====================================================================

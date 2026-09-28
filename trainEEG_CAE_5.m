@@ -5,8 +5,7 @@ function [net, info] = trainEEG_CAE_5(X_train_1D, X_test_1D, cfg)
         cfg.bottleneckSize (1,1) double
         
         % --- HYPERPARAMETERS FOR CUSTOM LOSS ---
-        cfg.numBands double = 5
-        cfg.bandWeights double = [1 1 1 2 3]       
+        % (Removed numBands and bandWeights)
         cfg.lambdaICA double = 0.1    % Penalty weight for ICA cross-covariance        
         
         % --- TRAINING HYPERPARAMETERS ---
@@ -18,9 +17,9 @@ function [net, info] = trainEEG_CAE_5(X_train_1D, X_test_1D, cfg)
     
     WindowLength = size(X_train_1D, 2);
     TotalChannels = size(X_train_1D, 3);
-    NumChannelsPerBand = TotalChannels / cfg.numBands; 
     
     lgraph = layerGraph();
+    
     
     % ==========================================
     % 1. UNIFIED BROADBAND INPUT
