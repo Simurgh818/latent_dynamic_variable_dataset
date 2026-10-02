@@ -25,7 +25,7 @@ fs_new = param.fs;
 % ==========================================
 % SECTION 2: CHUNKING & TRAINING CAE_5
 % ==========================================
-batch_size = 64; % Increased to 32 to match the optimal CAE settings
+batch_size = 16; % Increased to 32 to match the optimal CAE settings
 L = 500; % 1-second chunks (fs=500)
 
 disp('Chunking Unfiltered Broadband EEG...');
