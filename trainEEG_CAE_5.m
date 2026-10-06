@@ -30,7 +30,7 @@ function [net, info] = trainEEG_CAE_5(X_train_1D, X_test_1D, cfg)
     % 2. 1D TEMPORAL ENCODER (Single Branch, Matched to CAE)
     % ==========================================
     lgraph = addLayers(lgraph, [
-        convolution2dLayer([1 15], 256, "Padding", "same", "Name", "enc_conv1")
+        convolution2dLayer([1 5], 512, "Padding", "same", "Name", "enc_conv1")
         leakyReluLayer(0.01, "Name", "enc_leakyrelu1")
         
         % BOTTLENECK: 1x1 kernel mapping 256 feature maps into k latents
@@ -41,7 +41,7 @@ function [net, info] = trainEEG_CAE_5(X_train_1D, X_test_1D, cfg)
     % 3. 1D TEMPORAL DECODER (Single Branch, Matched to CAE)
     % ==========================================
     lgraph = addLayers(lgraph, [
-        convolution2dLayer([1 15], 256, "Padding", "same", "Name", "dec_conv1")
+        convolution2dLayer([1 5], 512, "Padding", "same", "Name", "dec_conv1")
         leakyReluLayer(0.01, "Name", "dec_leakyrelu1")
         
         % Final reconstruction back to raw stacked EEG channels (155 channels)

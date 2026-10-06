@@ -19,7 +19,7 @@ function plotBandScatterPerTrial(true_vals, recon_vals, spectral_R2_values, band
         end
     end
 
-    fig = figure('Position',[50 50 1600 400], 'Visible', 'off'); 
+    fig = figure('Position',[50 50 2100 500], 'Visible', 'off'); 
     t = tiledlayout(1,nBands,'TileSpacing','compact','Padding','compact');
     sgtitle(sprintf('True vs %s Reconstructed FFT Band Amplitudes (k=%d)', methodName, k),'FontSize',32);
     

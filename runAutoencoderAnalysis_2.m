@@ -363,7 +363,7 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
         close(fig_corr_evol);
     end
     %% Plot 1 & 2: Component Traces
-    plotCTraces(param.N_F, param, Z_train_c, H_train, Comp_latent_matching_corr, method_dir, file_suffix);
+    plotCTraces(bottleNeck, param, Z_train_c, H_train, Comp_latent_matching_corr, method_dir, file_suffix);
     
     %% Plot 3: Detailed Reconstruction (Train & Test Split)
     fig3 = figure('Name','True vs. AE Latents', 'Position', [50, 100, 1500, 150*param.N_F], 'Visible', 'off');
