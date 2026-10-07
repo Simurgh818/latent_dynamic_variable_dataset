@@ -363,7 +363,7 @@ method_markers = {'o', 's', '^', 'd', 'v', 'p'}; % Circle, Square, Triangle, Dia
 method_lines   = {'-', '--', '-.', ':', '-', '--'}; % Solid, Dashed, Dash-Dot, Dotted, etc.
 
 % === FIGURE 1: Global Performance vs. Data Length ===
-fig1 = figure('Position', [100, 100, 1800, 600]);
+fig1 = figure('Position', [100, 100, 1700, 600]);
 tiledlayout(1, 2, 'Padding', 'compact');
 sgtitle(sprintf('Performance vs. Data Length (k=%d)', k_range(1)), 'FontSize', 24, 'FontWeight', 'bold');
 
