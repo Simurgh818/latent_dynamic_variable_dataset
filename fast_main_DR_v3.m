@@ -363,7 +363,7 @@ method_markers = {'o', 's', '^', 'd', 'v', 'p'}; % Circle, Square, Triangle, Dia
 method_lines   = {'-', '--', '-.', ':', '-', '--'}; % Solid, Dashed, Dash-Dot, Dotted, etc.
 
 % === FIGURE 1: Global Performance vs. Data Length ===
-fig1 = figure('Position', [100, 100, 1400, 600]);
+fig1 = figure('Position', [100, 100, 1800, 600]);
 tiledlayout(1, 2, 'Padding', 'compact');
 sgtitle(sprintf('Performance vs. Data Length (k=%d)', k_range(1)), 'FontSize', 24, 'FontWeight', 'bold');
 
@@ -375,8 +375,12 @@ for m = 1:numel(methods)
         'LineStyle', method_lines{m}, 'Marker', method_markers{m}, 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors(m,:), 'DisplayName', method);
 end
 set(gca, 'XScale', 'log'); 
-xticks(durations); xticklabels(string(durations));
-xlabel('Data Length (seconds)'); ylabel('Mean Max Correlation (\rho)');
+% Display as natural units (update xlabel to 'Data Length')
+lbls = {'1s', '5s', '10s', '1m', '1h', '3h'};
+xticks(durations); 
+xticklabels(lbls);
+xlabel('Data Length');
+ylabel('Mean Max Correlation (\rho)');
 ylim([0 1]); title('Global Latent Matching Correlation');
 grid on; legend('Location', 'best'); set(gca, 'FontSize', 18);
 
@@ -388,8 +392,12 @@ for m = 1:numel(methods)
         'LineStyle', method_lines{m}, 'Marker', method_markers{m}, 'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors(m,:), 'DisplayName', method);
 end
 set(gca, 'XScale', 'log');
-xticks(durations); xticklabels(string(durations));
-xlabel('Data Length (seconds)'); ylabel('Mean Spectral R^2');
+% Display as natural units (update xlabel to 'Data Length')
+lbls = {'1s', '5s', '10s', '1m', '1h', '3h'};
+xticks(durations); 
+xticklabels(lbls);
+xlabel('Data Length');
+ylabel('Mean Spectral R^2');
 ylim([0 1]); title('Spectral R^2');
 grid on; legend('Location', 'best'); set(gca, 'FontSize', 18);
 saveas(fig1, fullfile(baseFolder, sprintf('DataLength_vs_Performance_k%d.png', k_range(1))));
