@@ -36,17 +36,14 @@ function plotBandScatterPerTrial(true_vals, recon_vals, spectral_R2_values, band
         end
     end
 
-    % --- 3. Figure Setup ---
-    fig = figure('Position', [50, 50, 2100, 520], 'Visible', 'off'); 
-    t = tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'compact');
-    
-    sgtitle(sprintf('True vs %s Reconstructed FFT Band Amplitudes (k=%d)', methodName, k), ...
-        'FontSize', 34, 'FontWeight', 'bold');
+    % --- 3. Figure Setup (Added vertical headroom for title) ---
+    fig = figure('Position', [50, 50, 2150, 580], 'Visible', 'off'); 
+    t = tiledlayout(1, nBands, 'TileSpacing', 'compact', 'Padding', 'normal');
 
     % --- 4. Subplot Loops per Canonical Band ---
     for b = 1:nBands
         nexttile; hold on;
-        set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 26, 'FontWeight', 'bold');
+        set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 24, 'FontWeight', 'bold');
         
         X_mat = true_vals{b}; 
         Y_mat = recon_vals{b};
@@ -70,20 +67,27 @@ function plotBandScatterPerTrial(true_vals, recon_vals, spectral_R2_values, band
         % Identity reference line (y = x)
         plot([0, ax_max], [0, ax_max], 'k--', 'LineWidth', 1.8, 'HandleVisibility', 'off'); 
         
-        title(band_names{b}, 'FontSize', 30, 'FontWeight', 'bold');
-        xlim([0, ax_max]); ylim([0, ax_max]);
+        % Enforce square box BEFORE locking limits so all 5 tiles stay identical in size
+        axis square;
+        xlim([0, ax_max]); 
+        ylim([0, ax_max]);
         
         tick_vals = 0:0.05:ax_max;
-        xticks(tick_vals); yticks(tick_vals);
+        xticks(tick_vals); 
+        yticks(tick_vals);
         xtickangle(45); 
-        grid on; axis equal;
+        grid on;
+        
+        title(band_names{b}, 'FontSize', 28, 'FontWeight', 'bold');
     end
 
-    % Unified Tiled Axis Labels
-    xlabel(t, 'True Band Amp.', 'FontSize', 32, 'FontWeight', 'bold');
-    ylabel(t, 'Recon. Band Amp.', 'FontSize', 32, 'FontWeight', 'bold');
+    % --- 5. Unified Tiled Title & Axis Labels (Placed AFTER loop to prevent clipping) ---
+    title(t, sprintf('True vs %s Reconstructed FFT Band Amplitudes (k=%d)', methodName, k), ...
+        'FontSize', 32, 'FontWeight', 'bold');
+    xlabel(t, 'True Band Amp.', 'FontSize', 30, 'FontWeight', 'bold');
+    ylabel(t, 'Recon. Band Amp.', 'FontSize', 30, 'FontWeight', 'bold');
 
-    % --- 5. Clean, High-Contrast Legend Dummies ---
+    % --- 6. Clean, High-Contrast Legend Attached to TiledLayout ---
     h_dummies = gobjects(nLatents, 1);
     for z = 1:nLatents
         h_dummies(z) = scatter(NaN, NaN, 75, ...
@@ -95,12 +99,13 @@ function plotBandScatterPerTrial(true_vals, recon_vals, spectral_R2_values, band
             'DisplayName', legend_labels{z}); 
     end
     
-    lgd = legend(h_dummies, 'Location', 'eastoutside', 'Orientation', 'vertical', ...
-        'NumColumns', 1, 'TextColor', 'k', 'FontSize', 26);
+    lgd = legend(h_dummies, 'Orientation', 'vertical', ...
+        'NumColumns', 1, 'TextColor', 'k', 'FontSize', 24);
+    lgd.Layout.Tile = 'east';
     lgd.Box = 'on';
     lgd.LineWidth = 1.0;
 
-    % --- 6. Save at 600 DPI (Lossless Print Ready) ---
+    % --- 7. Save at 600 DPI (Lossless Print Ready) ---
     if ~isempty(save_dir)
         out_name = sprintf('%s_Scatter_BandAmp_Trials_k%d.png', methodName, k);
         exportgraphics(fig, fullfile(save_dir, out_name), 'Resolution', 600);

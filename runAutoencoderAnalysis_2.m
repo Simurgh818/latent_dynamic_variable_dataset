@@ -366,10 +366,8 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
     plotCTraces(bottleNeck, param, Z_train_c, H_train, Comp_latent_matching_corr, method_dir, file_suffix);
     
     %% Plot 3: Detailed Reconstruction (Train & Test Split) - Stacked Layout (Okabe-Ito + 600 DPI)
-    fig3 = figure('Name', 'True vs. AE Latents', 'Position', [50, 100, 1500, 750], 'Visible', 'off');
-    tiledlayout(1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-    sgtitle(sprintf('AE (k=%d) True Latents (solid) vs. Reconstructed (dashed)', bottleNeck), ...
-        'FontSize', 26, 'FontWeight', 'bold');
+    fig3 = figure('Name', 'True vs. AE Latents', 'Position', [50, 100, 1500, 780], 'Visible', 'off');
+    t3 = tiledlayout(1, 2, 'TileSpacing', 'compact', 'Padding', 'normal');
     
     % --- Okabe-Ito Colorblind-Safe Palette (Matches Panels A & C) ---
     cb_palette = [
@@ -394,7 +392,6 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
     % --- SPACING AND SCALING (PREVENTS OVERLAP) ---
     offset    = 4.0;   % Vertical baseline spacing between latents
     amp_scale = 0.55;  % Scale factor to eliminate overlap between adjacent rows
-
     tick_positions = (0 : param.N_F - 1) * offset;
     y_labels = arrayfun(@(i) sprintf('Z_{%d}', i), param.N_F:-1:1, 'UniformOutput', false);
 
@@ -407,7 +404,6 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
 
     for f = 1:param.N_F
         y_shift = (param.N_F - f) * offset;
-
         % 1. True Latent (Solid Okabe-Ito Colored, LineWidth 2.5)
         plot(t_ms_train, (H_train(1:max_samples_train, f) * amp_scale) + y_shift, ...
             'LineStyle', '-', 'Color', h_f_colors(f,:), 'LineWidth', 2.5); 
@@ -415,7 +411,7 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
         % 2. Reconstructed Latent (Dashed Black, LineWidth 2.0)
         plot(t_ms_train, (H_recon_train(1:max_samples_train, f) * amp_scale) + y_shift, ...
             'LineStyle', '--', 'Color', [0.15 0.15 0.15], 'LineWidth', 2.0);
-
+            
         % 3. Training Correlation Value
         rho_train = direct_Component_Corr_train_ae(f);
         text(25, y_shift + 1.35, sprintf('\\rho=%.2f', rho_train), ...
@@ -426,7 +422,7 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
 
     xlim([0, 1000]);
     xticks(0:200:1000);
-    xlabel('Time (msec)', 'FontSize', 22, 'FontWeight', 'bold');
+    xlabel('Time (ms)', 'FontSize', 22, 'FontWeight', 'bold');
     
     yticks(tick_positions);
     yticklabels(y_labels);
@@ -442,7 +438,6 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
 
     for f = 1:param.N_F
         y_shift = (param.N_F - f) * offset;
-
         % 1. True Latent (Solid Okabe-Ito Colored, LineWidth 2.5)
         plot(t_ms_test, (H_test(1:max_samples_test, f) * amp_scale) + y_shift, ...
             'LineStyle', '-', 'Color', h_f_colors(f,:), 'LineWidth', 2.5);  
@@ -450,7 +445,7 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
         % 2. Reconstructed Latent (Dashed Black, LineWidth 2.0)
         plot(t_ms_test, (H_recon_test(1:max_samples_test, f) * amp_scale) + y_shift, ...
             'LineStyle', '--', 'Color', [0.15 0.15 0.15], 'LineWidth', 2.0);
-
+            
         % 3. Test Correlation Value
         rho_test = direct_Component_Corr_ae(f);
         text(25, y_shift + 1.35, sprintf('\\rho=%.2f', rho_test), ...
@@ -461,17 +456,21 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
 
     xlim([0, 1000]);
     xticks(0:200:1000);
-    xlabel('Time (msec)', 'FontSize', 22, 'FontWeight', 'bold');
+    xlabel('Time (ms)', 'FontSize', 22, 'FontWeight', 'bold');
     
     yticks(tick_positions);
     yticklabels(y_labels);
     ylim([-offset * 0.7, (param.N_F - 0.05) * offset]);
 
-    % Clean 2-element Legend on the Test Tile
-    h_leg_true  = plot(nan, nan, '-',  'Color', cb_palette(1, :), 'LineWidth', 2.5);
+    % Clean 2-entry legend using Okabe-Ito Blue for Z(t) True
+    h_leg_true  = plot(nan, nan, '-', 'Color', cb_palette(1, :), 'LineWidth', 2.5);
     h_leg_recon = plot(nan, nan, '--', 'Color', [0.15 0.15 0.15], 'LineWidth', 2.0);
     legend([h_leg_true, h_leg_recon], {'\textbf{Z(t) True}', '$\mathbf{\hat{z}(t)}$ \textbf{Recon}'}, ...
         'Interpreter', 'latex', 'Location', 'northeast', 'FontSize', 17);
+
+    % --- Unified TiledLayout Title (Placed AFTER tiles so it is never clipped) ---
+    title(t3, sprintf('AE (k=%d) True Latents (solid) vs. Reconstructed (dashed)', bottleNeck), ...
+        'FontSize', 26, 'FontWeight', 'bold');
 
     % Save at 600 DPI
     exportgraphics(fig3, fullfile(method_dir, ['AE_Split_Reconstruction' file_suffix '.png']), 'Resolution', 600);  

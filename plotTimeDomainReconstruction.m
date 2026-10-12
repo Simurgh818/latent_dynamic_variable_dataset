@@ -76,16 +76,16 @@ function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, Cor
     % --- 5. X-Axis Formatting ---
     xlim([0, 1000]);
     xticks(0:200:1000);
-    xlabel('Time (msec)', 'FontSize', 22, 'FontWeight', 'bold');
+    xlabel('Time (ms)', 'FontSize', 22, 'FontWeight', 'bold');
 
-    % --- 6. Title and Legend (Valid LaTeX math-mode spacing) ---
-    title(sprintf('\\textsf{\\textbf{%s (k=%d) Latent variables}} $\\;\\mathbf{\\mathsf{Z(t)}}\\;$ \\textsf{\\textbf{and}} $\\;\\mathbf{\\mathsf{\\hat{z}(t)}}$', methodName, k), ...
+    % --- 6. Title and Legend (Uses supported cmbx10 font - No SceneNode warnings) ---
+    title(sprintf('\\textbf{%s (k=%d) Latent variables} $\\;\\mathbf{Z(t)}\\;$ \\textbf{and} $\\;\\mathbf{\\hat{z}(t)}$', methodName, k), ...
         'Interpreter', 'latex', 'FontSize', 26);
 
     % Clean 2-entry legend using Okabe-Ito Blue for Z(t) True
     h_leg_true  = plot(nan, nan, '-', 'Color', cb_palette(1, :), 'LineWidth', 2.5);
     h_leg_recon = plot(nan, nan, '--', 'Color', [0.15 0.15 0.15], 'LineWidth', 2.0);
-    legend([h_leg_true, h_leg_recon], {'Z(t) True', '$\hat{z}(t)$ Recon'}, ...
+    legend([h_leg_true, h_leg_recon], {'\textbf{Z(t) True}', '$\mathbf{\hat{z}(t)}$ \textbf{Recon}'}, ...
         'Interpreter', 'latex', 'Location', 'northeast', 'FontSize', 17);
 
     hold off;

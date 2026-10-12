@@ -89,7 +89,7 @@ function plotCTraces(num_sig_components, param, components_test, h_true, corr_ta
     yticklabels(arrayfun(@(idx) sprintf('Z_{%d}', corr_table.h_f(num_comps_plot - idx + 1)), ...
         1:num_comps_plot, 'UniformOutput', false));
     
-    xlabel('Time (msec)', 'FontSize', 22, 'FontWeight', 'bold');
+    xlabel('Time (ms)', 'FontSize', 22, 'FontWeight', 'bold');
     ylabel('Z-Scored Amplitude (stacked)', 'FontSize', 22, 'FontWeight', 'bold');
     title(sprintf('Matched Latents vs Raw Components (k=%d)', num_sig_components), ...
           'FontSize', 26, 'FontWeight', 'bold');
