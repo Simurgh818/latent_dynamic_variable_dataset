@@ -1,103 +1,97 @@
 function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, Corr, save_dir)
-% plotTimeDomainReconstruction Generates time-series comparison plots
-%
-% Inputs:
-%   h_true      : True latent variables (Time x N_F)
-%   h_recon     : Reconstructed latent variables (Time x N_F)
-%   param       : Struct with .N_F, .f_peak, .fs
-%   methodName  : String (e.g., 'ICA', 'PCA')
-%   k           : Number of components used (integer)
-%   Corr : Vector of correlation values (1 x N_F)
-%   save_dir    : Directory to save the PNG
+% plotTimeDomainReconstruction Generates stacked time-series comparison plots
+% with Okabe-Ito colorblind-safe colors, scaled amplitudes, +4pt fonts, and 600 DPI export.
 
     % --- 1. Parallel Safety Check ---
-    % If running in a parfor worker, do nothing and return immediately.
     if ~isempty(getCurrentTask())
         return;
     end
 
-    % --- 2. Setup ---
+    % --- 2. Setup & Okabe-Ito Palette (Matches Panel C) ---
     num_vars = size(h_true, 2);
-    h_f_colors = lines(num_vars);
+    cb_palette = [
+        0.00, 0.45, 0.70;  % Blue           (Z_1 / 2 Hz)
+        0.90, 0.60, 0.00;  % Orange         (Z_2 / 6 Hz)
+        0.00, 0.60, 0.50;  % Bluish Green   (Z_3 / 10 Hz)
+        0.80, 0.40, 0.00;  % Vermillion     (Z_4 / 18 Hz)
+        0.35, 0.70, 0.90;  % Sky Blue       (Z_5 / 24 Hz)
+        0.80, 0.60, 0.70;  % Reddish Purple (Z_6 / 50 Hz)
+        0.95, 0.90, 0.25;  % Yellow (Fallback)
+        0.20, 0.20, 0.20   % Dark Gray (Fallback)
+    ];
+    h_f_colors = cb_palette(1:num_vars, :);
     file_suffix = sprintf('_k%d', k);
     
-    % Ensure f_peak is long enough to avoid crashes
-    labels = param.f_peak;
-    if length(labels) < num_vars
-        % Pad with NaNs or placeholders if data has more vars than labels
-        labels = [labels, nan(1, num_vars - length(labels))];
-    end
+    % Crop to 1 second (1000 ms)
+    max_samples = min(size(h_true, 1), round(param.fs));
+    t_ms = (0:max_samples-1) / param.fs * 1000;
 
-    % --- 3. Create Figure ---
-    % Invisible figure is faster and doesn't steal focus
-    fig = figure('Position',[50 50 1200 150*num_vars+100], 'Visible', 'off');
-    tiledlayout(num_vars, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-       
-    % --- 4. Plot Loop ---
+    % --- SPACING AND SCALING (PREVENTS OVERLAP) ---
+    offset    = 4.0;   % Vertical spacing between latent baselines
+    amp_scale = 0.55;  % Scale factor to keep peaks within each latent's lane
+
+    % --- 3. Create Figure on a Single Axis ---
+    fig = figure('Position', [50, 50, 1000, 750], 'Visible', 'off');
+    hold on;
+    box on;
+
+    % Set base axis properties FIRST so they don't override title/label sizes
+    set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 20);
+    grid on;
+
+    % Plot from top (Z_1) to bottom (Z_num_vars)
     for f = 1:num_vars
-        nexttile;
-        hold on;
-        set(gca, 'XColor', 'none', 'YColor', 'none'); 
-        box on;
-        
-        % Safe Label Generation
-        if isnan(labels(f))
-            lbl_true  = sprintf('$Z_{%d}$ (t)', f);
-            lbl_recon = sprintf('$\\hat{Z}_{%d}$ (t)', f);
-        else
-            lbl_true  = ['$Z_{' num2str(labels(f)) '}$ (t) '];
-            lbl_recon = ['$\hat{Z}_{' num2str(labels(f)) '}$ (t) '];
-        end
+        y_shift = (num_vars - f) * offset;
 
-        % Plot True
-        plot(h_true(:, f), 'LineStyle', '-', 'Color', h_f_colors(f, :), ...
-            'LineWidth',1.5,'DisplayName', lbl_true);
+        % 1. True Latent (Solid Okabe-Ito colored line, LineWidth 2.5)
+        plot(t_ms, (h_true(1:max_samples, f) * amp_scale) + y_shift, ...
+            'LineStyle', '-', 'Color', h_f_colors(f, :), ...
+            'LineWidth', 2.5);
             
-        % Plot Recon
-        plot(h_recon(:, f), 'LineStyle', '--', 'Color', 'k', ...
-            'LineWidth',1.5,'DisplayName', lbl_recon);
+        % 2. Reconstructed Latent (Dashed dark line, LineWidth 2.0)
+        plot(t_ms, (h_recon(1:max_samples, f) * amp_scale) + y_shift, ...
+            'LineStyle', '--', 'Color', [0.15 0.15 0.15], ...
+            'LineWidth', 2.0);
         
-        ylabel('Amp');
-        % Limit to 2 seconds or full length, whichever is shorter
-        max_time = min(size(h_true,1), param.fs);
-        xlim([0 max_time]); 
-        
-        legend('Show', 'Interpreter', 'latex', 'Location', 'eastoutside');
-        
-        % Add Correlation Text
+        % 3. Correlation Box
         if f <= length(Corr)
             rho = Corr(f);
-            % Position text relative to the max amplitude of the current trace
-            y_pos = 0.5 * max(abs(h_true(:, f)));
-            text(0.02 * param.fs, y_pos, ...
-                sprintf('\\rho=%.2f', rho), ...
-                'FontSize', 12, 'FontWeight', 'bold', ...
+            text(25, y_shift + 1.35, sprintf('\\rho=%.2f', rho), ...
+                'FontSize', 17, 'FontWeight', 'bold', ...
                 'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
-                'Margin', 3, 'EdgeColor', 'k');
+                'Margin', 3, 'EdgeColor', [0.2 0.2 0.2], 'LineWidth', 1.2);
         end
-        hold off;
     end
+
+    % --- 4. Y-Axis Formatting ---
+    tick_positions = (0 : num_vars - 1) * offset;
+    yticks(tick_positions);
     
-    % --- 5. Scale Bars (On the last tile) ---
-    % Note: Assumes normalized data (std=1). If amplitude varies wildly, 
-    % fixed offsets (y0+2) might need adjustment.
-    x0 = 0; 
-    y0 = min(ylim) + 0.2;
+    y_labels = arrayfun(@(i) sprintf('Z_{%d}', i), num_vars:-1:1, 'UniformOutput', false);
+    yticklabels(y_labels);
     
-    % X-bar (1 sec)
-    line([x0 x0+param.fs/2], [y0 y0], 'Color', 'k', 'LineWidth', 2, 'HandleVisibility', 'off');
-    text(x0+param.fs/2, y0-0.1, '500 msec', 'VerticalAlignment', 'top');
-    
-    % Y-bar (2 units)
-    line([x0 x0], [y0 y0+2], 'Color', 'k', 'LineWidth', 2, 'HandleVisibility', 'off');
-    text(x0-5, y0+5, '2 a.u.', 'VerticalAlignment', 'bottom', ...
-        'HorizontalAlignment', 'right', 'Rotation', 90);
-    sgtitle([methodName ' (k=' num2str(k) ') Latent variables Z(t) and $\hat{z}(t)$'], ...
-        'Interpreter','latex','FontSize',30);
-    % --- 6. Save and Close ---
-    set(findall(fig, '-property', 'FontSize'), 'FontSize', 28);
-    
+    ylabel('Z-Scored Amplitude (stacked)', 'FontSize', 22, 'FontWeight', 'bold');
+    ylim([-offset * 0.7, (num_vars - 0.05) * offset]);
+
+    % --- 5. X-Axis Formatting ---
+    xlim([0, 1000]);
+    xticks(0:200:1000);
+    xlabel('Time (msec)', 'FontSize', 22, 'FontWeight', 'bold');
+
+    % --- 6. Title and Legend (Valid LaTeX math-mode spacing) ---
+    title(sprintf('\\textsf{\\textbf{%s (k=%d) Latent variables}} $\\;\\mathbf{\\mathsf{Z(t)}}\\;$ \\textsf{\\textbf{and}} $\\;\\mathbf{\\mathsf{\\hat{z}(t)}}$', methodName, k), ...
+        'Interpreter', 'latex', 'FontSize', 26);
+
+    % Clean 2-entry legend using Okabe-Ito Blue for Z(t) True
+    h_leg_true  = plot(nan, nan, '-', 'Color', cb_palette(1, :), 'LineWidth', 2.5);
+    h_leg_recon = plot(nan, nan, '--', 'Color', [0.15 0.15 0.15], 'LineWidth', 2.0);
+    legend([h_leg_true, h_leg_recon], {'Z(t) True', '$\hat{z}(t)$ Recon'}, ...
+        'Interpreter', 'latex', 'Location', 'northeast', 'FontSize', 17);
+
+    hold off;
+
+    % --- 7. Save at 600 DPI and Close ---
     filename = sprintf('%s_TimeDomain%s.png', methodName, file_suffix);
-    saveas(fig, fullfile(save_dir, filename));
+    exportgraphics(fig, fullfile(save_dir, filename), 'Resolution', 600);
     close(fig);
 end

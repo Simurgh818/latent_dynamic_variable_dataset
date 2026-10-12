@@ -1,29 +1,32 @@
 function plotCTraces(num_sig_components, param, components_test, h_true, corr_table, method_dir, file_suffix)
     % plotCTraces: Creates a stacked trace plot overlaying true latents with matched raw components
-    %
-    % Inputs:
-    %   num_sig_components : Total components in the run (k)
-    %   param              : Struct containing .fs and .N_F
-    %   components_test    : Raw extracted components (Time x k)
-    %   h_true             : True latent fields (Time x Latents)
-    %   corr_table         : Table matching components to latents
-    %   method_dir         : Output directory
-    %   file_suffix        : Suffix for filename
+    % using the Okabe-Ito colorblind-safe palette and 600 DPI export.
     
     % Determine how many latents to plot 
     num_comps_plot = min([param.N_F, size(h_true, 2), height(corr_table)]);
     
-    % Define time vector for the first 1 second
+    % Define time vector for the first 1 second (1000 ms)
     t_plot_sec = 1; 
     num_samples = min([size(components_test, 1), size(h_true, 1), round(t_plot_sec * param.fs)]);
     time_vec = (0:num_samples-1) / param.fs * 1000;
     
-    % Setup Figure
-    fig2 = figure('Position', [50 50 1200 900], 'Visible', 'off');
+    % --- 1. Setup Figure (1000 x 750) ---
+    fig2 = figure('Position', [50, 50, 1000, 750], 'Visible', 'off');
     hold on;
+    box on;
     
-    % Generate the color palette for the true latents
-    h_f_colors = lines(param.N_F);
+    % --- Okabe-Ito Colorblind-Safe Palette (Matches Panel C) ---
+    cb_palette = [
+        0.00, 0.45, 0.70;  % Blue           (Z_1 / 2 Hz)
+        0.90, 0.60, 0.00;  % Orange         (Z_2 / 6 Hz)
+        0.00, 0.60, 0.50;  % Bluish Green   (Z_3 / 10 Hz)
+        0.80, 0.40, 0.00;  % Vermillion     (Z_4 / 18 Hz)
+        0.35, 0.70, 0.90;  % Sky Blue       (Z_5 / 24 Hz)
+        0.80, 0.60, 0.70;  % Reddish Purple (Z_6 / 50 Hz)
+        0.95, 0.90, 0.25;  % Yellow (Fallback)
+        0.20, 0.20, 0.20   % Dark Gray (Fallback)
+    ];
+    h_f_colors = cb_palette(1:max(param.N_F, num_comps_plot), :);
     
     % Fixed offset for Z-scored data to keep traces visually separated
     offset = 10; 
@@ -55,7 +58,7 @@ function plotCTraces(num_sig_components, param, components_test, h_true, corr_ta
         trace_true_z  = zscore(trace_true);
         trace_recon_z = zscore(trace_recon);
         
-        % 4. Flip the sign of the component if they are negatively correlated
+        % 4. Flip the sign of the component if negatively correlated
         if corr_val < 0
             trace_recon_z = trace_recon_z * -1;
         end
@@ -63,34 +66,36 @@ function plotCTraces(num_sig_components, param, components_test, h_true, corr_ta
         % Calculate vertical shift (Latent 1 at the top)
         y_shift = (num_comps_plot - i) * offset;
         
-        % Plot 1: True Latent (Thick, colored line)
+        % Plot 1: True Latent (Solid Okabe-Ito colored line, LineWidth 2.5)
         plot(time_vec, trace_true_z + y_shift, 'Color', h_f_colors(f, :), ...
              'LineWidth', 2.5, 'DisplayName', sprintf('True Z_{%d}', f));
              
-        % Plot 2: Matched Raw Component (Thinner, black dashed line)
-        plot(time_vec, trace_recon_z + y_shift, 'Color', 'k', 'LineStyle', '--', ...
-             'LineWidth', 1.5, 'DisplayName', sprintf('Comp_{%d}', c));
+        % Plot 2: Matched Raw Component (Dashed dark line, LineWidth 2.0)
+        plot(time_vec, trace_recon_z + y_shift, 'Color', [0.15 0.15 0.15], 'LineStyle', '--', ...
+             'LineWidth', 2.0, 'DisplayName', sprintf('Comp_{%d}', c));
     end
     
     hold off;
     
-    % --- Formatting ---
-    xlim([0 t_plot_sec*1000]);
-    ylim([-offset, num_comps_plot * offset]);
+    % --- 2. X and Y Axes Formatting (+4pt Font Increase) ---
+    set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 20);
+    grid on;
     
-    xlabel('Time (msec)');
-    ylabel('Z-Scored Amplitude (stacked)');
-    title(['Matched Latents vs Raw Components (k=' num2str(num_sig_components) ')']);
+    xlim([0, 1000]);
+    xticks(0:200:1000);
+    ylim([-offset * 0.7, num_comps_plot * offset]);
     
-    % Set ticks to show Z (Latent) numbers clearly
     yticks((0:num_comps_plot-1) * offset);
     yticklabels(arrayfun(@(idx) sprintf('Z_{%d}', corr_table.h_f(num_comps_plot - idx + 1)), ...
         1:num_comps_plot, 'UniformOutput', false));
     
-    grid on;
-    set(findall(fig2, '-property', 'FontSize'), 'FontSize', 22);
+    xlabel('Time (msec)', 'FontSize', 22, 'FontWeight', 'bold');
+    ylabel('Z-Scored Amplitude (stacked)', 'FontSize', 22, 'FontWeight', 'bold');
+    title(sprintf('Matched Latents vs Raw Components (k=%d)', num_sig_components), ...
+          'FontSize', 26, 'FontWeight', 'bold');
     
-    % Save
-    saveas(fig2, fullfile(method_dir, ['Component_Traces_Stacked' file_suffix '.png']));
+    % --- 3. Save at 600 DPI ---
+    filename = sprintf('Component_Traces_Stacked%s.png', file_suffix);
+    exportgraphics(fig2, fullfile(method_dir, filename), 'Resolution', 600);
     close(fig2);
 end

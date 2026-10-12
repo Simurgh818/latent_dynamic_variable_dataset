@@ -278,8 +278,7 @@ for i_spat = 1:num_spatial_realizations
     
     % Combined Welch PSD Plot
     [pxx_sim, f_psd_sim] = pwelch(sim_eeg_vals', win_len, n_overlap, [], fs);
-    
-    figure('Name', sprintf('Combined PSD - Spat %d', i_spat), 'Position', [100 100 800 600]);
+        figure('Name', sprintf('Combined PSD - Spat %d', i_spat), 'Position', [100 100 950 650]);
     
     % 1. Plot background individual channels
     loglog(f_psd_rEEG, pxx_rEEG, 'Color', [0.8 0.8 0.8], 'HandleVisibility', 'off'); hold on; 
@@ -301,29 +300,37 @@ for i_spat = 1:num_spatial_realizations
     
     loglog(f_valid_rEEG, ref_1of_rEEG * scaling_factor_rEEG, 'k--', 'LineWidth', 2.5, 'DisplayName', '1/f Reference'); 
     
-    title(sprintf('Real vs. Synthetic Welch PSD (Trimmed to %ds)', T_clean));
+    title('Real vs. Synthetic Welch PSD');
     xlabel('Frequency (Hz)'); ylabel('Power (uV^2/Hz)');
     grid on; 
     xlim([2 50]); 
     xticks(param.f_peak);
-    legend('Location','northeast');
-    set(findall(gcf,'-property','FontSize'),'FontSize',14);
-    
+    legend('Location','southwest');
+    set(findall(gcf,'-property','FontSize'),'FontSize',20);
+
     saveas(gcf, fullfile(output_folder, sprintf('Combined_PSD_Spat%02d_dur%d.png', i_spat, T_clean)));
 end
 
 %% 7. Parsimonious Plots
 makeMyFigure(25, 16);
 tiledlayout(3, 6, 'TileSpacing', 'compact', 'Padding', 'compact');
+
+num_comps = size(spatial_comps, 2);
 num_test_samples = size(test_true_hF, 2);
 t_range = 1:num_test_samples;
 
-for i_comp = 1:size(spatial_comps, 2)
+% Each component uses 3 columns total. In a 6-column layout = 2 components per row.
+total_rows = ceil(num_comps / 2);
+
+for i_comp = 1:num_comps
+    % --- Spatial Topo Tile ---
     nexttile([1 1]);
     scatter(eeg_loc_x, eeg_loc_y, 30, spatial_comps(:, i_comp), 'filled');
     title(['s_{i' num2str(i_comp) '}'], 'interpreter','tex');
     axis tight; axis equal;
     set(gca, 'box', 'off', 'color', 'none', 'xtick', [], 'ytick', []);
+    
+    % --- Time Series Tile ---
     nexttile([1 2]);
     plot(dt*t_range, test_true_hF(i_comp, t_range), 'k','LineWidth',1.5);
     yticks([-2, 0, 2]); ylim([-3.5 3.5]);
@@ -331,7 +338,16 @@ for i_comp = 1:size(spatial_comps, 2)
     set(gca, 'color', 'none', 'box', 'off');
     ylabel(['h_' num2str(i_comp) '(t)'], 'Interpreter','tex');
     title(['f_{peak} = ' num2str(param.f_peak(i_comp), '%d') ' Hz'], 'Interpreter','tex' );
+    
+    % --- X-Axis Label Logic ---
+    current_row = ceil(i_comp / 2);
+    if current_row == total_rows
+        xlabel('Time (s)');
+    else
+        xticklabels({}); % Hide x-ticks for upper rows to prevent overlap and save space[cite: 11]
+    end
 end
+
 set(findall(gcf,'-property','FontSize'),'FontSize',24);
 exportgraphics(gcf, 'layout1_fig.pdf');
 savefig('layout1_fig.fig');

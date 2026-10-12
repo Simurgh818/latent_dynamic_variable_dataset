@@ -365,47 +365,116 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
     %% Plot 1 & 2: Component Traces
     plotCTraces(bottleNeck, param, Z_train_c, H_train, Comp_latent_matching_corr, method_dir, file_suffix);
     
-    %% Plot 3: Detailed Reconstruction (Train & Test Split)
-    fig3 = figure('Name','True vs. AE Latents', 'Position', [50, 100, 1500, 150*param.N_F], 'Visible', 'off');
-    tiledlayout(param.N_F, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-    sgtitle(['AE (k=' num2str(bottleNeck) ') True Latents (solid) vs. Reconstructed (dashed)'],'FontSize',30);
+    %% Plot 3: Detailed Reconstruction (Train & Test Split) - Stacked Layout (Okabe-Ito + 600 DPI)
+    fig3 = figure('Name', 'True vs. AE Latents', 'Position', [50, 100, 1500, 750], 'Visible', 'off');
+    tiledlayout(1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+    sgtitle(sprintf('AE (k=%d) True Latents (solid) vs. Reconstructed (dashed)', bottleNeck), ...
+        'FontSize', 26, 'FontWeight', 'bold');
     
-    vis_len_train = min(fs_new*2, size(H_train,1)); 
-    vis_len_test = min(fs_new*2, size(H_test,1));
+    % --- Okabe-Ito Colorblind-Safe Palette (Matches Panels A & C) ---
+    cb_palette = [
+        0.00, 0.45, 0.70;  % Blue           (Z_1 / 2 Hz)
+        0.90, 0.60, 0.00;  % Orange         (Z_2 / 6 Hz)
+        0.00, 0.60, 0.50;  % Bluish Green   (Z_3 / 10 Hz)
+        0.80, 0.40, 0.00;  % Vermillion     (Z_4 / 18 Hz)
+        0.35, 0.70, 0.90;  % Sky Blue       (Z_5 / 24 Hz)
+        0.80, 0.60, 0.70;  % Reddish Purple (Z_6 / 50 Hz)
+        0.95, 0.90, 0.25;  % Yellow (Fallback)
+        0.20, 0.20, 0.20   % Dark Gray (Fallback)
+    ];
+    h_f_colors = cb_palette(1:param.N_F, :);
+
+    % Crop to 1 second (1000 ms) using fs_new
+    max_samples_train = min(round(fs_new), size(H_train, 1)); 
+    max_samples_test  = min(round(fs_new), size(H_test, 1));
     
+    t_ms_train = (0:max_samples_train-1) / fs_new * 1000;
+    t_ms_test  = (0:max_samples_test-1)  / fs_new * 1000;
+
+    % --- SPACING AND SCALING (PREVENTS OVERLAP) ---
+    offset    = 4.0;   % Vertical baseline spacing between latents
+    amp_scale = 0.55;  % Scale factor to eliminate overlap between adjacent rows
+
+    tick_positions = (0 : param.N_F - 1) * offset;
+    y_labels = arrayfun(@(i) sprintf('Z_{%d}', i), param.N_F:-1:1, 'UniformOutput', false);
+
+    % =========================================================================
+    % TILE 1: TRAINING SET
+    % =========================================================================
+    nexttile; hold on; box on; grid on;
+    set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 20, 'FontWeight', 'bold');
+    title('Training Set', 'FontSize', 24, 'FontWeight', 'bold');
+
     for f = 1:param.N_F
-        % --- Train Column ---
-        nexttile; hold on;
-        set(gca, 'XColor', 'none', 'YColor', 'none'); box on
-        plot(H_train(1:vis_len_train, f), '-',  'Color', h_f_colors(f,:), 'LineWidth', 1.5,'DisplayName', ['$Z_{' num2str(param.f_peak(f)) '}$']); 
-        plot(H_recon_train(1:vis_len_train, f), '--', 'Color', 'k', 'LineWidth', 1.5,'DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$']);
-        xlim([0 fs_new]);
-        if f==1, title('Training Set'); end
-        legend('location', 'southeastoutside', 'Interpreter', 'latex');
+        y_shift = (param.N_F - f) * offset;
+
+        % 1. True Latent (Solid Okabe-Ito Colored, LineWidth 2.5)
+        plot(t_ms_train, (H_train(1:max_samples_train, f) * amp_scale) + y_shift, ...
+            'LineStyle', '-', 'Color', h_f_colors(f,:), 'LineWidth', 2.5); 
+        
+        % 2. Reconstructed Latent (Dashed Black, LineWidth 2.0)
+        plot(t_ms_train, (H_recon_train(1:max_samples_train, f) * amp_scale) + y_shift, ...
+            'LineStyle', '--', 'Color', [0.15 0.15 0.15], 'LineWidth', 2.0);
+
+        % 3. Training Correlation Value
         rho_train = direct_Component_Corr_train_ae(f);
-        text(0.02 * fs_new, 0.05 * max(H_train(:,f)), ...
-        sprintf('\\rho=%.2f', rho_train), ...
-        'FontSize', 12, 'FontWeight', 'bold',...
-        'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
-        'Margin', 3, 'EdgeColor','k');
-    
-        % --- Test Column ---
-        nexttile; hold on;
-        set(gca, 'XColor', 'none', 'YColor', 'none'); box on
-        plot(H_test(1:vis_len_test, f), '-',  'Color', h_f_colors(f,:), 'LineWidth', 1.5, 'DisplayName',[' $Z_{' num2str(param.f_peak(f)) '}$']);  
-        plot(H_recon_test(1:vis_len_test, f), '--', 'Color', 'k', 'LineWidth', 1.5, 'DisplayName', ['$\hat{Z}_{' num2str(param.f_peak(f)) '}$']);
-        xlim([0 fs_new]);    
-        rho_test = direct_Component_Corr_ae(f);
-        text(0.02 * fs_new, 0.05 * max(H_test(:,f)), ...
-        sprintf('\\rho=%.2f', rho_test), ...
-        'FontSize', 12, 'FontWeight', 'bold',...
-        'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
-        'Margin', 3, 'EdgeColor','k');
-        legend('location', 'southeastoutside', 'Interpreter', 'latex');
-        if f==1, title('Test Set'); end
+        text(25, y_shift + 1.35, sprintf('\\rho=%.2f', rho_train), ...
+            'FontSize', 16, 'FontWeight', 'bold', ...
+            'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
+            'Margin', 3, 'EdgeColor', [0.2 0.2 0.2], 'LineWidth', 1.2);
     end
-    set(findall(fig3,'-property','FontSize'),'FontSize',28);
-    saveas(fig3, fullfile(method_dir, ['AE_Split_Reconstruction' file_suffix '.png']));  
+
+    xlim([0, 1000]);
+    xticks(0:200:1000);
+    xlabel('Time (msec)', 'FontSize', 22, 'FontWeight', 'bold');
+    
+    yticks(tick_positions);
+    yticklabels(y_labels);
+    ylabel('Z-Scored Amplitude (stacked)', 'FontSize', 22, 'FontWeight', 'bold');
+    ylim([-offset * 0.7, (param.N_F - 0.05) * offset]);
+
+    % =========================================================================
+    % TILE 2: TEST SET
+    % =========================================================================
+    nexttile; hold on; box on; grid on;
+    set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 20, 'FontWeight', 'bold');
+    title('Test Set', 'FontSize', 24, 'FontWeight', 'bold');
+
+    for f = 1:param.N_F
+        y_shift = (param.N_F - f) * offset;
+
+        % 1. True Latent (Solid Okabe-Ito Colored, LineWidth 2.5)
+        plot(t_ms_test, (H_test(1:max_samples_test, f) * amp_scale) + y_shift, ...
+            'LineStyle', '-', 'Color', h_f_colors(f,:), 'LineWidth', 2.5);  
+        
+        % 2. Reconstructed Latent (Dashed Black, LineWidth 2.0)
+        plot(t_ms_test, (H_recon_test(1:max_samples_test, f) * amp_scale) + y_shift, ...
+            'LineStyle', '--', 'Color', [0.15 0.15 0.15], 'LineWidth', 2.0);
+
+        % 3. Test Correlation Value
+        rho_test = direct_Component_Corr_ae(f);
+        text(25, y_shift + 1.35, sprintf('\\rho=%.2f', rho_test), ...
+            'FontSize', 16, 'FontWeight', 'bold', ...
+            'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
+            'Margin', 3, 'EdgeColor', [0.2 0.2 0.2], 'LineWidth', 1.2);
+    end
+
+    xlim([0, 1000]);
+    xticks(0:200:1000);
+    xlabel('Time (msec)', 'FontSize', 22, 'FontWeight', 'bold');
+    
+    yticks(tick_positions);
+    yticklabels(y_labels);
+    ylim([-offset * 0.7, (param.N_F - 0.05) * offset]);
+
+    % Clean 2-element Legend on the Test Tile
+    h_leg_true  = plot(nan, nan, '-',  'Color', cb_palette(1, :), 'LineWidth', 2.5);
+    h_leg_recon = plot(nan, nan, '--', 'Color', [0.15 0.15 0.15], 'LineWidth', 2.0);
+    legend([h_leg_true, h_leg_recon], {'\textbf{Z(t) True}', '$\mathbf{\hat{z}(t)}$ \textbf{Recon}'}, ...
+        'Interpreter', 'latex', 'Location', 'northeast', 'FontSize', 17);
+
+    % Save at 600 DPI
+    exportgraphics(fig3, fullfile(method_dir, ['AE_Split_Reconstruction' file_suffix '.png']), 'Resolution', 600);  
     close(fig3);
     
     %% Plot 4: Frequency Analysis FFT
