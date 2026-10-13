@@ -365,7 +365,7 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
     %% Plot 1 & 2: Component Traces
     plotCTraces(bottleNeck, param, Z_train_c, H_train, Comp_latent_matching_corr, method_dir, file_suffix);
     
-    %% Plot 3: Detailed Reconstruction (Train & Test Split) - Stacked Layout (Okabe-Ito + 600 DPI)
+%% Plot 3: Detailed Reconstruction (Train & Test Split) - Stacked Layout (Okabe-Ito + 600 DPI)
     fig3 = figure('Name', 'True vs. AE Latents', 'Position', [50, 100, 1500, 780], 'Visible', 'off');
     t3 = tiledlayout(1, 2, 'TileSpacing', 'compact', 'Padding', 'normal');
     
@@ -404,6 +404,7 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
 
     for f = 1:param.N_F
         y_shift = (param.N_F - f) * offset;
+
         % 1. True Latent (Solid Okabe-Ito Colored, LineWidth 2.5)
         plot(t_ms_train, (H_train(1:max_samples_train, f) * amp_scale) + y_shift, ...
             'LineStyle', '-', 'Color', h_f_colors(f,:), 'LineWidth', 2.5); 
@@ -412,10 +413,10 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
         plot(t_ms_train, (H_recon_train(1:max_samples_train, f) * amp_scale) + y_shift, ...
             'LineStyle', '--', 'Color', [0.15 0.15 0.15], 'LineWidth', 2.0);
             
-        % 3. Training Correlation Value
+        % 3. Training Correlation Value (Increased FontSize: 16 -> 20)
         rho_train = direct_Component_Corr_train_ae(f);
         text(25, y_shift + 1.35, sprintf('\\rho=%.2f', rho_train), ...
-            'FontSize', 16, 'FontWeight', 'bold', ...
+            'FontSize', 20, 'FontWeight', 'bold', ...
             'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
             'Margin', 3, 'EdgeColor', [0.2 0.2 0.2], 'LineWidth', 1.2);
     end
@@ -438,6 +439,7 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
 
     for f = 1:param.N_F
         y_shift = (param.N_F - f) * offset;
+
         % 1. True Latent (Solid Okabe-Ito Colored, LineWidth 2.5)
         plot(t_ms_test, (H_test(1:max_samples_test, f) * amp_scale) + y_shift, ...
             'LineStyle', '-', 'Color', h_f_colors(f,:), 'LineWidth', 2.5);  
@@ -446,10 +448,10 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
         plot(t_ms_test, (H_recon_test(1:max_samples_test, f) * amp_scale) + y_shift, ...
             'LineStyle', '--', 'Color', [0.15 0.15 0.15], 'LineWidth', 2.0);
             
-        % 3. Test Correlation Value
+        % 3. Test Correlation Value (Increased FontSize: 16 -> 20)
         rho_test = direct_Component_Corr_ae(f);
         text(25, y_shift + 1.35, sprintf('\\rho=%.2f', rho_test), ...
-            'FontSize', 16, 'FontWeight', 'bold', ...
+            'FontSize', 20, 'FontWeight', 'bold', ...
             'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
             'Margin', 3, 'EdgeColor', [0.2 0.2 0.2], 'LineWidth', 1.2);
     end

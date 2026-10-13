@@ -278,19 +278,33 @@ for i_spat = 1:num_spatial_realizations
     
     % Combined Welch PSD Plot
     [pxx_sim, f_psd_sim] = pwelch(sim_eeg_vals', win_len, n_overlap, [], fs);
-        figure('Name', sprintf('Combined PSD - Spat %d', i_spat), 'Position', [100 100 950 650]);
+        
+    % =========================================================================
+    % COMBINED PSD PLOT (Real vs. Synthetic)
+    % =========================================================================
+    % Create figure with explicit handle and hidden visibility for clean export
+    fig_psd = figure('Name', sprintf('Combined PSD - Spat %d', i_spat), ...
+                     'Position', [100, 100, 1000, 750], 'Visible', 'off');
     
-    % 1. Plot background individual channels
-    loglog(f_psd_rEEG, pxx_rEEG, 'Color', [0.8 0.8 0.8], 'HandleVisibility', 'off'); hold on; 
+    % EXPLICITLY SET LOG SCALES HERE so 'hold on' doesn't lock the axes to linear
+    set(gca, 'XScale', 'log', 'YScale', 'log', 'Box', 'on', ...
+             'LineWidth', 1.5, 'FontSize', 20, 'FontWeight', 'bold');
+    hold on;
+    grid on;
+    
+    % 1. Plot background individual channels (Faint Colors)
+    loglog(f_psd_rEEG, pxx_rEEG, 'Color', [0.8 0.8 0.8], 'HandleVisibility', 'off'); 
     loglog(f_psd_sim, pxx_sim, 'Color', [0.7 0.85 1], 'HandleVisibility', 'off'); 
     
-    % 2. Plot Mean Power Lines
-    loglog(f_psd_rEEG, mean(pxx_rEEG, 2), 'k', 'LineWidth', 2, 'DisplayName', 'Real EEG Mean'); 
-    loglog(f_psd_sim, mean(pxx_sim, 2), 'b', 'LineWidth', 2, 'DisplayName', 'Synthetic EEG Mean');
+    % 2. Plot Mean Power Lines (Thicker lines for visibility)
+    % Using Okabe-Ito Blue for the Synthetic Mean to match the other panels
+    cb_blue = [0.00, 0.45, 0.70]; 
+    loglog(f_psd_rEEG, mean(pxx_rEEG, 2), 'k', 'LineWidth', 2.5, 'DisplayName', 'Real EEG Mean'); 
+    loglog(f_psd_sim, mean(pxx_sim, 2), 'Color', 'b', 'LineWidth', 2.5, 'DisplayName', 'Synthetic EEG Mean');
     
     % 3. Align 1/f reference line to the REAL EEG within the valid 2-50 Hz range
     f_valid_rEEG = f_psd_rEEG(f_psd_rEEG > 0); 
-    ref_1of_rEEG = 1./f_valid_rEEG; 
+    ref_1of_rEEG = 1 ./ f_valid_rEEG; 
     
     valid_range_idx = (f_valid_rEEG >= 2) & (f_valid_rEEG <= 50);
     
@@ -300,15 +314,28 @@ for i_spat = 1:num_spatial_realizations
     
     loglog(f_valid_rEEG, ref_1of_rEEG * scaling_factor_rEEG, 'k--', 'LineWidth', 2.5, 'DisplayName', '1/f Reference'); 
     
-    title('Real vs. Synthetic Welch PSD');
-    xlabel('Frequency (Hz)'); ylabel('Power (uV^2/Hz)');
-    grid on; 
+    % 4. Formatting (Limits, Ticks, Labels)
     xlim([2 50]); 
     xticks(param.f_peak);
-    legend('Location','southwest');
-    set(findall(gcf,'-property','FontSize'),'FontSize',20);
-
-    saveas(gcf, fullfile(output_folder, sprintf('Combined_PSD_Spat%02d_dur%d.png', i_spat, T_clean)));
+    % Format xticks as strings so they display cleanly without scientific notation clipping
+    xticklabels(arrayfun(@num2str, param.f_peak, 'UniformOutput', false)); 
+    
+    xlabel('Frequency (Hz)', 'FontSize', 22, 'FontWeight', 'bold'); 
+    % Note: Using \mu for proper SI unit formatting
+    ylabel('Power (\muV^2/Hz)', 'Interpreter', 'tex', 'FontSize', 22, 'FontWeight', 'bold');
+    title('Real vs. Synthetic Welch PSD', 'FontSize', 26, 'FontWeight', 'bold');
+    
+    % 5. Legend
+    lgd = legend('Location', 'southwest', 'FontSize', 17);
+    lgd.Box = 'on';
+    lgd.LineWidth = 1.0;
+    
+    hold off;
+    
+    % 6. Save at 600 DPI (Lossless Print Ready)
+    out_name = sprintf('Combined_PSD_Spat%02d_dur%d.png', i_spat, T_clean);
+    exportgraphics(fig_psd, fullfile(output_folder, out_name), 'Resolution', 600);
+     
 end
 
 %% 7. Parsimonious Plots
@@ -325,32 +352,50 @@ total_rows = ceil(num_comps / 2);
 for i_comp = 1:num_comps
     % --- Spatial Topo Tile ---
     nexttile([1 1]);
-    scatter(eeg_loc_x, eeg_loc_y, 30, spatial_comps(:, i_comp), 'filled');
-    title(['s_{i' num2str(i_comp) '}'], 'interpreter','tex');
+    scatter(eeg_loc_x, eeg_loc_y, 45, spatial_comps(:, i_comp), 'filled');
     axis tight; axis equal;
-    set(gca, 'box', 'off', 'color', 'none', 'xtick', [], 'ytick', []);
+    
+    % Set gca properties BEFORE adding title so settings don't overwrite (+4 pt)
+    set(gca, 'box', 'off', 'color', 'none', 'xtick', [], 'ytick', [], ...
+             'FontSize', 24, 'FontWeight', 'bold');
+    
+    title(sprintf('s_{i%d}', i_comp), 'Interpreter', 'tex', ...
+          'FontSize', 30, 'FontWeight', 'bold');
     
     % --- Time Series Tile ---
     nexttile([1 2]);
-    plot(dt*t_range, test_true_hF(i_comp, t_range), 'k','LineWidth',1.5);
-    yticks([-2, 0, 2]); ylim([-3.5 3.5]);
+    % Set gca properties BEFORE plotting and labels (+4 pt)
+    set(gca, 'color', 'none', 'box', 'off', 'LineWidth', 1.5, ...
+             'FontSize', 24, 'FontWeight', 'bold');
+    hold on;
+    
+    % Increased LineWidth to 2.5 to match the updated traces style
+    plot(dt*t_range, test_true_hF(i_comp, t_range), 'k', 'LineWidth', 2.5);
+    hold off;
+    
+    yticks([-2, 0, 2]); 
+    ylim([-3.5 3.5]);
     xlim([0 1]);
-    set(gca, 'color', 'none', 'box', 'off');
-    ylabel(['h_' num2str(i_comp) '(t)'], 'Interpreter','tex');
-    title(['f_{peak} = ' num2str(param.f_peak(i_comp), '%d') ' Hz'], 'Interpreter','tex' );
+    
+    % Updated labels (+4 pt)
+    ylabel(sprintf('h_{%d}(t)', i_comp), 'Interpreter', 'tex', ...
+           'FontSize', 26, 'FontWeight', 'bold');
+    title(sprintf('f_{peak} = %d Hz', param.f_peak(i_comp)), 'Interpreter', 'tex', ...
+          'FontSize', 30, 'FontWeight', 'bold');
     
     % --- X-Axis Label Logic ---
     current_row = ceil(i_comp / 2);
     if current_row == total_rows
-        xlabel('Time (s)');
+        xlabel('Time (s)', 'FontSize', 26, 'FontWeight', 'bold');
     else
-        xticklabels({}); % Hide x-ticks for upper rows to prevent overlap and save space[cite: 11]
+        % Hide x-ticks for upper rows to prevent overlap and save space[cite: 13]
+        xticklabels({}); 
     end
 end
 
-set(findall(gcf,'-property','FontSize'),'FontSize',24);
-exportgraphics(gcf, 'layout1_fig.pdf');
-savefig('layout1_fig.fig');
+% Export natively as a vector PDF (infinitely scalable, avoids DPI limits entirely)
+exportgraphics(gcf, 'Figure1B.pdf', 'ContentType', 'vector');
+savefig('Figure1B.fig');
 
 %% Helper Functions
 function comp_mask = spatial_mask_fun(pos_src_loc, neg_src_loc, src_widths, src_pks, mesh_x, mesh_y)
