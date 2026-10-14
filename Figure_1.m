@@ -47,30 +47,38 @@ nTrials = round(size(s_eeg_like,2)/fs_new/T_subject);
 num_channels_plot = 31;
 display_channels = 1:5:num_channels_plot;
 
-figure('Position',[50 50 1400 1050])
-% tiledlayout(2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+target_trial = 4; % Select the trial to plot
+
+figure('Position', [50, 50, 1700, 1000]);
 offset = 50; % vertical spacing between channels
-hold on
-time_ms_eeg = linspace(0,T_subject,T_subject * fs_new); % time in milliseconds
+hold on;
+
+n_samples_trial = round(T_subject * fs_new);
+time_ms_eeg = linspace(0, T_subject, n_samples_trial);
+
+% Calculate the sample window for trial 2
+start_idx = (target_trial - 1) * n_samples_trial + 1;
+end_idx   = target_trial * n_samples_trial;
+sample_indices = start_idx : end_idx;
+
 for ch = 1:num_channels_plot
-    % plot each channel stacked upward
-    plot(time_ms_eeg, s_eeg_like(ch,1:size(time_ms_eeg,2),1) + (num_channels_plot - ch)*offset, 'b', 'LineWidth', 1.5);
+    % Slice the 2nd trial window along the continuous time dimension
+    plot(time_ms_eeg, s_eeg_like(ch, sample_indices) + (num_channels_plot - ch)*offset, ...
+         'b', 'LineWidth', 1.5);
 end
-hold off
+hold off;
 
-xlim([0 3.5]);
-ylim([-offset, num_channels_plot*offset]);
-
+xlim([0, 3.5]);
+ylim([-offset, num_channels_plot * offset]);
 xlabel('Time (s)');
 ylabel('Channels (stacked)');
-% yticks((0:num_channels_plot-1)*offset);
-tick_positions = (num_channels_plot - display_channels) * offset;
 
+tick_positions = (num_channels_plot - display_channels) * offset;
 yticks(flip(tick_positions));
-% yticklabels(arrayfun(@(c) sprintf('%d', num_channels_plot - c + 1), 1:num_channels_plot, 'UniformOutput', false));
 yticklabels(flip(string(display_channels)));
-set(gca,'FontSize',32);
-title('Synthetic EEG stacked channels','FontSize',34);
+
+set(gca, 'FontSize', 32);
+title('Synthetic EEG stacked channels', 'FontSize', 34);
 
 % --- paths (use your original logic) ---
 
@@ -131,7 +139,7 @@ data_resh = reshape(data, num_ch, nTime * nTrials);
 num_channels_plot = 32;
 T_subject = 3.5; % duration of each trial
 display_channels = 1:5:num_channels_plot;
-figure('Position',[50 50 1400 1050])
+figure('Position',[50 50 1700 1000])
 offset = 30; % vertical spacing between channels
 hold on
 time_ms_eeg = linspace(0,T_subject,T_subject * EEG.srate); % time in milliseconds

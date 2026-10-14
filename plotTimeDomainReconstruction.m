@@ -1,13 +1,13 @@
 function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, Corr, save_dir)
-% plotTimeDomainReconstruction Generates stacked time-series comparison plots
-% with Okabe-Ito colorblind-safe colors, scaled amplitudes, +4pt fonts, and 600 DPI export.
+% plotTimeDomainReconstruction Generates stacked time-series comparison plots (Panel B)
+% with Okabe-Ito colorblind-safe colors, 20pt rho boxes, Arial Bold fonts, and 600 DPI export.
 
     % --- 1. Parallel Safety Check ---
     if ~isempty(getCurrentTask())
         return;
     end
 
-    % --- 2. Setup & Okabe-Ito Palette (Matches Panel C) ---
+    % --- 2. Setup & Okabe-Ito Palette (Matches Panels A & C) ---
     num_vars = size(h_true, 2);
     cb_palette = [
         0.00, 0.45, 0.70;  % Blue           (Z_1 / 2 Hz)
@@ -31,12 +31,12 @@ function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, Cor
     amp_scale = 0.55;  % Scale factor to keep peaks within each latent's lane
 
     % --- 3. Create Figure on a Single Axis ---
-    fig = figure('Position', [50, 50, 1000, 750], 'Visible', 'off');
+    fig = figure('Position', [50, 50, 1000, 750], 'Color', 'w', 'Visible', 'off');
     hold on;
     box on;
 
-    % Set base axis properties FIRST so they don't override title/label sizes
-    set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 20);
+    % Set base axis properties FIRST in Arial Bold
+    set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontName', 'Arial', 'FontSize', 20, 'FontWeight', 'bold');
     grid on;
 
     % Plot from top (Z_1) to bottom (Z_num_vars)
@@ -53,11 +53,11 @@ function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, Cor
             'LineStyle', '--', 'Color', [0.15 0.15 0.15], ...
             'LineWidth', 2.0);
         
-        % 3. Correlation Box
+        % 3. Correlation Box (FontSize 20, Arial Bold)
         if f <= length(Corr)
             rho = Corr(f);
             text(25, y_shift + 1.35, sprintf('\\rho=%.2f', rho), ...
-                'FontSize', 17, 'FontWeight', 'bold', ...
+                'FontName', 'Arial', 'FontSize', 20, 'FontWeight', 'bold', ...
                 'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
                 'Margin', 3, 'EdgeColor', [0.2 0.2 0.2], 'LineWidth', 1.2);
         end
@@ -70,23 +70,25 @@ function plotTimeDomainReconstruction(h_true, h_recon, param, methodName, k, Cor
     y_labels = arrayfun(@(i) sprintf('Z_{%d}', i), num_vars:-1:1, 'UniformOutput', false);
     yticklabels(y_labels);
     
-    ylabel('Z-Scored Amplitude (stacked)', 'FontSize', 22, 'FontWeight', 'bold');
+    ylabel('Z-Scored Amplitude (stacked)', 'FontName', 'Arial', 'FontSize', 22, 'FontWeight', 'bold');
     ylim([-offset * 0.7, (num_vars - 0.05) * offset]);
 
     % --- 5. X-Axis Formatting ---
     xlim([0, 1000]);
     xticks(0:200:1000);
-    xlabel('Time (ms)', 'FontSize', 22, 'FontWeight', 'bold');
+    xlabel('Time (ms)', 'FontName', 'Arial', 'FontSize', 22, 'FontWeight', 'bold');
 
-    % --- 6. Title and Legend (Uses supported cmbx10 font - No SceneNode warnings) ---
-    title(sprintf('\\textbf{%s (k=%d) Latent variables} $\\;\\mathbf{Z(t)}\\;$ \\textbf{and} $\\;\\mathbf{\\hat{z}(t)}$', methodName, k), ...
-        'Interpreter', 'latex', 'FontSize', 26);
+    % --- 6. Title and Legend in Arial Bold ---
+    z_hat = ['z', char(770)]; % Unicode z-hat in native Arial
+    title(sprintf('%s (k=%d) Latent variables Z(t) and %s(t)', methodName, k, z_hat), ...
+        'FontName', 'Arial', 'FontSize', 26, 'FontWeight', 'bold', 'Interpreter', 'tex');
 
     % Clean 2-entry legend using Okabe-Ito Blue for Z(t) True
     h_leg_true  = plot(nan, nan, '-', 'Color', cb_palette(1, :), 'LineWidth', 2.5);
     h_leg_recon = plot(nan, nan, '--', 'Color', [0.15 0.15 0.15], 'LineWidth', 2.0);
-    legend([h_leg_true, h_leg_recon], {'\textbf{Z(t) True}', '$\mathbf{\hat{z}(t)}$ \textbf{Recon}'}, ...
-        'Interpreter', 'latex', 'Location', 'northeast', 'FontSize', 17);
+    legend([h_leg_true, h_leg_recon], {'Z(t) True', sprintf('%s(t) Recon', z_hat)}, ...
+        'FontName', 'Arial', 'FontWeight', 'bold', 'Location', 'northeast', ...
+        'FontSize', 17, 'Interpreter', 'tex');
 
     hold off;
 

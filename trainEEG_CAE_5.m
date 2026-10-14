@@ -1,11 +1,10 @@
 function [net, info] = trainEEG_CAE_5(X_train_1D, X_test_1D, cfg)
     arguments
-        X_train_1D double 
-        X_test_1D  double 
+        X_train_1D single 
+        X_test_1D  single 
         cfg.bottleneckSize (1,1) double
         
         % --- HYPERPARAMETERS FOR CUSTOM LOSS ---
-        % (Removed numBands and bandWeights)
         cfg.lambdaICA double = 0.1    % Penalty weight for ICA cross-covariance        
         
         % --- TRAINING HYPERPARAMETERS ---
@@ -13,13 +12,15 @@ function [net, info] = trainEEG_CAE_5(X_train_1D, X_test_1D, cfg)
         cfg.batchSize double = 32
         cfg.learnRate double = 1e-3
         cfg.checkpointPath string = ""
+        cfg.maxValWindows double = 256 % Cap validation windows during training to prevent OOM
     end
     
-    WindowLength = size(X_train_1D, 2);
+    WindowLength  = size(X_train_1D, 2);
     TotalChannels = size(X_train_1D, 3);
+    numTrainWins  = size(X_train_1D, 4);
+    numTestWins   = size(X_test_1D, 4);
     
     lgraph = layerGraph();
-    
     
     % ==========================================
     % 1. UNIFIED BROADBAND INPUT
@@ -32,60 +33,61 @@ function [net, info] = trainEEG_CAE_5(X_train_1D, X_test_1D, cfg)
     lgraph = addLayers(lgraph, [
         convolution2dLayer([1 5], 512, "Padding", "same", "Name", "enc_conv1")
         leakyReluLayer(0.01, "Name", "enc_leakyrelu1")
-        
-        % BOTTLENECK: 1x1 kernel mapping 256 feature maps into k latents
         convolution2dLayer([1 1], cfg.bottleneckSize, "Padding", "same", "Name", "bottleneck")
     ]);
-
+    
     % ==========================================
     % 3. 1D TEMPORAL DECODER (Single Branch, Matched to CAE)
     % ==========================================
     lgraph = addLayers(lgraph, [
         convolution2dLayer([1 5], 512, "Padding", "same", "Name", "dec_conv1")
         leakyReluLayer(0.01, "Name", "dec_leakyrelu1")
-        
-        % Final reconstruction back to raw stacked EEG channels (155 channels)
         convolution2dLayer([1 1], TotalChannels, "Padding", "same", "Name", "reconstruction")
     ]);
-
+    
     % ==========================================
     % 4. ADDITION OF THE ICA OUTPUT HACK
     % ==========================================
-    % --> THE HACK: Concatenate the reconstruction and the bottleneck together
     lgraph = addLayers(lgraph, depthConcatenationLayer(2, "Name", "output_concat"));
-    
-    % The custom loss layer parses the top 155 channels for band-wise MSE 
-    % and the bottom 'k' channels for the ICA penalty
-    % Initialize the simplified MSE + ICA layer using the new filename
     lgraph = addLayers(lgraph, ICAdisentangledMSELayer("ica_mse_loss", cfg.lambdaICA, cfg.bottleneckSize, TotalChannels));
     
     % ==========================================
     % 5. CONNECT THE GRAPH 
     % ==========================================
-    % Connect main sequential pipeline
     lgraph = connectLayers(lgraph, "input", "enc_conv1");
     lgraph = connectLayers(lgraph, "bottleneck", "dec_conv1");
-    
-    % Connect the Hack Layers
     lgraph = connectLayers(lgraph, "reconstruction", "output_concat/in1");
     lgraph = connectLayers(lgraph, "bottleneck", "output_concat/in2");
-    lgraph = connectLayers(lgraph, "output_concat", "ica_mse_loss"); % <--- FIXED!
+    lgraph = connectLayers(lgraph, "output_concat", "ica_mse_loss");
     
     % ==========================================
-    % 6. PADDING TARGET DATA (To bypass MATLAB restrictions)
+    % 6. PADDING TARGET DATA (In Single Precision & Subsampled Validation)
     % ==========================================
-    % We must pad the target tensors with fake "k" channels so their size 
-    % matches the output_concat size. (These zeros are ignored in the loss layer).
-    pad_train = zeros(1, WindowLength, cfg.bottleneckSize, size(X_train_1D, 4));
-    pad_test  = zeros(1, WindowLength, cfg.bottleneckSize, size(X_test_1D, 4));
+    % Subsample X_test_1D for early-stopping validation to prevent forwardLoss OOM
+    if numTestWins > cfg.maxValWindows
+        rng(42); % Fixed seed for reproducible validation subset across runs
+        val_idx = randperm(numTestWins, cfg.maxValWindows);
+        X_val_1D = X_test_1D(:, :, :, val_idx);
+    else
+        X_val_1D = X_test_1D;
+    end
+    clear X_test_1D; % Free full test copy inside local workspace
     
-    T_train_padded = cat(3, X_train_1D, pad_train);
-    T_test_padded  = cat(3, X_test_1D, pad_test);
+    % Allocate padded targets directly in single precision without intermediate pad arrays
+    T_train_padded = cat(3, X_train_1D, zeros(1, WindowLength, cfg.bottleneckSize, numTrainWins, 'single'));
+    T_val_padded   = cat(3, X_val_1D,   zeros(1, WindowLength, cfg.bottleneckSize, size(X_val_1D, 4), 'single'));
     
     % ==========================================
     % 7. TRAINING OPTIONS
     % ==========================================
-    val_freq = max(1, floor(size(X_train_1D, 4) / cfg.batchSize));
+    val_freq = max(1, floor(numTrainWins / cfg.batchSize));
+    
+    % Prevent multiple parfor workers from fighting over a single GPU's memory
+    if ~isempty(getCurrentTask())
+        exec_env = "cpu";
+    else
+        exec_env = "auto";
+    end
     
     options = trainingOptions("adam", ...
         "MaxEpochs", cfg.epochs, ...
@@ -94,16 +96,16 @@ function [net, info] = trainEEG_CAE_5(X_train_1D, X_test_1D, cfg)
         "LearnRateSchedule", "piecewise", ...
         "LearnRateDropPeriod", 25, ...
         "LearnRateDropFactor", 0.5, ...
-        "L2Regularization", 0, ...              % Changed to 0 (Matched to CAE)
+        "L2Regularization", 0, ...
         "Shuffle", "every-epoch", ...
-        "Plots", "none", ... % "training-progress"
+        "Plots", "none", ...
         "Verbose", false, ...
-        "ValidationData", {X_test_1D, T_test_padded}, ...   % <-- Using Padded Target
+        "ValidationData", {X_val_1D, T_val_padded}, ...
         "ValidationFrequency", val_freq, ...
         "ValidationPatience", 30, ...
         "CheckpointPath", cfg.checkpointPath, ...
         "OutputNetwork", "best-validation-loss", ...
-        "ExecutionEnvironment", "auto");
+        "ExecutionEnvironment", exec_env);
     
     [net, info] = trainNetwork(X_train_1D, T_train_padded, lgraph, options);
 end

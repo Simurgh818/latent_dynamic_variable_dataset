@@ -77,8 +77,8 @@ function plotCTraces(num_sig_components, param, components_test, h_true, corr_ta
     
     hold off;
     
-    % --- 2. X and Y Axes Formatting (+4pt Font Increase) ---
-    set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 20);
+    % --- 2. X and Y Axes Formatting (Arial Bold +4pt) ---
+    set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontName', 'Arial', 'FontSize', 20, 'FontWeight', 'bold');
     grid on;
     
     xlim([0, 1000]);
@@ -89,10 +89,10 @@ function plotCTraces(num_sig_components, param, components_test, h_true, corr_ta
     yticklabels(arrayfun(@(idx) sprintf('Z_{%d}', corr_table.h_f(num_comps_plot - idx + 1)), ...
         1:num_comps_plot, 'UniformOutput', false));
     
-    xlabel('Time (ms)', 'FontSize', 22, 'FontWeight', 'bold');
-    ylabel('Z-Scored Amplitude (stacked)', 'FontSize', 22, 'FontWeight', 'bold');
+    xlabel('Time (ms)', 'FontName', 'Arial', 'FontSize', 22, 'FontWeight', 'bold');
+    ylabel('Z-Scored Amplitude (stacked)', 'FontName', 'Arial', 'FontSize', 22, 'FontWeight', 'bold');
     title(sprintf('Matched Latents vs Raw Components (k=%d)', num_sig_components), ...
-          'FontSize', 26, 'FontWeight', 'bold');
+          'FontName', 'Arial', 'FontSize', 26, 'FontWeight', 'bold');
     
     % --- 3. Save at 600 DPI ---
     filename = sprintf('Component_Traces_Stacked%s.png', file_suffix);

@@ -280,7 +280,7 @@ for i_spat = 1:num_spatial_realizations
     [pxx_sim, f_psd_sim] = pwelch(sim_eeg_vals', win_len, n_overlap, [], fs);
         
     % =========================================================================
-    % COMBINED PSD PLOT (Real vs. Synthetic)
+    % COMBINED PSD PLOT (Real vs. Synthetic) - Cleaned
     % =========================================================================
     % Create figure with explicit handle and hidden visibility for clean export
     fig_psd = figure('Name', sprintf('Combined PSD - Spat %d', i_spat), ...
@@ -290,19 +290,15 @@ for i_spat = 1:num_spatial_realizations
     set(gca, 'XScale', 'log', 'YScale', 'log', 'Box', 'on', ...
              'LineWidth', 1.5, 'FontSize', 20, 'FontWeight', 'bold');
     hold on;
-    grid on;
+    % grid on removed for a clean background
     
-    % 1. Plot background individual channels (Faint Colors)
-    loglog(f_psd_rEEG, pxx_rEEG, 'Color', [0.8 0.8 0.8], 'HandleVisibility', 'off'); 
-    loglog(f_psd_sim, pxx_sim, 'Color', [0.7 0.85 1], 'HandleVisibility', 'off'); 
-    
-    % 2. Plot Mean Power Lines (Thicker lines for visibility)
+    % 1. Plot Mean Power Lines (Thicker lines for publication clarity)
     % Using Okabe-Ito Blue for the Synthetic Mean to match the other panels
     cb_blue = [0.00, 0.45, 0.70]; 
     loglog(f_psd_rEEG, mean(pxx_rEEG, 2), 'k', 'LineWidth', 2.5, 'DisplayName', 'Real EEG Mean'); 
-    loglog(f_psd_sim, mean(pxx_sim, 2), 'Color', 'b', 'LineWidth', 2.5, 'DisplayName', 'Synthetic EEG Mean');
+    loglog(f_psd_sim, mean(pxx_sim, 2), 'Color', cb_blue, 'LineWidth', 2.5, 'DisplayName', 'Synthetic EEG Mean');
     
-    % 3. Align 1/f reference line to the REAL EEG within the valid 2-50 Hz range
+    % 2. Align 1/f reference line to the REAL EEG within the valid 2-50 Hz range
     f_valid_rEEG = f_psd_rEEG(f_psd_rEEG > 0); 
     ref_1of_rEEG = 1 ./ f_valid_rEEG; 
     
@@ -314,25 +310,24 @@ for i_spat = 1:num_spatial_realizations
     
     loglog(f_valid_rEEG, ref_1of_rEEG * scaling_factor_rEEG, 'k--', 'LineWidth', 2.5, 'DisplayName', '1/f Reference'); 
     
-    % 4. Formatting (Limits, Ticks, Labels)
+    % 3. Formatting (Limits, Ticks, Labels)
     xlim([2 50]); 
     xticks(param.f_peak);
     % Format xticks as strings so they display cleanly without scientific notation clipping
     xticklabels(arrayfun(@num2str, param.f_peak, 'UniformOutput', false)); 
     
     xlabel('Frequency (Hz)', 'FontSize', 22, 'FontWeight', 'bold'); 
-    % Note: Using \mu for proper SI unit formatting
     ylabel('Power (\muV^2/Hz)', 'Interpreter', 'tex', 'FontSize', 22, 'FontWeight', 'bold');
     title('Real vs. Synthetic Welch PSD', 'FontSize', 26, 'FontWeight', 'bold');
     
-    % 5. Legend
-    lgd = legend('Location', 'southwest', 'FontSize', 17);
+    % 4. Legend (+4 pt: 17 -> 21)
+    lgd = legend('Location', 'southwest', 'FontSize', 21);
     lgd.Box = 'on';
     lgd.LineWidth = 1.0;
     
     hold off;
     
-    % 6. Save at 600 DPI (Lossless Print Ready)
+    % 5. Save at 600 DPI (Lossless Print Ready)
     out_name = sprintf('Combined_PSD_Spat%02d_dur%d.png', i_spat, T_clean);
     exportgraphics(fig_psd, fullfile(output_folder, out_name), 'Resolution', 600);
      

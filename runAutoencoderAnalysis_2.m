@@ -1,11 +1,11 @@
-function [outAE] = runAutoencoderAnalysis_2(X_train, X_test, H_train, H_test, bottleNeck, param,  results_dir)
-% runAutoencoderAnalysis Trains AE + Linear Mapping and generates diagnostic plots
+function [outAE] = runAutoencoderAnalysis_2(X_train, X_test, H_train, H_test, bottleNeck, param, results_dir)
+% runAutoencoderAnalysis_2 Trains AE + Linear Mapping and generates diagnostic plots
 %
 % Inputs:
-%   X_train, X_test     : Neural data (Neurons x Time or Time x Neurons depending on your AE setup)
+%   X_train, X_test     : Neural data (Channels x Time)
 %   H_train, H_test     : True latent fields (Time x F)
 %   bottleNeck          : Int, size of the bottleneck layer (k)
-%   param               : Structure with fields .N_F, .f_peak
+%   param               : Structure with fields .N_F, .f_peak, .fs
 %   results_dir         : Directory to save results
 %
 % Outputs:
@@ -20,42 +20,45 @@ end
 file_suffix = sprintf('_k%d', bottleNeck);
 h_f_colors = lines(param.N_F); 
 fs_new = param.fs;
+nTrainSamples = size(X_train, 2);
+nTestSamples  = size(X_test, 2);
+nChannels     = size(X_train, 1);
 
 %% 2. Train Multi-Band Temporal Convolutional Autoencoder
 % ==========================================
-% SECTION 2: CHUNKING & TRAINING CAE_5
+% SECTION 2: CHUNKING & TRAINING CAE_5 (MEMORY OPTIMIZED)
 % ==========================================
-batch_size = 16; % Increased to 32 to match the optimal CAE settings
+batch_size = 16; 
 L = 500; % 1-second chunks (fs=500)
+disp('Chunking Unfiltered Broadband EEG (Single Precision)...');
 
-disp('Chunking Unfiltered Broadband EEG...');
-
-% --- 2.1 Pad and Chunk Train Data (Using raw X_train) ---
-pad_len_train = ceil(size(X_train, 2) / L) * L - size(X_train, 2);
-X_train_padded = [X_train, zeros(size(X_train, 1), pad_len_train)];
-
+% --- 2.1 Pad and Chunk Train Data (Directly in single precision) ---
+pad_len_train = ceil(nTrainSamples / L) * L - nTrainSamples;
+X_train_padded = [single(X_train), zeros(nChannels, pad_len_train, 'single')];
 num_windows_train = size(X_train_padded, 2) / L;
-X_train_chunked = reshape(X_train_padded, [size(X_train, 1), L, num_windows_train]);
+X_train_chunked = reshape(X_train_padded, [nChannels, L, num_windows_train]);
+clear X_train_padded; % Free intermediate memory immediately
 
-% Create 1D Tensor: [1 x Time x 31 Channels x Batch]
-X_train_1D = zeros(1, L, size(X_train, 1), num_windows_train);
+% Create 1D Tensor: [1 x Time x Channels x Batch] in single precision
+X_train_1D = zeros(1, L, nChannels, num_windows_train, 'single');
 X_train_1D(1, :, :, :) = permute(X_train_chunked, [2, 1, 3]);
+clear X_train_chunked;
 
-% --- 2.2 Pad and Chunk Test Data (Using raw X_test) ---
-pad_len_test = ceil(size(X_test, 2) / L) * L - size(X_test, 2);
-X_test_padded = [X_test, zeros(size(X_test, 1), pad_len_test)];
-
+% --- 2.2 Pad and Chunk Test Data (Directly in single precision) ---
+pad_len_test = ceil(nTestSamples / L) * L - nTestSamples;
+X_test_padded = [single(X_test), zeros(nChannels, pad_len_test, 'single')];
 num_windows_test = size(X_test_padded, 2) / L;
-X_test_chunked = reshape(X_test_padded, [size(X_test, 1), L, num_windows_test]);
+X_test_chunked = reshape(X_test_padded, [nChannels, L, num_windows_test]);
+clear X_test_padded;
 
-X_test_1D = zeros(1, L, size(X_test, 1), num_windows_test);
+X_test_1D = zeros(1, L, nChannels, num_windows_test, 'single');
 X_test_1D(1, :, :, :) = permute(X_test_chunked, [2, 1, 3]);
+clear X_test_chunked;
 
 % --- 2.3 Train the 1D Temporal CAE_5 ---
 ckpt_dir = tempname; 
 mkdir(ckpt_dir); 
-
-[net, info] = trainEEG_CAE_5(X_train_1D, X_test_1D,  ... 
+[net, info] = trainEEG_CAE_5(X_train_1D, X_test_1D, ... 
     'bottleneckSize', bottleNeck, ...
     'epochs', 100, ... 
     'batchSize', batch_size, ...
@@ -63,26 +66,25 @@ mkdir(ckpt_dir);
     'checkpointPath', ckpt_dir, ...
     'lambdaICA', 0.01);
 
-% --- 2.6 Extract Latents (Direct Deterministic Inference) ---
-% Extract the full [1 x L x k x Batch] latent tensor directly from the bottleneck
-Z_train_raw = double(activations(net, X_train_1D, 'bottleneck'));
-Z_test_raw  = double(activations(net, X_test_1D,  'bottleneck'));
+% --- 2.6 Extract Latents (Mini-Batched Inference to Prevent OOM) ---
+Z_train_raw = double(activations(net, X_train_1D, 'bottleneck', 'MiniBatchSize', batch_size));
+Z_test_raw  = double(activations(net, X_test_1D,  'bottleneck', 'MiniBatchSize', batch_size));
 
 % Re-flatten into continuous time
 Z_train_flat = reshape(permute(Z_train_raw, [2, 4, 3, 1]), [L * num_windows_train, bottleNeck]);
 Z_test_flat  = reshape(permute(Z_test_raw, [2, 4, 3, 1]), [L * num_windows_test, bottleNeck]);
+clear Z_train_raw Z_test_raw;
 
 % Truncate padding to match Ground Truth H
-Z_train_c = Z_train_flat(1:size(X_train, 2), :);
-Z_test_c  = Z_test_flat(1:size(X_test, 2), :);
+Z_train_c = Z_train_flat(1:nTrainSamples, :);
+Z_test_c  = Z_test_flat(1:nTestSamples, :);
+clear Z_train_flat Z_test_flat;
 
 H_train   = double(H_train);
 H_test    = double(H_test);
-
 minLen = min(size(Z_train_c,1), size(H_train,1));
 Z_train_c = Z_train_c(1:minLen,:);
 H_train   = H_train(1:minLen,:);
-
 minLenTest = min(size(Z_test_c,1), size(H_test,1));
 Z_test_c  = Z_test_c(1:minLenTest,:);
 H_test    = H_test(1:minLenTest,:);
@@ -92,49 +94,45 @@ H_test    = H_test(1:minLenTest,:);
 % ==========================================
 disp('Evaluating Checkpoints for Z-Z_hat Correlation...');
 ckpt_files = dir(fullfile(ckpt_dir, 'net_checkpoint__*.mat'));
-
+target_epochs = [];
 if ~isempty(ckpt_files)
     iters = zeros(length(ckpt_files), 1);
     for i = 1:length(ckpt_files)
         parts = split(ckpt_files(i).name, '__');
         iters(i) = str2double(parts{2});
     end
-
     [sorted_iters, sort_idx] = sort(iters);
     ckpt_files = ckpt_files(sort_idx);
-
+    
     iters_per_epoch = max(1, floor(size(X_train_1D, 4) / batch_size)); 
     eval_every_n_epochs = 2;
     max_epoch_reached = floor(max(sorted_iters) / iters_per_epoch);
     target_epochs = eval_every_n_epochs : eval_every_n_epochs : max_epoch_reached;
     target_iters = target_epochs * iters_per_epoch;
-
     history_corr = nan(length(target_epochs), param.N_F);
-
+    
     for i = 1:length(target_epochs)
         [~, closest_idx] = min(abs(sorted_iters - target_iters(i)));
         ckpt_data = load(fullfile(ckpt_dir, ckpt_files(closest_idx).name));
         temp_net = ckpt_data.net; 
-
-        % Extract CAE Latents directly from bottleneck
-        Z_train_raw_tmp = double(activations(temp_net, X_train_1D, 'bottleneck'));
-        Z_test_raw_tmp  = double(activations(temp_net, X_test_1D,  'bottleneck'));
-
+        
+        % Extract CAE Latents using MiniBatchSize to prevent OOM on long durations
+        Z_train_raw_tmp = double(activations(temp_net, X_train_1D, 'bottleneck', 'MiniBatchSize', batch_size));
+        Z_test_raw_tmp  = double(activations(temp_net, X_test_1D,  'bottleneck', 'MiniBatchSize', batch_size));
+        
         % Flatten & Truncate
         Z_train_flat_tmp = reshape(permute(Z_train_raw_tmp, [2, 4, 3, 1]), [L * num_windows_train, bottleNeck]);
         Z_test_flat_tmp  = reshape(permute(Z_test_raw_tmp, [2, 4, 3, 1]), [L * num_windows_test, bottleNeck]);
-
-        Z_train_tmp = Z_train_flat_tmp(1:size(X_train, 2), :);
-        Z_test_tmp  = Z_test_flat_tmp(1:size(X_test, 2), :);
-
-        % Match lengths
-        Z_train_tmp = Z_train_tmp(1:minLen,:);
-        Z_test_tmp  = Z_test_tmp(1:minLenTest,:);
-
+        clear Z_train_raw_tmp Z_test_raw_tmp;
+        
+        Z_train_tmp = Z_train_flat_tmp(1:minLen, :);
+        Z_test_tmp  = Z_test_flat_tmp(1:minLenTest, :);
+        clear Z_train_flat_tmp Z_test_flat_tmp;
+        
         % Subspace mapping 
         W_multi = pinv(Z_train_tmp) * H_train;
         Z_recon_test_tmp = Z_test_tmp * W_multi;
-
+        
         % Calculate Pearson Correlation
         for f = 1:param.N_F
             c = corrcoef(H_test(:,f), Z_recon_test_tmp(:,f));
@@ -145,199 +143,47 @@ else
     warning('No checkpoint files found in %s', ckpt_dir);
     history_corr = [];
 end
-
 if exist(ckpt_dir, 'dir')
     rmdir(ckpt_dir, 's');
 end
-%% For VAE
-% ==========================================
-% SECTION 2: CHUNKING & TRAINING VAE_2
-% ==========================================
-% batch_size = 16; 
-% L = 500;        % 1-second chunks (fs = 500 Hz)
-% 
-% disp('Chunking Unfiltered Broadband EEG...');
-% 
-% % --- 2.1 Pad and Chunk Train Data ---
-% pad_len_train = ceil(size(X_train, 2) / L) * L - size(X_train, 2);
-% X_train_padded = [X_train, zeros(size(X_train, 1), pad_len_train)];
-% 
-% num_windows_train = size(X_train_padded, 2) / L;
-% X_train_chunked = reshape(X_train_padded, [size(X_train, 1), L, num_windows_train]);
-% 
-% X_train_1D = zeros(1, L, size(X_train, 1), num_windows_train);
-% X_train_1D(1, :, :, :) = permute(X_train_chunked, [2, 1, 3]);
-% 
-% % --- 2.2 Pad and Chunk Test Data ---
-% pad_len_test = ceil(size(X_test, 2) / L) * L - size(X_test, 2);
-% X_test_padded = [X_test, zeros(size(X_test, 1), pad_len_test)];
-% 
-% num_windows_test = size(X_test_padded, 2) / L;
-% X_test_chunked = reshape(X_test_padded, [size(X_test, 1), L, num_windows_test]);
-% 
-% X_test_1D = zeros(1, L, size(X_test, 1), num_windows_test);
-% X_test_1D(1, :, :, :) = permute(X_test_chunked, [2, 1, 3]);
-% 
-% % --- 2.3 Train the VAE_2 ---
-% ckpt_dir = tempname; 
-% mkdir(ckpt_dir); 
-% 
-% [net, info] = trainEEG_VAE_2(X_train_1D, X_test_1D,  ... 
-%     'bottleneckSize', bottleNeck, ...
-%     'epochs', 100, ... 
-%     'batchSize', batch_size, ...
-%     'learnRate', 1e-3, ...                           
-%     'checkpointPath', ckpt_dir, ...
-%     'beta', 0);
-% 
-% % --- 2.4 Prepare Padded Targets for Training Call Matching ---
-% pad_train = zeros(1, L, bottleNeck * 2, size(X_train_1D, 4));
-% pad_test  = zeros(1, L, bottleNeck * 2, size(X_test_1D, 4));
-% T_train_padded_target = cat(3, X_train_1D, pad_train);
-% T_test_padded_target  = cat(3, X_test_1D, pad_test);
-% 
-% % --- 2.6 Extract Latents (Deterministic Mean Inference) ---
-% Z_train_params = double(activations(net, X_train_1D, 'vae_parameters'));
-% Z_test_params  = double(activations(net, X_test_1D,  'vae_parameters'));
-% 
-% Z_train_raw = Z_train_params(:, :, 1:bottleNeck, :);
-% Z_test_raw  = Z_test_params(:, :, 1:bottleNeck, :);
-% 
-% Z_train_flat = reshape(permute(Z_train_raw, [2, 4, 3, 1]), [L * num_windows_train, bottleNeck]);
-% Z_test_flat  = reshape(permute(Z_test_raw, [2, 4, 3, 1]), [L * num_windows_test, bottleNeck]);
-% 
-% Z_train_c = Z_train_flat(1:size(X_train, 2), :);
-% Z_test_c  = Z_test_flat(1:size(X_test, 2), :);
-% 
-% H_train   = double(H_train);
-% H_test    = double(H_test);
-% 
-% minLen = min(size(Z_train_c,1), size(H_train,1));
-% Z_train_c = Z_train_c(1:minLen,:);
-% H_train   = H_train(1:minLen,:);
-% 
-% minLenTest = min(size(Z_test_c,1), size(H_test,1));
-% Z_test_c  = Z_test_c(1:minLenTest,:);
-% H_test    = H_test(1:minLenTest,:);
-% 
-% % ==========================================
-% % SECTION 3.5: EVALUATE CHECKPOINTS EVERY N EPOCHS
-% % ==========================================
-% disp('Evaluating Checkpoints for Z-Z_hat Correlation...');
-% ckpt_files = dir(fullfile(ckpt_dir, 'net_checkpoint__*.mat'));
-% 
-% if ~isempty(ckpt_files)
-%     iters = zeros(length(ckpt_files), 1);
-%     for i = 1:length(ckpt_files)
-%         parts = split(ckpt_files(i).name, '__');
-%         iters(i) = str2double(parts{2});
-%     end
-% 
-%     [sorted_iters, sort_idx] = sort(iters);
-%     ckpt_files = ckpt_files(sort_idx);
-% 
-%     iters_per_epoch = max(1, floor(size(X_train_1D, 4) / batch_size)); 
-%     eval_every_n_epochs = 2;
-%     max_epoch_reached = floor(max(sorted_iters) / iters_per_epoch);
-%     target_epochs = eval_every_n_epochs : eval_every_n_epochs : max_epoch_reached;
-%     target_iters = target_epochs * iters_per_epoch;
-% 
-%     history_corr = nan(length(target_epochs), param.N_F);
-% 
-%     for i = 1:length(target_epochs)
-%         [~, closest_idx] = min(abs(sorted_iters - target_iters(i)));
-%         ckpt_data = load(fullfile(ckpt_dir, ckpt_files(closest_idx).name));
-%         temp_net = ckpt_data.net; 
-% 
-%         Z_train_params_tmp = double(activations(temp_net, X_train_1D, 'vae_parameters'));
-%         Z_test_params_tmp  = double(activations(temp_net, X_test_1D,  'vae_parameters'));
-% 
-%         Z_train_raw_tmp = Z_train_params_tmp(:, :, 1:bottleNeck, :);
-%         Z_test_raw_tmp  = Z_test_params_tmp(:, :, 1:bottleNeck, :);
-% 
-%         Z_train_flat_tmp = reshape(permute(Z_train_raw_tmp, [2, 4, 3, 1]), [L * num_windows_train, bottleNeck]);
-%         Z_test_flat_tmp  = reshape(permute(Z_test_raw_tmp, [2, 4, 3, 1]), [L * num_windows_test, bottleNeck]);
-% 
-%         Z_train_tmp = Z_train_flat_tmp(1:size(X_train, 2), :);
-%         Z_test_tmp  = Z_test_flat_tmp(1:size(X_test, 2), :);
-% 
-%         Z_train_tmp = Z_train_tmp(1:minLen,:);
-%         Z_test_tmp  = Z_test_tmp(1:minLenTest,:);
-% 
-%         W_multi = pinv(Z_train_tmp) * H_train;
-%         Z_recon_test_tmp = Z_test_tmp * W_multi;
-% 
-%         for f = 1:param.N_F
-%             c = corrcoef(H_test(:,f), Z_recon_test_tmp(:,f));
-%             history_corr(i, f) = c(1,2);
-%         end
-%     end
-% else
-%     warning('No checkpoint files found in %s', ckpt_dir);
-%     history_corr = [];
-% end
-% 
-% if exist(ckpt_dir, 'dir')
-%     rmdir(ckpt_dir, 's');
-% end
+
+% Free 4D tensors after checkpoint evaluation (keep num_windows_train for plot 0)
+clear X_train_1D X_test_1D;
+
 %% 4. Compute Performance Metrics
 [H_recon_train, H_recon_test, Comp_latent_matching_corr, R_AE, direct_Component_Corr_ae, AE_R2_scores, freq_data] = ...
     computePerformanceMetrics(Z_train_c, Z_test_c, H_train, H_test, 'AE', bottleNeck, param);
 
-% Separate Train Correlation for Plot 3
-direct_Component_Corr_train_ae = zeros(1, param.N_F);
-for f = 1:param.N_F
-    c_train = corrcoef(H_train(:,f), H_recon_train(:,f));
-    direct_Component_Corr_train_ae(f) = c_train(1,2);
-end
-
-% We also calculate avg_comp_corr_train here specifically for Plot 3 (Split Reconstruction)
-avg_comp_corr_train = zeros(1, param.N_F);
-for f = 1:param.N_F
-    c_train = corrcoef(H_train(:,f), H_recon_train(:,f));
-    avg_comp_corr_train(f) = c_train(1,2);
-end
-
 %% ============================================================
 % PLOTTING SECTION (Safely skipped by parallel workers)
 % ============================================================
-if (isempty(getCurrentTask()) & bottleNeck==10)
-  %% Plot 0: Training and Validation Loss Curve
+if (isempty(getCurrentTask()) && bottleNeck==10)
+    %% Plot 0: Training and Validation Loss Curve
     fig_loss = figure('Name', 'Autoencoder Loss Curve', 'Position', [100, 100, 800, 500], 'Visible', 'off');
     hold on;
     
-    % --- FIXED: Now uses the 1D Temporal dimensions safely ---
-    % --- FIXED: Now uses the 2D Spectral dimensions safely ---
-    % iters_per_epoch = max(1, floor(size(X_train_spec, 4) / batch_size));
-    iters_per_epoch = max(1, floor(size(X_train_1D, 4) / batch_size));
-    
-    % Convert iteration indices to epoch units
+    iters_per_epoch = max(1, floor(num_windows_train / batch_size));
     train_epochs = (1:length(info.TrainingLoss)) / iters_per_epoch;
     
-    % info.TrainingLoss is recorded every iteration
     plot(train_epochs, info.TrainingLoss, 'LineWidth', 1.5, 'Color', [0 0.4470 0.7410], 'DisplayName', 'Training Loss');
     
-    % info.ValidationLoss is recorded at validation frequencies
     val_idx = find(~isnan(info.ValidationLoss));
     if ~isempty(val_idx)
-        val_epochs = val_idx / iters_per_epoch; % Convert validation iterations to epochs
+        val_epochs = val_idx / iters_per_epoch;
         plot(val_epochs, info.ValidationLoss(val_idx), '-o', 'LineWidth', 2, 'Color', [0.8500 0.3250 0.0980], 'DisplayName', 'Validation Loss');
     end
     
-    % --- Set Y-Axis to Logarithmic Scale ---
-    set(gca,'XScale', 'log', 'YScale', 'log'); 
-    
+    set(gca, 'XScale', 'log', 'YScale', 'log'); 
     xlabel('Epochs', 'FontSize', 14);
     ylabel('MSE Loss (Log Scale)', 'FontSize', 14);
     title(sprintf('CAE Training Curve (k=%d)', bottleNeck), 'FontSize', 16);
     legend('Location', 'northeast', 'FontSize', 12);
     grid on;
     
-    % Mark the epoch where early stopping occurred (if applicable)
     if ~isempty(val_idx)
         [min_val_loss, best_idx] = min(info.ValidationLoss(val_idx));
         best_iter = val_idx(best_idx);
-        best_epoch = best_iter / iters_per_epoch; % Convert best iteration to epoch
+        best_epoch = best_iter / iters_per_epoch;
         plot(best_epoch, min_val_loss, 'k*', 'MarkerSize', 10, 'DisplayName', 'Best Model / Early Stop');
     end
     
@@ -357,126 +203,17 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
         title(['$Z$ vs $\hat{Z}$ Correlation over Training (k=' num2str(bottleNeck) ')'], 'FontSize', 16, 'Interpreter','latex');
         legend('Location', 'eastoutside', 'FontSize', 12);
         grid on;
-        ylim([0 1.05]); % Forces Y-axis to standard correlation scale
+        ylim([0 1.05]);
         
         saveas(fig_corr_evol, fullfile(method_dir, ['AE_Corr_Evolution' file_suffix '.png']));
         close(fig_corr_evol);
     end
-    %% Plot 1 & 2: Component Traces
-    plotCTraces(bottleNeck, param, Z_train_c, H_train, Comp_latent_matching_corr, method_dir, file_suffix);
+
+    %% Plot 1 & 2: Component Traces (Panel A)
+    plotCTraces(bottleNeck, param, Z_test_c, H_test, Comp_latent_matching_corr, method_dir, file_suffix);
     
-%% Plot 3: Detailed Reconstruction (Train & Test Split) - Stacked Layout (Okabe-Ito + 600 DPI)
-    fig3 = figure('Name', 'True vs. AE Latents', 'Position', [50, 100, 1500, 780], 'Visible', 'off');
-    t3 = tiledlayout(1, 2, 'TileSpacing', 'compact', 'Padding', 'normal');
-    
-    % --- Okabe-Ito Colorblind-Safe Palette (Matches Panels A & C) ---
-    cb_palette = [
-        0.00, 0.45, 0.70;  % Blue           (Z_1 / 2 Hz)
-        0.90, 0.60, 0.00;  % Orange         (Z_2 / 6 Hz)
-        0.00, 0.60, 0.50;  % Bluish Green   (Z_3 / 10 Hz)
-        0.80, 0.40, 0.00;  % Vermillion     (Z_4 / 18 Hz)
-        0.35, 0.70, 0.90;  % Sky Blue       (Z_5 / 24 Hz)
-        0.80, 0.60, 0.70;  % Reddish Purple (Z_6 / 50 Hz)
-        0.95, 0.90, 0.25;  % Yellow (Fallback)
-        0.20, 0.20, 0.20   % Dark Gray (Fallback)
-    ];
-    h_f_colors = cb_palette(1:param.N_F, :);
-
-    % Crop to 1 second (1000 ms) using fs_new
-    max_samples_train = min(round(fs_new), size(H_train, 1)); 
-    max_samples_test  = min(round(fs_new), size(H_test, 1));
-    
-    t_ms_train = (0:max_samples_train-1) / fs_new * 1000;
-    t_ms_test  = (0:max_samples_test-1)  / fs_new * 1000;
-
-    % --- SPACING AND SCALING (PREVENTS OVERLAP) ---
-    offset    = 4.0;   % Vertical baseline spacing between latents
-    amp_scale = 0.55;  % Scale factor to eliminate overlap between adjacent rows
-    tick_positions = (0 : param.N_F - 1) * offset;
-    y_labels = arrayfun(@(i) sprintf('Z_{%d}', i), param.N_F:-1:1, 'UniformOutput', false);
-
-    % =========================================================================
-    % TILE 1: TRAINING SET
-    % =========================================================================
-    nexttile; hold on; box on; grid on;
-    set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 20, 'FontWeight', 'bold');
-    title('Training Set', 'FontSize', 24, 'FontWeight', 'bold');
-
-    for f = 1:param.N_F
-        y_shift = (param.N_F - f) * offset;
-
-        % 1. True Latent (Solid Okabe-Ito Colored, LineWidth 2.5)
-        plot(t_ms_train, (H_train(1:max_samples_train, f) * amp_scale) + y_shift, ...
-            'LineStyle', '-', 'Color', h_f_colors(f,:), 'LineWidth', 2.5); 
-        
-        % 2. Reconstructed Latent (Dashed Black, LineWidth 2.0)
-        plot(t_ms_train, (H_recon_train(1:max_samples_train, f) * amp_scale) + y_shift, ...
-            'LineStyle', '--', 'Color', [0.15 0.15 0.15], 'LineWidth', 2.0);
-            
-        % 3. Training Correlation Value (Increased FontSize: 16 -> 20)
-        rho_train = direct_Component_Corr_train_ae(f);
-        text(25, y_shift + 1.35, sprintf('\\rho=%.2f', rho_train), ...
-            'FontSize', 20, 'FontWeight', 'bold', ...
-            'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
-            'Margin', 3, 'EdgeColor', [0.2 0.2 0.2], 'LineWidth', 1.2);
-    end
-
-    xlim([0, 1000]);
-    xticks(0:200:1000);
-    xlabel('Time (ms)', 'FontSize', 22, 'FontWeight', 'bold');
-    
-    yticks(tick_positions);
-    yticklabels(y_labels);
-    ylabel('Z-Scored Amplitude (stacked)', 'FontSize', 22, 'FontWeight', 'bold');
-    ylim([-offset * 0.7, (param.N_F - 0.05) * offset]);
-
-    % =========================================================================
-    % TILE 2: TEST SET
-    % =========================================================================
-    nexttile; hold on; box on; grid on;
-    set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 20, 'FontWeight', 'bold');
-    title('Test Set', 'FontSize', 24, 'FontWeight', 'bold');
-
-    for f = 1:param.N_F
-        y_shift = (param.N_F - f) * offset;
-
-        % 1. True Latent (Solid Okabe-Ito Colored, LineWidth 2.5)
-        plot(t_ms_test, (H_test(1:max_samples_test, f) * amp_scale) + y_shift, ...
-            'LineStyle', '-', 'Color', h_f_colors(f,:), 'LineWidth', 2.5);  
-        
-        % 2. Reconstructed Latent (Dashed Black, LineWidth 2.0)
-        plot(t_ms_test, (H_recon_test(1:max_samples_test, f) * amp_scale) + y_shift, ...
-            'LineStyle', '--', 'Color', [0.15 0.15 0.15], 'LineWidth', 2.0);
-            
-        % 3. Test Correlation Value (Increased FontSize: 16 -> 20)
-        rho_test = direct_Component_Corr_ae(f);
-        text(25, y_shift + 1.35, sprintf('\\rho=%.2f', rho_test), ...
-            'FontSize', 20, 'FontWeight', 'bold', ...
-            'Color', [0.1 0.1 0.1], 'BackgroundColor', 'w', ...
-            'Margin', 3, 'EdgeColor', [0.2 0.2 0.2], 'LineWidth', 1.2);
-    end
-
-    xlim([0, 1000]);
-    xticks(0:200:1000);
-    xlabel('Time (ms)', 'FontSize', 22, 'FontWeight', 'bold');
-    
-    yticks(tick_positions);
-    yticklabels(y_labels);
-    ylim([-offset * 0.7, (param.N_F - 0.05) * offset]);
-
-    % Clean 2-entry legend using Okabe-Ito Blue for Z(t) True
-    h_leg_true  = plot(nan, nan, '-', 'Color', cb_palette(1, :), 'LineWidth', 2.5);
-    h_leg_recon = plot(nan, nan, '--', 'Color', [0.15 0.15 0.15], 'LineWidth', 2.0);
-    legend([h_leg_true, h_leg_recon], {'\textbf{Z(t) True}', '$\mathbf{\hat{z}(t)}$ \textbf{Recon}'}, ...
-        'Interpreter', 'latex', 'Location', 'northeast', 'FontSize', 17);
-
-    % --- Unified TiledLayout Title (Placed AFTER tiles so it is never clipped) ---
-    title(t3, sprintf('AE (k=%d) True Latents (solid) vs. Reconstructed (dashed)', bottleNeck), ...
-        'FontSize', 26, 'FontWeight', 'bold');
-
-    % Save at 600 DPI
-    exportgraphics(fig3, fullfile(method_dir, ['AE_Split_Reconstruction' file_suffix '.png']), 'Resolution', 600);  
-    close(fig3);
+    %% Plot 3: Time-Domain Reconstruction - Test Set Only (Panel B)
+    plotTimeDomainReconstruction(H_test, H_recon_test, param, method_name, bottleNeck, direct_Component_Corr_ae, method_dir);
     
     %% Plot 4: Frequency Analysis FFT
     save_path_fft = fullfile(method_dir, ['AE_FFT_True_vs_Recon' file_suffix '.png']);
@@ -486,7 +223,7 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
     br2_path = fullfile(method_dir, ['AE_Bandwise_R2' file_suffix '.png']);
     plotBandwiseR2(freq_data.R2_avg, freq_data.f_axis, param, bottleNeck, 'AE', br2_path);
     
-    %% Plot 6: Band Amplitude Bar Chart (Adapted for new freq_data struct)
+    %% Plot 6: Band Amplitude Bar Chart
     nBands = numel(freq_data.band_names);
     band_amp_true = zeros(nBands, param.N_F);
     band_amp_recon = zeros(nBands, param.N_F);
@@ -540,7 +277,6 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
     
     for b = 1:nBands    
         nexttile; hold on;
-        
         x = mean(freq_data.true_vals{b}, 2, 'omitnan'); 
         y = mean(freq_data.recon_vals{b}, 2, 'omitnan');
         std_x = std(freq_data.true_vals{b}, 0, 2, 'omitnan');
@@ -561,7 +297,7 @@ if (isempty(getCurrentTask()) & bottleNeck==10)
     saveas(fig7, fullfile(method_dir, ['AE_Scatter_Mean' file_suffix '.png']));
     close(fig7);
     
-    %% Plot 8: Scatter Per-Trial Band Amplitudes
+    %% Plot 8: Scatter Per-Trial Band Amplitudes (Panel C)
     plotBandScatterPerTrial(freq_data.true_vals, freq_data.recon_vals, AE_R2_scores, freq_data.band_names, param, bottleNeck, "AE", method_dir);
 end
 
@@ -569,16 +305,14 @@ end
 outAE = struct();
 outAE.net = net;
 outAE.info = info;
-outAE.history_corr     = history_corr;  % <-- ALWAYS SAVES CORR DATA
-outAE.target_epochs    = target_epochs;
-outAE.h_recon_train    = H_recon_train;
-outAE.h_recon_test     = H_recon_test;
-outAE.matched_R2       = freq_data.matched_R2;
-outAE.results_dir      = method_dir;
-outAE.Comp_latent_matching_corr = Comp_latent_matching_corr;
-outAE.direct_Component_Corr  = direct_Component_Corr_ae;
-outAE.Comp_latent_matching_matrix           = R_AE;
-outAE.spectral_R2      = AE_R2_scores; 
-% close all;
-
+outAE.history_corr               = history_corr;
+outAE.target_epochs              = target_epochs;
+outAE.h_recon_train              = H_recon_train;
+outAE.h_recon_test               = H_recon_test;
+outAE.matched_R2                 = freq_data.matched_R2;
+outAE.results_dir                = method_dir;
+outAE.Comp_latent_matching_corr  = Comp_latent_matching_corr;
+outAE.direct_Component_Corr      = direct_Component_Corr_ae;
+outAE.Comp_latent_matching_matrix = R_AE;
+outAE.spectral_R2                = AE_R2_scores; 
 end
