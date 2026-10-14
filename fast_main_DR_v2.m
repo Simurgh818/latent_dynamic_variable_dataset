@@ -44,12 +44,12 @@ end
 
 %% Loop through experiments
 conditions = {'set4'}; %,'ou', 'set2',  linear, nonlinear
-nDatasets  = 1; % 10 datasets
-k_range    = 10:10; % 10 k components
+nDatasets  = 10; % 10 datasets
+k_range    = 1:10; % 10 k components
 nK         = numel(k_range);
 
 % Store results: structure indexed by method name
-methods = {'AE'};  % 'PCA', 'AE','ICA'
+methods = {'PCA', 'AE','ICA'};  % 'PCA', 'AE','ICA'
 % --- Define Marker & Line Styles for distinct plotting ---
 method_markers = {'o', 's', '^', 'd', 'v', 'p'}; % Circle, Square, Triangle, Diamond, etc.
 method_lines = {'-', '--', '-.', ':', '-', '--'}; % Solid, Dashed, Dash-Dot, Dotted, etc.
@@ -429,7 +429,6 @@ method_lines   = {'-', '--', '-.', ':', '-', '--'};
 fig1 = figure('Position', [100, 100, 1000, 600], 'Visible', 'off');
 hold on;
 set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 20, 'FontWeight', 'bold');
-
 for c = 1:numel(conditions)
     cond = conditions{c};
     
@@ -441,18 +440,19 @@ for c = 1:numel(conditions)
         mu_k = mean(STATS.(cond).(method).direct_Component_Corr.mean, 1, 'omitnan');
         sd_k = std(STATS.(cond).(method).direct_Component_Corr.mean, 0, 1, 'omitnan');
         
+        % Blend color with white to simulate 0.6 MarkerFaceAlpha on ErrorBar
+        face_col = 0.6 * colors(m, :) + 0.4 * [1, 1, 1];
+        
         errorbar(k_range, mu_k, sd_k, ...
             'LineStyle', method_lines{l_idx}, ...
             'Marker', method_markers{m_idx}, ...
             'LineWidth', 2.5, ...
             'MarkerSize', 8, ...  
             'Color', colors(m, :), ...
-            'MarkerFaceColor', colors(m, :), ...
-            'MarkerFaceAlpha', 0.6, ...
+            'MarkerFaceColor', face_col, ...
             'DisplayName', method);
     end
 end
-
 xlabel('Number of Components (k)', 'FontSize', 22, 'FontWeight', 'bold');
 xticks(k_range);
 ylabel('Mean Correlation ($Z$ and $\mathbf{\hat{z}}$)', 'Interpreter', 'latex', 'FontSize', 22, 'FontWeight', 'bold');
@@ -461,7 +461,6 @@ title('Mean Latent Correlation vs. k', 'FontSize', 24, 'FontWeight', 'bold');
 grid on;
 lgd1 = legend('Location', 'eastoutside');
 lgd1.FontSize = 18;
-
 summary_trace_name = fullfile(local_results_dir, 'Main_Summary_Corr_vs_k.png');
 exportgraphics(fig1, summary_trace_name, 'Resolution', 600);
 close(fig1);
@@ -472,7 +471,6 @@ close(fig1);
 fig1b = figure('Position', [125, 125, 1000, 600], 'Visible', 'off');
 hold on;
 set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 20, 'FontWeight', 'bold');
-
 for c = 1:numel(conditions)
     cond = conditions{c};
     
@@ -485,18 +483,18 @@ for c = 1:numel(conditions)
         mu_k_r2 = mean(STATS.(cond).(method).matched_R2.mean, 1, 'omitnan');
         sd_k_r2 = std(STATS.(cond).(method).matched_R2.mean, 0, 1, 'omitnan');
         
+        face_col = 0.6 * colors(m, :) + 0.4 * [1, 1, 1];
+        
         errorbar(k_range, mu_k_r2, sd_k_r2, ...
             'LineStyle', method_lines{l_idx}, ...
             'Marker', method_markers{m_idx}, ...
             'LineWidth', 2.5, ...
             'MarkerSize', 8, ...  
             'Color', colors(m, :), ...
-            'MarkerFaceColor', colors(m, :), ...
-            'MarkerFaceAlpha', 0.6, ...
+            'MarkerFaceColor', face_col, ...
             'DisplayName', method);
     end
 end
-
 xlabel('Number of Components (k)', 'FontSize', 22, 'FontWeight', 'bold');
 xticks(k_range); 
 ylabel('Mean Time-Domain R^2', 'FontSize', 22, 'FontWeight', 'bold');
@@ -505,7 +503,6 @@ title('Time-Domain R^2 vs. k', 'FontSize', 24, 'FontWeight', 'bold');
 grid on;
 lgd1b = legend('Location', 'eastoutside');
 lgd1b.FontSize = 18;
-
 summary_r2_name = fullfile(local_results_dir, 'Main_Summary_TimeDomain_R2_vs_k.png');
 exportgraphics(fig1b, summary_r2_name, 'Resolution', 600);
 close(fig1b);
@@ -516,7 +513,6 @@ close(fig1b);
 fig1c = figure('Position', [150, 150, 1000, 600], 'Visible', 'off');
 hold on;
 set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 20, 'FontWeight', 'bold');
-
 for c = 1:numel(conditions)
     cond = conditions{c};
     
@@ -533,18 +529,18 @@ for c = 1:numel(conditions)
             sd_k_matched(ki) = std(CORR_STATS.(cond).(method)(ki).mean, 0, 'omitnan');
         end
         
+        face_col = 0.6 * colors(m, :) + 0.4 * [1, 1, 1];
+        
         errorbar(k_range, mu_k_matched, sd_k_matched, ...
             'LineStyle', method_lines{l_idx}, ...
             'Marker', method_markers{m_idx}, ...
             'LineWidth', 2.5, ...
             'MarkerSize', 8, ...  
             'Color', colors(m, :), ...
-            'MarkerFaceColor', colors(m, :), ...
-            'MarkerFaceAlpha', 0.6, ...
+            'MarkerFaceColor', face_col, ...
             'DisplayName', method);
     end
 end
-
 xlabel('Number of Components (k)', 'FontSize', 22, 'FontWeight', 'bold');
 xticks(k_range); 
 ylabel('Mean Matched Correlation (\rho)', 'FontSize', 22, 'FontWeight', 'bold');
@@ -553,7 +549,6 @@ title('Mean Matched Latent Correlation vs. k', 'FontSize', 24, 'FontWeight', 'bo
 grid on;
 lgd1c = legend('Location', 'eastoutside');
 lgd1c.FontSize = 18;
-
 summary_matched_name = fullfile(local_results_dir, 'Main_Summary_MatchedCorr_vs_k.png');
 exportgraphics(fig1c, summary_matched_name, 'Resolution', 600);
 close(fig1c);
@@ -564,15 +559,18 @@ close(fig1c);
 target_k = 10;
 ki_target = find(k_range == target_k);
 if ~isempty(ki_target)
-    fig2 = figure('Position', [0, 100, 1700, 600], 'Visible', 'off');
-    t2 = tiledlayout(1, 2, 'Padding', 'compact', 'TileSpacing', 'compact');
+    
+    % ==========================================================
+    % FIGURE 2a: MATCHED CORRELATION VS. PEAK FREQUENCY
+    % ==========================================================
+    fig2a = figure('Position', [100, 100, 1000, 600], 'Color', 'w', 'Visible', 'off');
+    hold on;
+    ax2a = gca;
+    ax2a.Toolbar.Visible = 'off'; % Prevents zoom/home icons from appearing in export
+    set(ax2a, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 20, 'FontWeight', 'bold');
     
     for c = 1:numel(conditions)
         cond = conditions{c};
-        
-        % --- Left Subplot: Matched Corr ---
-        nexttile; hold on;
-        set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 20, 'FontWeight', 'bold');
         
         for m = 1:numel(methods)
             method = methods{m};
@@ -586,29 +584,43 @@ if ~isempty(ki_target)
             y_col = reshape(double(mu), [], 1);
             e_col = reshape(double(sd), [], 1);
             
+            face_col = 0.6 * colors(m, :) + 0.4 * [1, 1, 1];
+            
             errorbar(x_col, y_col, e_col, ...
                 'LineStyle', method_lines{l_idx}, ...
                 'Marker', method_markers{m_idx}, ...
                 'LineWidth', 2.5, ...
                 'MarkerSize', 8, ...
                 'Color', colors(m, :), ...
-                'MarkerFaceColor', colors(m, :), ...
-                'MarkerFaceAlpha', 0.6, ...
+                'MarkerFaceColor', face_col, ...
                 'DisplayName', char(method));
         end
-        
-        xlabel('Peak Frequency (Hz)', 'FontSize', 22, 'FontWeight', 'bold');
-        ylabel('Matched Correlation (\rho)', 'FontSize', 22, 'FontWeight', 'bold');
-        xticks(param.f_peak);
-        ylim([0 1]); 
-        title(sprintf('Matched Correlation vs. Frequency (k=%d)', target_k), 'FontSize', 24, 'FontWeight', 'bold');
-        grid on; 
-        lgd2_left = legend('Location', 'eastoutside'); 
-        lgd2_left.FontSize = 18;
-        
-        % --- Right Subplot: Spectral R^2 ---
-        nexttile; hold on;
-        set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 20, 'FontWeight', 'bold');
+    end
+    
+    xlabel('Peak Frequency (Hz)', 'FontSize', 22, 'FontWeight', 'bold');
+    ylabel('Matched Correlation (\rho)', 'FontSize', 22, 'FontWeight', 'bold');
+    xticks(param.f_peak);
+    ylim([0 1]); 
+    title(sprintf('Matched Correlation vs. Frequency (k=%d)', target_k), 'FontSize', 24, 'FontWeight', 'bold');
+    grid on; 
+    lgd2a = legend('Location', 'eastoutside'); 
+    lgd2a.FontSize = 18;
+    
+    summary_corr_freq_name = fullfile(local_results_dir, sprintf('Summary_MatchedCorr_vs_Freq_k%d.png', target_k));
+    exportgraphics(fig2a, summary_corr_freq_name, 'Resolution', 600);
+    close(fig2a);
+
+    % ==========================================================
+    % FIGURE 2b: SPECTRAL R^2 VS. PEAK FREQUENCY
+    % ==========================================================
+    fig2b = figure('Position', [125, 125, 1000, 600], 'Color', 'w', 'Visible', 'off');
+    hold on;
+    ax2b = gca;
+    ax2b.Toolbar.Visible = 'off'; % Prevents zoom/home icons from appearing in export
+    set(ax2b, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 20, 'FontWeight', 'bold');
+    
+    for c = 1:numel(conditions)
+        cond = conditions{c};
         
         for m = 1:numel(methods)
             method = methods{m};
@@ -627,32 +639,34 @@ if ~isempty(ki_target)
             y_col = reshape(double(mu), [], 1);
             e_col = reshape(double(sd), [], 1);
             
+            face_col = 0.6 * colors(m, :) + 0.4 * [1, 1, 1];
+            
             errorbar(x_col, y_col, e_col, ...
                 'LineStyle', method_lines{l_idx}, ...
                 'Marker', method_markers{m_idx}, ...
                 'LineWidth', 2.5, ...
                 'MarkerSize', 8, ...
                 'Color', colors(m, :), ...
-                'MarkerFaceColor', colors(m, :), ...
-                'MarkerFaceAlpha', 0.6, ...
+                'MarkerFaceColor', face_col, ...
                 'DisplayName', char(method));
         end
-        
-        xlabel('Peak Frequency (Hz)', 'FontSize', 22, 'FontWeight', 'bold');
-        ylabel('Spectral R^2', 'FontSize', 22, 'FontWeight', 'bold');
-        xticks(param.f_peak);
-        ylim([0 1]); 
-        title(sprintf('Spectral R^2 vs. Frequency (k=%d)', target_k), 'FontSize', 24, 'FontWeight', 'bold');
-        grid on; 
-        lgd2_right = legend('Location', 'eastoutside'); 
-        lgd2_right.FontSize = 18;
     end
     
-    summary_spectral_name = fullfile(local_results_dir, sprintf('Summary_FreqProfile_k%d.png', target_k));
-    exportgraphics(fig2, summary_spectral_name, 'Resolution', 600);
-    close(fig2);
+    xlabel('Peak Frequency (Hz)', 'FontSize', 22, 'FontWeight', 'bold');
+    ylabel('Spectral R^2', 'FontSize', 22, 'FontWeight', 'bold');
+    xticks(param.f_peak);
+    ylim([0 1]); 
+    title(sprintf('Spectral R^2 vs. Frequency (k=%d)', target_k), 'FontSize', 24, 'FontWeight', 'bold');
+    grid on; 
+    lgd2b = legend('Location', 'eastoutside'); 
+    lgd2b.FontSize = 18;
+    
+    summary_spec_freq_name = fullfile(local_results_dir, sprintf('Summary_SpectralR2_vs_Freq_k%d.png', target_k));
+    exportgraphics(fig2b, summary_spec_freq_name, 'Resolution', 600);
+    close(fig2b);
+
 else
-    fprintf('k=%d is not in your current k_range. Skipping the frequency profile plot.\n', target_k);
+    fprintf('k=%d is not in your current k_range. Skipping the frequency profile plots.\n', target_k);
 end
 
 %% ----------------------------------------------------------
@@ -689,14 +703,15 @@ for c = 1:numel(conditions)
                 sd_k(ki) = CORR_STATS.(cond).(method)(ki).std(f);
             end
             
+            face_col = 0.6 * colors(m, :) + 0.4 * [1, 1, 1];
+            
             errorbar(k_range, mu_k, sd_k, ...
                 'LineStyle', method_lines{l_idx}, ...
                 'Marker', method_markers{m_idx}, ...
                 'LineWidth', 2.5, ...
                 'MarkerSize', 8, ...
                 'Color', colors(m, :), ...
-                'MarkerFaceColor', colors(m, :), ...
-                'MarkerFaceAlpha', 0.6, ...
+                'MarkerFaceColor', face_col, ...
                 'DisplayName', method);
             
             latent_name = sprintf('Z_%gHz', peak_freq);
@@ -710,7 +725,9 @@ for c = 1:numel(conditions)
         xlabel('Number of Components (k)', 'FontSize', 20, 'FontWeight', 'bold');
         ylabel('Matching Correlation (\rho)', 'FontSize', 20, 'FontWeight', 'bold');
         xticks(k_range);
-        xlim([min(k_range), max(k_range)]);
+        if numel(k_range) > 1
+            xlim([min(k_range), max(k_range)]);
+        end
         ylim([0 1]);
         title(sprintf('Latent %d: %g Hz', f, peak_freq), 'FontSize', 22, 'FontWeight', 'bold');
         grid on;
@@ -728,7 +745,6 @@ end
 
 % Re-save RESULTS.mat to capture the newly added stats_per_latent structure
 save(fullfile(local_results_dir, "RESULTS.mat"), "RESULTS", "-v7.3");
-
 %% ---------------------------------------------------------------------
 %  HELPER FUNCTIONS
 % ---------------------------------------------------------------------

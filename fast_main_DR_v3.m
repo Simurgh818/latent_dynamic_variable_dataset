@@ -79,7 +79,6 @@ for c = 1:numel(conditions)
         fprintf('\n   --- Processing Duration: %d seconds ---\n', dur);
         
         % Dynamically reduce worker count for extreme durations to save RAM
-        % (parfor M-argument limits how many workers execute the loop)
         if dur >= 3600
             max_active_workers = 2; % Cap at 2 workers for 1h and 3h datasets
         else
@@ -112,14 +111,58 @@ for c = 1:numel(conditions)
             end
             ds_filename = fullfile(local_results_dir, sprintf('Results_%s.mat', dataset_name));
             
-            % --- CHECKPOINT RESUME: Skip if already computed! ---
+            % --- SMART CHECKPOINT RESUME: Validate existing file before skipping ---
             if exist(ds_filename, 'file')
-                fprintf('      [Skipping] Found existing results for %s\n', dataset_name);
                 loaded_ds = load(ds_filename);
-                dataset_results{d}.(cond).output_dir = local_results_dir;
-                dataset_results{d}.(cond).analysis   = loaded_ds.analysis;
-                dataset_results{d}.(cond).entries    = loaded_ds.entries;
-                continue;
+                is_complete = isfield(loaded_ds, 'analysis') && isfield(loaded_ds, 'entries');
+                
+                % Verify all requested methods exist and completed (not empty)
+                if is_complete
+                    for m_chk = 1:numel(methods)
+                        m_name = methods{m_chk};
+                        if ~isfield(loaded_ds.analysis, m_name) || ...
+                           isempty(loaded_ds.analysis.(m_name).Comp_latent_matching_corr{1})
+                            is_complete = false;
+                            break;
+                        end
+                    end
+                end
+                
+                if is_complete
+                    % Backfill dim_estimations if this file came from an older run!
+                    if ~isfield(loaded_ds.analysis, 'dim_estimations')
+                        fprintf('      [Updating] Backfilling dim_estimations for %s\n', dataset_name);
+                        tmp_train = load(fullfile(input_dir, [eegFilename '.mat']), 'sim_eeg_vals');
+                        eeg_tmp   = double(tmp_train.sim_eeg_vals);
+                        tmp_train = [];
+                        
+                        dim_est = struct();
+                        dim_est.rank = rank(eeg_tmp);
+                        [p_ch, n_t] = size(eeg_tmp);
+                        eigVals = sort(eig(cov(eeg_tmp')), 'descend');
+                        noise_var = median(eigVals);
+                        mp_thresh = noise_var * (1 + sqrt(p_ch/n_t))^2;
+                        dim_est.mp = sum(eigVals > mp_thresh);
+                        try
+                            [dim_est.map, ~] = velicer_map(eeg_tmp', false);
+                        catch
+                            dim_est.map = NaN;
+                        end
+                        eeg_tmp = [];
+                        
+                        loaded_ds.analysis.dim_estimations = dim_est;
+                        parsave_struct(ds_filename, loaded_ds);
+                    else
+                        fprintf('      [Skipping] Found complete results for %s\n', dataset_name);
+                    end
+                    
+                    dataset_results{d}.(cond).output_dir = local_results_dir;
+                    dataset_results{d}.(cond).analysis   = loaded_ds.analysis;
+                    dataset_results{d}.(cond).entries    = loaded_ds.entries;
+                    continue;
+                else
+                    fprintf('      [Re-running] Incomplete/older checkpoint found for %s\n', dataset_name);
+                end
             end
             
             % --- 2. Load Train & Test Data (Eliminate redundant copies) ---
@@ -143,7 +186,7 @@ for c = 1:numel(conditions)
             data.H_test    = h_f_test  ./ std(h_f_test, 0, 1);
             h_f_train = []; h_f_test = []; % Clear unnormalized copies
             
-            % Backward compatibility copies (MATLAB uses copy-on-write if unmodified)
+            % Backward compatibility copies
             data.eeg       = data.eeg_train; 
             data.H_ds      = data.H_train;     
             data.f_peak    = f_peak;
@@ -218,11 +261,9 @@ for c = 1:numel(conditions)
                         end
                         
                     catch ME
-                        % Log the error without stopping the benchmark!
                         warning('FAILED on Method: %s | Dur: %ds | Dataset: %d | k: %d\nReason: %s', ...
                             method, dur, d, k, ME.message);
                         
-                        % Reset GPU if a GPU Out-of-Memory occurred
                         if gpuDeviceCount > 0
                             try gpuDevice([]); catch, end
                         end
@@ -285,9 +326,11 @@ for c = 1:numel(conditions)
         
         for d = 1:nDatasets
             analysis = EXP.(cond).duration(dur_idx).dataset(d).analysis;
-            rank_all(d) = analysis.dim_estimations.rank;
-            mp_all(d)   = analysis.dim_estimations.mp;
-            map_all(d)  = analysis.dim_estimations.map;
+            if isfield(analysis, 'dim_estimations')
+                rank_all(d) = analysis.dim_estimations.rank;
+                mp_all(d)   = analysis.dim_estimations.mp;
+                map_all(d)  = analysis.dim_estimations.map;
+            end
         end
         
         STATS.(cond).dim_estimations.rank_mean(dur_idx) = mean(rank_all, 'omitnan');
@@ -320,19 +363,20 @@ for c = 1:numel(conditions)
             
             for d = 1:nDatasets
                 analysis = EXP.(cond).duration(dur_idx).dataset(d).analysis;
-                match_table = analysis.(method).Comp_latent_matching_corr{1};
-                
-                % Safely handle missing/failed runs where match_table is empty
                 match_vals = nan(1, param.N_F);
-                if istable(match_table) && ~isempty(match_table)
-                    colNames = match_table.Properties.VariableNames;
-                    if ismember('corr_value', colNames)
-                        match_vals = match_table.corr_value(:)';
+                
+                if isfield(analysis, method)
+                    match_table = analysis.(method).Comp_latent_matching_corr{1};
+                    if istable(match_table) && ~isempty(match_table)
+                        colNames = match_table.Properties.VariableNames;
+                        if ismember('corr_value', colNames)
+                            match_vals = match_table.corr_value(:)';
+                        end
                     end
+                    r2_all(d, :) = analysis.(method).spectral_R2(:, 1);
                 end
                 
                 matching_corr_all(d, :) = match_vals;
-                r2_all(d, :)            = analysis.(method).spectral_R2(:, 1);
             end
             
             mean_matching_corr(dur_idx) = mean(matching_corr_all(:), 'omitnan');
@@ -382,7 +426,7 @@ RESULTS.IntrinsicDim.map_std   = STATS.(conditions{1}).dim_estimations.map_std;
 save(fullfile(baseFolder, "RESULTS_DataLength_Benchmark.mat"), "EXP", "STATS", "RESULTS", "-v7.3");
 
 %% ----------------------------------------------------------
-% FINAL PLOTS
+% FINAL PLOTS (Fixed: Removed unrecognized 'MarkerFaceAlpha' from errorbar)
 % ----------------------------------------------------------
 cb_palette = [
     0.00, 0.45, 0.70;  % Blue
@@ -402,7 +446,7 @@ method_lines   = {'-', '--', '-.', ':', '-', '--'};
 lbls = {'1s', '5s', '10s', '1m', '16.7m', '1h', '3h'};
 
 % === FIGURE 1: Global Performance vs. Data Length ===
-fig1 = figure('Position', [100, 100, 1700, 600]);
+fig1 = figure('Position', [100, 100, 1700, 600], 'Visible', 'off');
 tiledlayout(1, 2, 'Padding', 'compact');
 sgtitle(sprintf('Performance vs. Data Length (k=%d)', k_range(1)), 'FontSize', 28, 'FontWeight', 'bold');
 
@@ -412,10 +456,11 @@ for m = 1:numel(methods)
     method = methods{m};
     m_idx = mod(m-1, length(method_markers)) + 1;
     l_idx = mod(m-1, length(method_lines)) + 1;
+    face_col = 0.6 * colors(m,:) + 0.4 * [1, 1, 1];
     errorbar(durations, STATS.(conditions{1}).(method).matching_corr_mean, STATS.(conditions{1}).(method).matching_corr_std, ...
         'LineStyle', method_lines{l_idx}, 'Marker', method_markers{m_idx}, ...
         'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors(m,:), ...
-        'MarkerFaceColor', colors(m,:), 'MarkerFaceAlpha', 0.6, 'DisplayName', method);
+        'MarkerFaceColor', face_col, 'DisplayName', method);
 end
 xticks(durations); xticklabels(lbls);
 xlabel('Data Length', 'FontSize', 22, 'FontWeight', 'bold');
@@ -429,10 +474,11 @@ for m = 1:numel(methods)
     method = methods{m};
     m_idx = mod(m-1, length(method_markers)) + 1;
     l_idx = mod(m-1, length(method_lines)) + 1;
+    face_col = 0.6 * colors(m,:) + 0.4 * [1, 1, 1];
     errorbar(durations, STATS.(conditions{1}).(method).r2_mean, STATS.(conditions{1}).(method).r2_std, ...
         'LineStyle', method_lines{l_idx}, 'Marker', method_markers{m_idx}, ...
         'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors(m,:), ...
-        'MarkerFaceColor', colors(m,:), 'MarkerFaceAlpha', 0.6, 'DisplayName', method);
+        'MarkerFaceColor', face_col, 'DisplayName', method);
 end
 xticks(durations); xticklabels(lbls);
 xlabel('Data Length', 'FontSize', 22, 'FontWeight', 'bold');
@@ -442,11 +488,11 @@ grid on; lgd2 = legend('Location', 'best'); lgd2.FontSize = 18;
 
 out_fig1 = fullfile(baseFolder, sprintf('DataLength_vs_Performance_k%d.png', k_range(1)));
 exportgraphics(fig1, out_fig1, 'Resolution', 600);
-close(fig1);
+% close(fig1);
 
 % === FIGURE 2: Spectral R2 Frequency Profile per Duration ===
 if nDurations > 1 && nDurations <= 8
-    fig2 = figure('Position', [150, 150, 1600, 900]);
+    fig2 = figure('Position', [150, 150, 1600, 900], 'Visible', 'off');
     nCols = ceil(sqrt(nDurations));
     nRows = ceil(nDurations / nCols);
     tiledlayout(nRows, nCols, 'Padding', 'compact', 'TileSpacing', 'compact');
@@ -459,12 +505,13 @@ if nDurations > 1 && nDurations <= 8
             method = methods{m};
             m_idx = mod(m-1, length(method_markers)) + 1;
             l_idx = mod(m-1, length(method_lines)) + 1;
+            face_col = 0.6 * colors(m,:) + 0.4 * [1, 1, 1];
             mu = STATS.(conditions{1}).(method).r2_per_latent_mean(dur_idx, :);
             sd = STATS.(conditions{1}).(method).r2_per_latent_std(dur_idx, :);
             errorbar(reshape(double(param.f_peak),[],1), reshape(double(mu),[],1), reshape(double(sd),[],1), ...
                      'LineStyle', method_lines{l_idx}, 'Marker', method_markers{m_idx}, ...
                      'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors(m,:), ...
-                     'MarkerFaceColor', colors(m,:), 'MarkerFaceAlpha', 0.6, 'DisplayName', method);
+                     'MarkerFaceColor', face_col, 'DisplayName', method);
         end
         xlabel('Peak Frequency (Hz)', 'FontSize', 22, 'FontWeight', 'bold'); 
         ylabel('Spectral R^2', 'FontSize', 22, 'FontWeight', 'bold');
@@ -475,11 +522,11 @@ if nDurations > 1 && nDurations <= 8
     end
     out_fig2 = fullfile(baseFolder, sprintf('FreqProfile_vs_DataLength_k%d.png', k_range(1)));
     exportgraphics(fig2, out_fig2, 'Resolution', 600);
-    close(fig2);
+    % close(fig2);
 end
 
 % === FIGURE 3: Data Length vs. Correlation per Latent Variable ===
-fig3 = figure('Position', [200, 200, 1600, 900]);
+fig3 = figure('Position', [200, 200, 1600, 900], 'Visible', 'off');
 nCols_lat = ceil(sqrt(param.N_F));
 nRows_lat = ceil(param.N_F / nCols_lat);
 tiledlayout(nRows_lat, nCols_lat, 'Padding', 'compact', 'TileSpacing', 'compact');
@@ -492,12 +539,13 @@ for f = 1:param.N_F
         method = methods{m};
         m_idx = mod(m-1, length(method_markers)) + 1;
         l_idx = mod(m-1, length(method_lines)) + 1;
+        face_col = 0.6 * colors(m,:) + 0.4 * [1, 1, 1];
         mu_f = STATS.(conditions{1}).(method).matching_corr_per_latent_mean(:, f);
         sd_f = STATS.(conditions{1}).(method).matching_corr_per_latent_std(:, f);
         errorbar(reshape(double(durations),[],1), reshape(double(mu_f),[],1), reshape(double(sd_f),[],1), ...
                  'LineStyle', method_lines{l_idx}, 'Marker', method_markers{m_idx}, ...
                  'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors(m,:), ...
-                 'MarkerFaceColor', colors(m,:), 'MarkerFaceAlpha', 0.6, 'DisplayName', method);
+                 'MarkerFaceColor', face_col, 'DisplayName', method);
     end
     xticks(durations); xticklabels(lbls);
     xlabel('Data Length', 'FontSize', 22, 'FontWeight', 'bold'); 
@@ -508,24 +556,27 @@ for f = 1:param.N_F
 end
 out_fig3 = fullfile(baseFolder, sprintf('DataLength_vs_MatchingCorr_PerLatent_k%d.png', k_range(1)));
 exportgraphics(fig3, out_fig3, 'Resolution', 600);
-close(fig3);
+% close(fig3);
 
 % === FIGURE 4: Intrinsic Dimensionality vs. Data Length ===
-fig4 = figure('Position', [300, 300, 900, 600]);
+fig4 = figure('Position', [300, 300, 900, 600], 'Visible', 'off');
 hold on;
 set(gca, 'XScale', 'log', 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 20, 'FontWeight', 'bold');
 yline(param.N_F, '--k', sprintf('True Latents (N=%d)', param.N_F), ...
     'LineWidth', 2.5, 'LabelHorizontalAlignment', 'left', 'FontSize', 18, 'FontWeight', 'bold', 'HandleVisibility', 'off');
 col_rank = cb_palette(8, :); col_mp = cb_palette(1, :); col_map = cb_palette(2, :);
+face_rank = 0.6 * col_rank + 0.4 * [1, 1, 1];
+face_mp   = 0.6 * col_mp   + 0.4 * [1, 1, 1];
+face_map  = 0.6 * col_map  + 0.4 * [1, 1, 1];
 
 errorbar(durations, RESULTS.IntrinsicDim.rank_mean, RESULTS.IntrinsicDim.rank_std, ...
-         '-o', 'LineWidth', 2.5, 'MarkerSize', 10, 'MarkerFaceColor', col_rank, 'MarkerFaceAlpha', 0.6, ...
+         '-o', 'LineWidth', 2.5, 'MarkerSize', 10, 'MarkerFaceColor', face_rank, ...
          'Color', col_rank, 'DisplayName', 'Matrix Rank');
 errorbar(durations, RESULTS.IntrinsicDim.mp_mean, RESULTS.IntrinsicDim.mp_std, ...
-         '-s', 'LineWidth', 2.5, 'MarkerSize', 10, 'MarkerFaceColor', col_mp, 'MarkerFaceAlpha', 0.6, ...
+         '-s', 'LineWidth', 2.5, 'MarkerSize', 10, 'MarkerFaceColor', face_mp, ...
          'Color', col_mp, 'DisplayName', 'Marchenko-Pastur');
 errorbar(durations, RESULTS.IntrinsicDim.map_mean, RESULTS.IntrinsicDim.map_std, ...
-         '-^', 'LineWidth', 2.5, 'MarkerSize', 10, 'MarkerFaceColor', col_map, 'MarkerFaceAlpha', 0.6, ...
+         '-^', 'LineWidth', 2.5, 'MarkerSize', 10, 'MarkerFaceColor', face_map, ...
          'Color', col_map, 'DisplayName', 'Velicer''s MAP');
 
 xticks(durations); xticklabels(lbls);
@@ -537,7 +588,7 @@ ylim([0 max_y + 2]); grid on;
 lgd_f4 = legend('Location', 'best'); lgd_f4.FontSize = 18;
 out_fig4 = fullfile(baseFolder, 'IntrinsicDimensionality_vs_DataLength.png');
 exportgraphics(fig4, out_fig4, 'Resolution', 600);
-close(fig4);
+% close(fig4);
 
 %% ---------------------------------------------------------------------
 %  HELPER FUNCTIONS
