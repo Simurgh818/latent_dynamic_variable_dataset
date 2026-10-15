@@ -492,37 +492,72 @@ exportgraphics(fig1, out_fig1, 'Resolution', 600);
 
 % === FIGURE 2: Spectral R2 Frequency Profile per Duration ===
 if nDurations > 1 && nDurations <= 8
-    fig2 = figure('Position', [150, 150, 1600, 900], 'Visible', 'off');
+    fig2 = figure('Position', [150, 150, 1600, 950], 'Color', 'w', 'Visible', 'off');
     nCols = ceil(sqrt(nDurations));
     nRows = ceil(nDurations / nCols);
-    tiledlayout(nRows, nCols, 'Padding', 'compact', 'TileSpacing', 'compact');
-    sgtitle('Spectral R^2 vs. Peak Frequency across Data Lengths', 'FontSize', 28, 'FontWeight', 'bold');
+    t2 = tiledlayout(nRows, nCols, 'Padding', 'normal', 'TileSpacing', 'compact');
     
     for dur_idx = 1:nDurations
         nexttile; hold on;
         set(gca, 'Box', 'on', 'LineWidth', 1.5, 'FontSize', 18, 'FontWeight', 'bold');
+        
         for m = 1:numel(methods)
             method = methods{m};
             m_idx = mod(m-1, length(method_markers)) + 1;
             l_idx = mod(m-1, length(method_lines)) + 1;
             face_col = 0.6 * colors(m,:) + 0.4 * [1, 1, 1];
+            
             mu = STATS.(conditions{1}).(method).r2_per_latent_mean(dur_idx, :);
             sd = STATS.(conditions{1}).(method).r2_per_latent_std(dur_idx, :);
+            
             errorbar(reshape(double(param.f_peak),[],1), reshape(double(mu),[],1), reshape(double(sd),[],1), ...
                      'LineStyle', method_lines{l_idx}, 'Marker', method_markers{m_idx}, ...
                      'LineWidth', 2.5, 'MarkerSize', 8, 'Color', colors(m,:), ...
                      'MarkerFaceColor', face_col, 'DisplayName', method);
         end
+        
         xlabel('Peak Frequency (Hz)', 'FontSize', 22, 'FontWeight', 'bold'); 
         ylabel('Spectral R^2', 'FontSize', 22, 'FontWeight', 'bold');
-        xticks(param.f_peak); ylim([0 1]);
-        title(sprintf('Duration: %d sec', durations(dur_idx)), 'FontSize', 22, 'FontWeight', 'bold');
+        xticks(param.f_peak); 
+        ylim([0 1]);
+        
+        % --- Format Duration Title in sec, min, or hours ---
+        dur_sec = durations(dur_idx);
+        if dur_sec < 60
+            dur_str = sprintf('%d sec', dur_sec);
+        elseif dur_sec < 3600
+            dur_min = dur_sec / 60;
+            if mod(dur_sec, 60) == 0
+                dur_str = sprintf('%d min', dur_min);
+            else
+                dur_str = sprintf('%.1f min', dur_min);
+            end
+        else
+            dur_hr = dur_sec / 3600;
+            if dur_hr == 1
+                dur_str = '1 hour';
+            elseif mod(dur_sec, 3600) == 0
+                dur_str = sprintf('%d hours', dur_hr);
+            else
+                dur_str = sprintf('%.1f hours', dur_hr);
+            end
+        end
+        
+        title(sprintf('Duration: %s', dur_str), 'FontSize', 22, 'FontWeight', 'bold');
         grid on; 
-        if dur_idx == 1, lgd_f2 = legend('Location', 'best'); lgd_f2.FontSize = 16; end
+        
+        if dur_idx == 1
+            lgd_f2 = legend('Location', 'best'); 
+            lgd_f2.FontSize = 16; 
+        end
     end
+    
+    % Placed after loop using tiledlayout handle so exportgraphics doesn't clip it
+    title(t2, 'Spectral R^2 vs. Peak Frequency across Data Lengths', 'FontSize', 28, 'FontWeight', 'bold');
+    
     out_fig2 = fullfile(baseFolder, sprintf('FreqProfile_vs_DataLength_k%d.png', k_range(1)));
     exportgraphics(fig2, out_fig2, 'Resolution', 600);
-    % close(fig2);
+    close(fig2);
 end
 
 % === FIGURE 3: Data Length vs. Correlation per Latent Variable ===

@@ -745,6 +745,197 @@ end
 
 % Re-save RESULTS.mat to capture the newly added stats_per_latent structure
 save(fullfile(local_results_dir, "RESULTS.mat"), "RESULTS", "-v7.3");
+%% ----------------------------------------------------------
+% 7. Paired Wilcoxon Signed-Rank Tests (Holm-Bonferroni Corrected)
+% ----------------------------------------------------------
+cond = conditions{1};
+bold_only_if_sig = true; % Set to false to bold the higher mean even when p_Holm >= 0.05
+alpha_lvl = 0.05;
+
+if all(ismember({'AE', 'PCA'}, methods)) && nDatasets > 1
+    ae_k    = nan(nDatasets, nK);  
+    pca_k   = nan(nDatasets, nK);
+    ae_f10  = nan(nDatasets, numel(param.f_peak)); 
+    pca_f10 = nan(nDatasets, numel(param.f_peak));
+    ki_10   = find(k_range == 10, 1);
+
+    for d = 1:nDatasets
+        % 1. Mean time-domain correlation across latents for each k (Fig 5A)
+        ae_k(d, :)  = mean(EXP.(cond).dataset(d).analysis.AE.direct_Component_Corr, 1, 'omitnan');
+        pca_k(d, :) = mean(EXP.(cond).dataset(d).analysis.PCA.direct_Component_Corr, 1, 'omitnan');
+        
+        % 2. Spectral R^2 per latent at k=10 (Fig 5B)
+        if ~isempty(ki_10)
+            ae_f10(d, :)  = EXP.(cond).dataset(d).analysis.AE.spectral_R2(:, ki_10)';
+            pca_f10(d, :) = EXP.(cond).dataset(d).analysis.PCA.spectral_R2(:, ki_10)';
+        end
+    end
+
+    % ==========================================================
+    % PART A: Time-Domain Correlation across k (Fig 5A)
+    % ==========================================================
+    p_raw_k = arrayfun(@(ki) signrank(ae_k(:, ki), pca_k(:, ki)), 1:nK);
+    [p_sort, idx] = sort(p_raw_k);
+    p_holm_k = zeros(size(p_raw_k));
+    p_holm_k(idx) = min(1, cummax(p_sort .* (nK - (0:nK-1))));
+
+    ae_mean_k  = mean(ae_k, 1, 'omitnan')';
+    pca_mean_k = mean(pca_k, 1, 'omitnan')';
+    ae_str_k   = strings(nK, 1);
+    pca_str_k  = strings(nK, 1);
+    winner_k   = strings(nK, 1);
+
+    fprintf('\n--- Fig 5A: AE vs. PCA Time-Domain Corr across k (n=%d) ---\n', nDatasets);
+    fprintf('%4s | %12s | %12s | %10s | %10s | %s\n', 'k', 'AE_Mean', 'PCA_Mean', 'p_raw', 'p_Holm', 'Higher (Wilcoxon)');
+    fprintf('%s\n', repmat('-', 1, 72));
+
+    for ki = 1:nK
+        is_sig = p_holm_k(ki) < alpha_lvl;
+        do_bold = is_sig || ~bold_only_if_sig;
+        
+        % Determine directional winner via Wilcoxon paired differences & mean
+        med_diff = median(ae_k(:, ki) - pca_k(:, ki), 'omitnan');
+        if ae_mean_k(ki) > pca_mean_k(ki) && med_diff >= 0
+            if is_sig, winner_k(ki) = "AE"; else, winner_k(ki) = "None (n.s.)"; end
+            if do_bold
+                ae_str_k(ki)  = sprintf('**%.5f**', ae_mean_k(ki));
+                pca_str_k(ki) = sprintf('%.5f', pca_mean_k(ki));
+                ae_cmd  = sprintf('   <strong>%.5f</strong>', ae_mean_k(ki));
+                pca_cmd = sprintf('     %.5f', pca_mean_k(ki));
+            else
+                ae_str_k(ki)  = sprintf('%.5f', ae_mean_k(ki));
+                pca_str_k(ki) = sprintf('%.5f', pca_mean_k(ki));
+                ae_cmd  = sprintf('     %.5f', ae_mean_k(ki));
+                pca_cmd = sprintf('     %.5f', pca_mean_k(ki));
+            end
+        else
+            if is_sig, winner_k(ki) = "PCA"; else, winner_k(ki) = "None (n.s.)"; end
+            if do_bold
+                ae_str_k(ki)  = sprintf('%.5f', ae_mean_k(ki));
+                pca_str_k(ki) = sprintf('**%.5f**', pca_mean_k(ki));
+                ae_cmd  = sprintf('     %.5f', ae_mean_k(ki));
+                pca_cmd = sprintf('   <strong>%.5f</strong>', pca_mean_k(ki));
+            else
+                ae_str_k(ki)  = sprintf('%.5f', ae_mean_k(ki));
+                pca_str_k(ki) = sprintf('%.5f', pca_mean_k(ki));
+                ae_cmd  = sprintf('     %.5f', ae_mean_k(ki));
+                pca_cmd = sprintf('     %.5f', pca_mean_k(ki));
+            end
+        end
+        fprintf('%4d | %s | %s | %10.5g | %10.5g | %s\n', ...
+            k_range(ki), ae_cmd, pca_cmd, p_raw_k(ki), p_holm_k(ki), winner_k(ki));
+    end
+
+    T_corr_k = table(k_range(:), ae_mean_k, pca_mean_k, ae_str_k, pca_str_k, ...
+        p_raw_k(:), p_holm_k(:), winner_k, ...
+        'VariableNames', {'k', 'AE_Mean', 'PCA_Mean', 'AE_Mean_Bold', 'PCA_Mean_Bold', 'p_raw', 'p_Holm', 'Significant_Winner'});
+
+    % ==========================================================
+    % PART B: Spectral R^2 at k=10 across Latents (Fig 5B)
+    % ==========================================================
+    if ~isempty(ki_10)
+        nF = numel(param.f_peak);
+        p_raw_f = arrayfun(@(f) signrank(ae_f10(:, f), pca_f10(:, f)), 1:nF);
+        [p_sort_f, idx_f] = sort(p_raw_f);
+        p_holm_f = zeros(size(p_raw_f));
+        p_holm_f(idx_f) = min(1, cummax(p_sort_f .* (nF - (0:nF-1))));
+
+        ae_mean_f  = mean(ae_f10, 1, 'omitnan')';
+        pca_mean_f = mean(pca_f10, 1, 'omitnan')';
+        ae_str_f   = strings(nF, 1);
+        pca_str_f  = strings(nF, 1);
+        winner_f   = strings(nF, 1);
+
+        fprintf('\n--- Fig 5B: AE vs. PCA Spectral R^2 at k=10 across Latents ---\n');
+        fprintf('%7s | %12s | %12s | %10s | %10s | %s\n', 'Freq_Hz', 'AE_Mean', 'PCA_Mean', 'p_raw', 'p_Holm', 'Higher (Wilcoxon)');
+        fprintf('%s\n', repmat('-', 1, 75));
+
+        for f = 1:nF
+            is_sig_f = p_holm_f(f) < alpha_lvl;
+            do_bold_f = is_sig_f || ~bold_only_if_sig;
+            med_diff_f = median(ae_f10(:, f) - pca_f10(:, f), 'omitnan');
+
+            if ae_mean_f(f) > pca_mean_f(f) && med_diff_f >= 0
+                if is_sig_f, winner_f(f) = "AE"; else, winner_f(f) = "None (n.s.)"; end
+                if do_bold_f
+                    ae_str_f(f)  = sprintf('**%.5f**', ae_mean_f(f));
+                    pca_str_f(f) = sprintf('%.5f', pca_mean_f(f));
+                    ae_cmd  = sprintf('   <strong>%.5f</strong>', ae_mean_f(f));
+                    pca_cmd = sprintf('     %.5f', pca_mean_f(f));
+                else
+                    ae_str_f(f)  = sprintf('%.5f', ae_mean_f(f));
+                    pca_str_f(f) = sprintf('%.5f', pca_mean_f(f));
+                    ae_cmd  = sprintf('     %.5f', ae_mean_f(f));
+                    pca_cmd = sprintf('     %.5f', pca_mean_f(f));
+                end
+            else
+                if is_sig_f, winner_f(f) = "PCA"; else, winner_f(f) = "None (n.s.)"; end
+                if do_bold_f
+                    ae_str_f(f)  = sprintf('%.5f', ae_mean_f(f));
+                    pca_str_f(f) = sprintf('**%.5f**', pca_mean_f(f));
+                    ae_cmd  = sprintf('     %.5f', ae_mean_f(f));
+                    pca_cmd = sprintf('   <strong>%.5f</strong>', pca_mean_f(f));
+                else
+                    ae_str_f(f)  = sprintf('%.5f', ae_mean_f(f));
+                    pca_str_f(f) = sprintf('%.5f', pca_mean_f(f));
+                    ae_cmd  = sprintf('     %.5f', ae_mean_f(f));
+                    pca_cmd = sprintf('     %.5f', pca_mean_f(f));
+                end
+            end
+            fprintf('%7g | %s | %s | %10.5g | %10.5g | %s\n', ...
+                param.f_peak(f), ae_cmd, pca_cmd, p_raw_f(f), p_holm_f(f), winner_f(f));
+        end
+
+        T_spec_f10 = table(param.f_peak(:), ae_mean_f, pca_mean_f, ae_str_f, pca_str_f, ...
+            p_raw_f(:), p_holm_f(:), winner_f, ...
+            'VariableNames', {'Freq_Hz', 'AE_Mean', 'PCA_Mean', 'AE_Mean_Bold', 'PCA_Mean_Bold', 'p_raw', 'p_Holm', 'Significant_Winner'});
+    else
+        T_spec_f10 = table();
+    end
+
+    % ==========================================================
+    % SAVE OUTPUTS TO local_results_dir
+    % ==========================================================
+    writetable(T_corr_k, fullfile(local_results_dir, 'Wilcoxon_TimeDomain_Corr_vs_k.csv'));
+    if ~isempty(T_spec_f10)
+        writetable(T_spec_f10, fullfile(local_results_dir, 'Wilcoxon_SpectralR2_k10.csv'));
+    end
+
+    RESULTS.wilcoxon_stats.TimeDomain_Corr_vs_k = T_corr_k;
+    RESULTS.wilcoxon_stats.SpectralR2_k10       = T_spec_f10;
+    save(fullfile(local_results_dir, 'Wilcoxon_SignedRank_Stats.mat'), 'T_corr_k', 'T_spec_f10');
+    save(fullfile(local_results_dir, 'RESULTS.mat'), 'RESULTS', '-v7.3');
+
+    % Also save an HTML file with native bolding for direct copy-paste into Word
+    html_file = fullfile(local_results_dir, 'Wilcoxon_SignedRank_Tables.html');
+    fid = fopen(html_file, 'w');
+    if fid ~= -1
+        fprintf(fid, '<html><head><style>table{border-collapse:collapse;font-family:Arial;margin-bottom:20px;} th,td{border:1px solid #999;padding:6px 12px;text-align:center;}</style></head><body>\n');
+        fprintf(fid, '<h3>Fig 5A: AE vs. PCA Time-Domain Correlation across k (Paired Wilcoxon Signed-Rank, Holm-Corrected)</h3>\n');
+        fprintf(fid, '<table><tr><th>k</th><th>AE Mean</th><th>PCA Mean</th><th>p_raw</th><th>p_Holm</th><th>Significant Winner</th></tr>\n');
+        for ki = 1:nK
+            ae_h  = regexprep(ae_str_k(ki), '\*\*(.*?)\*\*', '<b>$1</b>');
+            pca_h = regexprep(pca_str_k(ki), '\*\*(.*?)\*\*', '<b>$1</b>');
+            fprintf(fid, '<tr><td>%d</td><td>%s</td><td>%s</td><td>%.5g</td><td>%.5g</td><td>%s</td></tr>\n', ...
+                k_range(ki), ae_h, pca_h, p_raw_k(ki), p_holm_k(ki), winner_k(ki));
+        end
+        fprintf(fid, '</table>\n');
+        if ~isempty(T_spec_f10)
+            fprintf(fid, '<h3>Fig 5B: AE vs. PCA Spectral R<sup>2</sup> at k=10 across Latents</h3>\n');
+            fprintf(fid, '<table><tr><th>Freq (Hz)</th><th>AE Mean</th><th>PCA Mean</th><th>p_raw</th><th>p_Holm</th><th>Significant Winner</th></tr>\n');
+            for f = 1:nF
+                ae_h  = regexprep(ae_str_f(f), '\*\*(.*?)\*\*', '<b>$1</b>');
+                pca_h = regexprep(pca_str_f(f), '\*\*(.*?)\*\*', '<b>$1</b>');
+                fprintf(fid, '<tr><td>%g</td><td>%s</td><td>%s</td><td>%.5g</td><td>%.5g</td><td>%s</td></tr>\n', ...
+                    param.f_peak(f), ae_h, pca_h, p_raw_f(f), p_holm_f(f), winner_f(f));
+            end
+            fprintf(fid, '</table>\n');
+        end
+        fprintf(fid, '</body></html>\n');
+        fclose(fid);
+    end
+    fprintf('\nSaved Wilcoxon tables (.mat, .csv, .html) to: %s\n', local_results_dir);
+end
 %% ---------------------------------------------------------------------
 %  HELPER FUNCTIONS
 % ---------------------------------------------------------------------
